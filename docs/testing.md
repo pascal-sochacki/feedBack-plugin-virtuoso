@@ -2,7 +2,7 @@
 
 > On-demand companion to `CLAUDE.md` Part 1 "Development workflow". The workflow summary, the `npm test` command, and the **per-system growth rule** stay in `CLAUDE.md` (always-loaded); this file holds the bulky per-suite reference so it isn't in the session context budget every time. **Read this before adding or changing a suite.**
 
-Source-only native-module tests run with `node --test tests/*.mjs` (currently the pitch leaf's five contract tests). Narrow JSDoc/checkJs is developer-only `noEmit`; commands and migration validation are in `docs/native-modules.md`. Existing Python backend tests remain under `tests/`. Runtime verification is behavioural, via the Playwright smoke suites in the `run-virtuoso` skill, run against a live host — start it with `launch.ps1` first. Node tests do not certify host loading, DOM, renderer, audio or navigation behavior.
+Source-only native-module tests run with `node --test tests/*.mjs` (18 tests: pitch and scale leaves, core characterization and Lab packaging). Narrow JSDoc/checkJs is developer-only `noEmit`; commands and migration validation are in `docs/native-modules.md`. Existing Python backend tests remain under `tests/`. Runtime verification is behavioural, via the Playwright smoke suites in the `run-virtuoso` skill, run against a live host — start it with `launch.ps1` first. Node tests do not certify host loading, DOM, renderer, audio or navigation behavior.
 
 ## Running them
 
@@ -13,6 +13,23 @@ equivalence, repeatable generation). These are source-only packaging-system
 tests, not a replacement for any live-host smoke suite. Generate the manual
 test artifact with `node scripts/cut-lab.mjs`; installation/limitations are in
 `docs/virtuoso-lab.md`.
+
+The core-system corpus covers 71 deterministic cases (all 28 scales, seven
+position-box tuning/string-count configs, four resolved guitar 3NPS configs,
+representative theory/rhythm/technique and all 25 sessions) in
+isolated real Node ESM subprocesses with generation host-access traps. Complete
+raw output hashes and small readable summaries were captured from committed
+pre-extraction `c37dc632`; ordinary tests never regenerate or read git history.
+Only maintainers explicitly reviewing new behavior should run
+`node scripts/capture-core-fixtures.mjs <committed-pre-extraction-ref>`.
+Startup console.assert failures throw in the runner; a durable control forces
+the first real entry assertion false and requires exit 1 with no corpus output.
+The note-time negative control mutates a raw exercise before hashing by +0.001 s,
+then restores its readable summary so rejection proves the SHA gate alone.
+Baseline provenance, host-stub/loader limits and repeatable checks are documented
+in `docs/native-modules.md`. Existing reusable CI workflow is unchanged; the
+source corpus command above is ready to add to a source-check job, not a claim
+that the shared workflow already runs it.
 
 - `npm test` (from `.claude/skills/run-virtuoso/`) runs **all nineteen** suites **in parallel via `run-all.mjs`** (~20s wall; dev-ops audit 2026-06-05: suites are independent chromium processes, host-read-only, so concurrency 4 is safe; suites are *discovered* by the `smoke-*.mjs` glob so a new one can't be silently missed; a failing suite's full output is replayed at the end).
 - `npm run test:seq` keeps the old sequential chain for debugging suspected cross-suite interference.

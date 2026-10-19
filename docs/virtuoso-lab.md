@@ -4,9 +4,10 @@
 navigation label: **Virtuoso (Lab)**. A supported released desktop version has
 not yet been certified. The running host must understand `scriptType: "module"`
 AND serve the plugin's `src/**` with JavaScript MIME. An older host will fail at
-`import` or return 404 for the pitch module. Version: **0.2.7-lab.1**.
+`import` or return 404 for a core module. Version: **0.2.8-lab.1**.
 
-This fork packages the native-module prototype from upstream Virtuoso v0.2.6.
+This fork packages the native-module prototype based on upstream Virtuoso v0.2.6,
+with source version 0.2.8 and move-only pitch and scale-interval modules.
 It **does not include the separate Learn-mode work** and is not an official
 stable release. Original project: https://github.com/got-feedBack/feedBack-plugin-virtuoso.
 Virtuoso remains licensed **AGPL-3.0-only**; see `LICENSE` and retained asset
@@ -25,7 +26,8 @@ licenses/attribution under `assets/` and `static/`.
    The installed folder basename may differ from manifest ID `virtuoso_lab`.
 3. Fully restart FeedBack after installation. Enable **Virtuoso (Lab)** if needed,
    restart again, and open its navigation entry. Confirm
-   `/api/plugins/virtuoso_lab/status` and successful loading of `src/core/pitch.js`.
+   `/api/plugins/virtuoso_lab/status` and successful loading of `src/core/pitch.js`
+   and `src/core/scale-intervals.js`.
 
 Installation is user-driven; publication does not install or start anything on
 Windows. Back up important data before experimental testing.
@@ -39,7 +41,8 @@ depend on the original source layout are intentionally omitted from this runtime
 edition; publication does not imply browser/desktop certification.
 
 Extraction and packaging tooling are preserved on the author's **local-only**
-`refactor/native-modules` source branch, not published as a remote branch. Do not
+`dev/modular-source` source branch (the earlier slice also exists on local
+`refactor/native-modules`), not published as remote branches. Do not
 try to check out that branch from this URL or run the cut tool on this already
 namespaced runtime: applying it twice would rename identities twice.
 
@@ -76,11 +79,13 @@ The generator performs no commit, push, migration or installation.
    the bundled stable plugin.
 3. The result must be `plugins\virtuoso_lab\plugin.json`, with `screen.js`,
    `screen.html`, `routes.py`, `settings.html`, `src\package.json`,
-   `src\core\pitch.js`, `static\` and `assets\` in that same plugin folder.
+    `src\core\pitch.js`, `src\core\scale-intervals.js`, `static\` and `assets\`
+    in that same plugin folder.
    Avoid `plugins\virtuoso_lab\virtuoso_lab\plugin.json` nesting.
 4. Restart FeedBack, enable **Virtuoso (Lab)** if needed, restart again and open
    its navigation entry. Check `/api/plugins/virtuoso_lab/status` reports OK.
-   Browser DevTools should show a module entry and successful `src/core/pitch.js`.
+    Browser DevTools should show a module entry and successful loads of both
+    `src/core/pitch.js` and `src/core/scale-intervals.js`.
 5. To update: fully quit, replace only the Lab runtime folder with a freshly
    generated folder, then restart/reload. To remove: disable Lab, quit, remove
    only `virtuoso_lab`, and restart. Original Virtuoso data stays unchanged.
@@ -113,11 +118,18 @@ not renamed or replaced with private fake host APIs.
 
 ## Acceptance status (2026-10-19)
 
-Source-only validation: 11 Node tests (pitch and packaging), real module import,
+Source-only validation: **18/18 Node tests** (pitch, scale intervals,
+characterization and packaging), real module import,
 manifest/source graph/ZIP integrity, private audio globals, Python AST + SQLite
-schema/endpoints, repeatability and committed-baseline comparison (40 public keys,
-91 debug keys, byte-identical outputs for all 25 built-in sessions). Syntax,
+schema/endpoints, repeatability and a deterministic **71-case** corpus captured
+from committed pre-extraction source `c37dc632` (40 public keys, 91 debug keys,
+all 28 scales, genuine guitar 3NPS and position-box setup coverage, representative
+generation variants and all 25 built-in sessions). Raw exercise SHA-256 values
+match in source and isolated Lab imports; fatal startup-assert and raw note-time
+mutation controls pass. Syntax,
 narrow JSDoc checking, brand hygiene and whitespace gates are checked as well.
+The user's earlier installed Windows Lab “seems to work” report is preliminary
+functional smoke only, not regression certification for this update.
 The host smoke runner cannot reach a host on port 8765; browser smoke and Python
 route-runtime tests need host/dependencies unavailable in this environment.
 Real installed-host module loading/cache/navigation, renderers, transport,

@@ -51,6 +51,49 @@ readout** and mints the **Gold rung** for the host's career passports.
 
 ## Open threads
 
+- **STOPPED HERE (2026-10-19) — second native-module slice, source commit and Lab update authorized:**
+  source manifest/header **0.2.8**, generated **0.2.8-lab.1**. User's installed
+  Windows Lab “seems to work” is preliminary **user-reported functional smoke**,
+  NOT all-render/audio/detection regression passed or release-floor certification.
+  Personal-fork Lab `main` verified at `62f438b62800221ac802e454e93cedc088c0d6a0`
+  before publication. Update to **0.2.8-lab.1** is planned after this local source
+  commit, regeneration and runtime review; push and remote verification are not
+  yet complete in this source snapshot. Source branch `dev/modular-source`
+  stays local-only; source `main` and dirty sibling `refactor/native-modules`
+  remain untouched. Only personal-fork `main` may be pushed, via nonforce SSH.
+  - **Tests BEFORE extraction:** captured committed pre-task `c37dc632` through
+    complete real ESM entry/leaves; all 13 then-existing Node tests passed.
+    Durable compact corpus replaces ephemeral comparisons: **67 cases**, all
+    28 scales + 25 sessions + seven setup/string-count configs + Drop-C + random
+    sequence/arpeggio/Connect/odd-meter/herta/key-cycle. Full raw exercise hashes,
+    readable summaries, seeded Math.random/fixed Date, isolated subprocesses,
+    synchronous 40 public/91 debug keys/startup guards and generation host traps.
+  - **Move only:** `SCALE_INTERVALS` → **30-line**
+    `src/core/scale-intervals.js`, exact ordinary mutable table/arrays; static
+    entry import, acyclic pure leaf, no chord/timing/tuning/shapes/state redesign.
+    Narrow noEmit checkJs now covers both leaves. Startup/global order unchanged.
+  - **After review corrections:** **18/18** `node --test tests/*.mjs`; exact real-import table/mode/
+    identity/purity tests; generated Lab graph/ZIP and corrected **71-case** corpus
+    in isolated Lab namespace. Runner console.assert failures are now fatal;
+    durable forced first-entry-assertion control requires exit 1/empty stdout.
+    Earlier startup assertions merely logged failures. Raw +0.001 s note mutation
+    now happens before hashing; restoring its summary proves SHA-only rejection
+    (earlier control mutated only the summary). Seven setup cases are honestly
+    position-box coverage; four new guitar 3NPS cases carry resolved shapeNotes,
+    numeric shape/fret bounds and assert real three-frets/string plus fingering.
+    Fixture explicitly recaptured from original committed pre-task
+    `c37dc632cd0dcfca1576ff82ac238c72e48cae42`, never extracted source.
+    ESM syntax, cached TypeScript 5.9.3 checkJs, brand/whitespace checks pass.
+    Artifact regenerated at sibling `virtuoso-lab-dist/virtuoso_lab/` + ZIP.
+  - **Limits / next:** browser module loader/DOM/render/audio/transport/verifier/
+    Windows DI remain owed; one seed, representative configs not all variants.
+    No deps installed, host started or dirty sibling touched. Local source commit
+    and generated runtime publication are authorized; this records the plan,
+    not a completed push or Windows test. Next self-contained move: chord formulas,
+    then timing helpers; broader tuning/shapes later. Fixture maintenance command,
+    capture provenance, dependency map and CI-ready test command:
+    `docs/native-modules.md` / `docs/testing.md`.
+
 - **Experimental Lab fork publication authorized (2026-10-19):** user explicitly authorized a safe nonforce push of generated `virtuoso_lab` v0.2.7-lab.1 runtime to `https://github.com/pascal-sochacki/feedBack-plugin-virtuoso.git` `main` for Git Plugin Manager installation. This overrides the publication hold below ONLY for isolated experimental Lab on the personal fork, NOT upstream/stable promotion or host certification. Preserve complete source/tests/docs on local committed `refactor/native-modules`, do not push that branch, change local `main`, touch dirty Learn, or push upstream. Publication root is the editable plain-JS/Python/HTML runtime plus licensed assets, accurate README and basic Git config; stale upstream tooling/docs/CI are omitted. Packaging source branch is local-only, not remotely accessible. Push/remote verification remain owed until publication completes; browser/desktop/DI and Python route-runtime limitations below remain unchanged.
 
 - **Lab artifact prepared (2026-10-19), NOT host-certified:** `scripts/cut-lab.mjs`

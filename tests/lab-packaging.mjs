@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
 import { after, test } from 'node:test';
 import { buildLab, REPO, transformRuntime } from '../scripts/cut-lab.mjs';
+import { characterize, compareCorpus } from './helpers/characterization.mjs';
 
 const approvedTemp = join(tmpdir(), 'opencode');
 const temp = existsSync(approvedTemp) ? approvedTemp : tmpdir();
@@ -28,8 +29,14 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
   assert.equal(JSON.parse(read('src/package.json')).type, 'module');
   const pitch = await import(pathToFileURL(join(artifact.root, 'src/core/pitch.js')));
   assert.equal(pitch.midiToFreq(69), 440);
+  const sourceScales = await import('../src/core/scale-intervals.js');
+  const labScales = await import(pathToFileURL(join(artifact.root, 'src/core/scale-intervals.js')));
+  assert.deepEqual(labScales.SCALE_INTERVALS, sourceScales.SCALE_INTERVALS);
+  assert.notEqual(labScales.SCALE_INTERVALS, sourceScales.SCALE_INTERVALS);
+  assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/scale-intervals\.js['"]/);
   const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
   assert.match(entries, /virtuoso_lab\/src\/core\/pitch.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/scale-intervals.js/);
   assert.match(entries, /virtuoso_lab\/assets\/thumb.png/);
   assert.match(entries, /virtuoso_lab\/static\/wafonts\/WebAudioFontPlayer.js/);
   assert.doesNotMatch(entries, /node_modules|\.git\/|plugin_data\/|\.claude/);
@@ -92,35 +99,8 @@ assert {'virtuoso_lab_presets', 'virtuoso_lab_tunings'} <= {r[0] for r in db.exe
 `, join(artifact.root, 'routes.py')]);
 });
 
-test('real Lab entry retains startup guards and baseline session outputs', async () => {
-  const baseline = execFileSync('git', ['show', '8436194ce45d745902513b2c576031bd2e4db1c9:screen.js'], { cwd: REPO, encoding: 'utf8', maxBuffer: 8 << 20 });
-  const storage = { getItem: () => null, setItem() {} };
-  const document = { readyState: 'loading', addEventListener() {}, getElementById: () => null };
-  const sandbox = { console, document, localStorage: storage, __SS_HARNESS__: true, addEventListener() {} };
-  sandbox.window = sandbox;
-  vm.runInNewContext(baseline, sandbox);
-  const saved = new Map(['window', 'document', 'localStorage', '__VIRTUOSO_LAB_HARNESS__'].map(k => [k, Object.getOwnPropertyDescriptor(globalThis, k)]));
-  try {
-    globalThis.window = { addEventListener() {} };
-    globalThis.document = document;
-    globalThis.localStorage = storage;
-    globalThis.__VIRTUOSO_LAB_HARNESS__ = true;
-    await import(pathToFileURL(join(artifact.root, 'screen.js')));
-    const lab = window.VirtuosoLab;
-    assert.ok(lab);
-    assert.equal(window.Virtuoso, undefined);
-    assert.deepEqual(Object.keys(lab).sort(), Object.keys(sandbox.Virtuoso).sort());
-    assert.deepEqual(Object.keys(globalThis.__virtuoso_lab_debug).sort(), Object.keys(sandbox.__ss_debug).sort());
-    for (const [id, session] of Object.entries(lab.BUILT_IN_SESSIONS)) {
-      assert.equal(JSON.stringify(lab.generateSession(session)), JSON.stringify(sandbox.Virtuoso.generateSession(sandbox.Virtuoso.BUILT_IN_SESSIONS[id])), id);
-    }
-    assert.equal(lab.progressLoad().xpTotal, sandbox.Virtuoso.progressLoad().xpTotal);
-  } finally {
-    for (const [key, descriptor] of saved) {
-      if (descriptor) Object.defineProperty(globalThis, key, descriptor); else delete globalThis[key];
-    }
-    delete globalThis.__virtuoso_lab_debug;
-  }
+test('isolated real Lab ESM entry retains startup guards and committed core corpus', () => {
+  compareCorpus(characterize(artifact.root));
 });
 
 test('regeneration replaces only marked output and is repeatable', () => {

@@ -68,7 +68,7 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
       write(file, text);
     } else write(file, bytes);
   }
-  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js']) {
+  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js', 'src/core/scale-intervals.js']) {
     if (!existsSync(join(root, file))) throw new Error('Missing module runtime: ' + file);
   }
   write('README.md', readFileSync(join(REPO, 'docs/virtuoso-lab.md')));

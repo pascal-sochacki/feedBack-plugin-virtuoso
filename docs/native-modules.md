@@ -1,7 +1,9 @@
 # Native modules — dependency map and staged extraction
 
-**WIP / NOT RELEASE-READY (2026-10-19).** This branch opts into native modules,
-but no running supported host or installed desktop has been certified. Do not
+**WIP / NOT RELEASE-READY (2026-10-19).** This branch opts into native modules.
+The user reports the installed Windows Lab “seems to work”: preliminary
+user-reported functional smoke ONLY, not renderer/audio/detection regression
+certification or a verified supported-host floor. Do not
 merge to upstream's published default branch or distribute this as a stable update yet.
 User authorization separately permits experimental isolated Lab runtime publication
 to the personal fork's `main` for Git Plugin Manager installation. This is not
@@ -12,9 +14,9 @@ host certification or upstream/stable promotion; full source stays committed loc
 ### Separately installable Lab (2026-10-19)
 
 `node scripts/cut-lab.mjs` generates the **current working tree**, including the
-pitch extraction, into sibling `virtuoso-lab-dist/virtuoso_lab/` and
+pitch and scale-interval extraction, into sibling `virtuoso-lab-dist/virtuoso_lab/` and
 `virtuoso-lab-dist/virtuoso_lab.zip`. Manifest ID/screen `virtuoso_lab`, label
-`Virtuoso (Lab)`, version/header `0.2.7-lab.1`. Source retains upstream identity;
+`Virtuoso (Lab)`, version/header `0.2.8-lab.1`. Source retains upstream identity;
 no fork-wide source rewrite, migration, original-install or user settings changes.
 The generator itself does not commit or push; separately authorized publication
 places generated runtime at the personal fork's repository root. `src/` and its
@@ -59,14 +61,16 @@ tests, all browser smoke and Windows DI remain **BLOCKED / owed**.
 - Plugin baseline: committed `8436194ce45d745902513b2c576031bd2e4db1c9`,
   v0.2.6, ~27,215 lines in `screen.js`. The dirty `feat/learn-mode` checkout
   was not used as source and is not part of this branch.
-- Slice version: v0.2.7 in both `plugin.json` and `VIRTUOSO_VERSION`.
+- Current slice version: v0.2.8 in both `plugin.json` and `VIRTUOSO_VERSION`.
   This is a branch-local reservation, not a release. If Learn or another branch
   lands first, integrate on a fresh branch, reconcile the shared root-entry
   edits, and choose a new version from the then-current trunk. Do not overwrite
   Learn's v0.3.0 or merge its uncommitted changes as part of extraction.
-- Only `NOTE_NAMES`, `NOTE_ALIASES`, `pcName`, and `midiToFreq` move to
-  `src/core/pitch.js`. No generator, renderer, audio, state, or lifecycle redesign.
-- Root `screen.js` statically imports that dependency, then executes the original
+- `NOTE_NAMES`, `NOTE_ALIASES`, `pcName`, and `midiToFreq` live in
+  `src/core/pitch.js`; `SCALE_INTERVALS` now lives in the 30-line
+  `src/core/scale-intervals.js`. No chord/timing/tuning/shape move in this slice;
+  no generator, renderer, audio, state, or lifecycle redesign.
+- Root `screen.js` statically imports those dependencies, then executes the original
   strict IIFE. The host awaits the static graph; there is no asynchronous boot
   bridge, custom injection, build, or dynamic-import race.
 
@@ -108,7 +112,7 @@ used to verify the anchors and first slice.
 | Candidate / layer | Inputs and observed dependents | Extraction constraint |
 | --- | --- | --- |
 | **Pitch leaf (done)**: names/aliases 58–59; helpers 4347–4348 | `pcName` reads only `NOTE_NAMES`; `midiToFreq` only Math. Alias users: shape selection 3269/3327, `scalePcs` 6477, chord roots/builders 6800/7024/9734+, notation 13801+, tuning/anchor adaptation 22518+, tuner 23821/24078. | No imports, host IO or closure state. Keep exact values, sharp spelling, A440 formula and numeric edge behavior. Alias table is also on `__ss_debug`; preserve its object identity and ordinary mutable-object contract, do not freeze it during a move. |
-| Theory tables, §1 (next) | `SCALE_INTERVALS` 172–200 → scale pitch classes, shape resolver, chord-scale/harmony. `CHORD_FORMULAS` 210–231 → template-quality gate, chord-depth engine, voicing/arpeggios/backing. | Separate scale and chord-data moves are possible; retain intervals above octave (14/17/21). Do not move `STRING_COLORS`, scheduler or detector constants into theory. |
+| **Scale intervals (done)** / chord formulas (next), §1 | `src/core/scale-intervals.js` → entry scale pitch classes, shape resolver, chord-scale/harmony. `CHORD_FORMULAS` remains in entry → template-quality gate, chord-depth engine, voicing/arpeggios/backing. | Scale leaf has no imports or IO; preserves all 28 arrays and ordinary mutable references. Next chord move must retain intervals above octave (14/17/21). Do not move colors, scheduler or detector constants into theory. |
 | Instrument/tuning data and pure helpers | `STRING_SETUPS`, `TUNING_PRESETS`, `TUNING_TO_SETUP` 84–170 → open-MIDI config, shapes, sessions AND DOM setup/tuning sync. | Split data from storage/UI; preserve low-string-first indexes, offset intent tags, per-config overrides and bass/guitar distinctions. |
 | Shape layer, §4 / interleaved helpers | Unified `CAGED_SHAPES` 2780+; `resolveCAGEDShape` 3003; 3NPS/Open resolvers → scale/arpeggio builders and form position UI. Depends on theory + tuning/pitch helpers. | Keep unified shape table; move pure resolver cluster only after its transitive helpers. Keep no-unison startup asserts at their original point until explicitly initialized by boot. DOM selector helpers in the span are NOT core. |
 | Timing / seed / chart utility leaves | `parseMeter` 4361; `secondsPerDivision`, `rhythmSteps`, `measureSeconds` 6478–6507; RNG helpers near 6610; beats/anchors/fill helpers → exercise/session builders, backing and shell clock. | Next small helper slices, not one general-purpose util dump. `chartBeatSeconds` consumes bundle metadata; keep renderer/display helpers out of core timing. |
@@ -198,6 +202,7 @@ Node's version-dependent `.js` syntax detection.
 node --test tests/*.mjs
 node --input-type=module --check < screen.js
 node --check src/core/pitch.js
+node --check src/core/scale-intervals.js
 npm exec --yes --package=typescript@5.9.3 -- tsc -p tsconfig.core.json
 node scripts/check-brand-hygiene.mjs
 git diff --check
@@ -208,6 +213,87 @@ served/transpiled TypeScript. The narrow config excludes the monolith, tests,
 browser globals and sampler blobs; it needs no Node typings. The pinned ephemeral
 checker avoids dependency/lockfile churn; a maintainer can instead use an already
 installed compatible `tsc`. No test subject uses source text slicing.
+
+### Durable characterization before the second extraction
+
+The old in-memory 25-session/API comparison below was ephemeral evidence.
+It is superseded by `tests/core-characterization.mjs` and the packaging suite's
+shared corpus, originally **67 cases**, captured from **committed c37dc632**, not from two
+copies of the modified working tree. Capture ran and all 13 then-existing Node
+tests passed **before** moving the scale table; after extraction all **17** pass.
+Review correction expanded it to **71 cases** and **18 passing tests**. The
+compact fixture was explicitly recaptured using the corrected harness from
+**c37dc632cd0dcfca1576ff82ac238c72e48cae42** (original pre-task entry with inline
+scale table, never modified/extracted source). Normal tests need no historical git ref.
+
+```sh
+# Explicit maintenance command ONLY; review fixture diffs, never run in CI:
+node scripts/capture-core-fixtures.mjs c37dc632cd0dcfca1576ff82ac238c72e48cae42
+# Ordinary local/CI regression command (no fixture writes):
+node --test tests/*.mjs
+```
+
+`tests/fixtures/core-characterization.json` pins SHA-256 of the complete raw
+`JSON.stringify` exercise for 28 scales, seven built-in string setups (4–8
+strings) as position boxes, four genuine guitar 3NPS runs (6-string standard,
+Drop D, 7- and 8-string), structural Drop-C tuning, random/thirds sequence, extended arpeggios,
+Connect chord scales, 7/8 gallop, herta, fourths key-cycle and **all 25 sessions**.
+Small readable duration/count/tuning/open-MIDI summaries plus three two-note
+examples make diffs inspectable without giant snapshots. Hashes retain every
+note time, flag, tuning, timeline and session value, not rounded comparisons.
+**No version exclusion:** exercise `version:1` is a schema contract; manifest/header
+0.2.8 is not present in exercise output and therefore needs no normalization.
+
+Every run uses a fresh Node subprocess/native ESM environment, seeded LCG
+`Math.random` (0x51ca1e, reset per case/replay), fixed Date/Date.now and real
+imports of complete source leaves. Only the root's static import URL wiring is
+rewritten for a data-URL ESM entry (baseline leaves read via `git show`; working
+leaves imported from actual file URLs). No regex function extraction or sliced
+pure-module subject. The current captured baseline has dependency-free leaves;
+this capture helper is not a general historical graph loader.
+
+DOM boot is deferred with only readyState/listener/null-element/storage stubs;
+no fake host public API. After synchronous public/debug publication and startup
+guards, throwing getters trap host/DOM/storage/fetch for all generation calls.
+The runner now overrides console.assert to throw on false: Node's default only
+logged failures, so the earlier "startup guards passed" claim was not enforced.
+A durable control forces the first actual startup assertion false and requires
+exit 1 and empty stdout. Browser console/assert behavior is unchanged.
+Tests pin the 40 public / 91 debug key lists, synchronous schema, finite nonempty
+chart output, note string bounds, setup tuning counts, deterministic replay and
+adjacent MIDI no-unison for **one-way scalar runs**. Genuine 3NPS configs carry
+numeric shape 1, resolver notes/display name/fret bounds just as readConfig does;
+tests require the generated run's first pass and fingering to match the resolver
+and three distinct frets on every string. The original seven setup cases omitted
+shapeNotes and silently used position boxes; they are now labeled as position
+coverage, with four additional guitar-only 3NPS cases. Bass stays position-based
+as the real form deliberately does not resolve guitar shapes for bass.
+Repeated turns, pedal drills,
+chords and session seams are deliberately not misclassified as scalar failures.
+Fresh leaf import traps, exact 28-table values, ordered/unique semitones, diatonic
+mode rotations and shared mutable object/array identity are direct-import tests.
+
+Generated Lab executes the same corpus in its own process and compares to the
+committed fixture; source/Lab table values match but identities are distinct.
+ZIP and static graph tests require the new leaf. The existing runtime allowlist
+already includes untracked `src` leaves; only its required-file guard expanded.
+The corrected durable negative control mutates a real generated first note by
++0.001 s **before serialization/hashing**, verifies the SHA changed, then restores
+the readable firstNotes summary to prove comparison rejects the SHA difference
+alone. Previously it only mutated the summary after hashing, so the earlier
+raw-output negative-control claim was inaccurate. Final source is not mutated.
+
+Limitations: one RNG seed and representative configs, not exhaustive inputs or
+all template variants; public **keys**, not every shell API behavior. Data-URL
+Node loading cannot certify browser source-route MIME/module caching/load order,
+DOM binding, render/audio/transport/detection/real DI. Narrow checkJs (both
+leaves), module syntax, hygiene and generation pass without installing packages.
+No host started or dependencies installed. The reviewed source is now authorized
+for a local-only `dev/modular-source` commit and regenerated 0.2.8-lab.1 runtime
+update on personal-fork `main` via nonforce SSH. Publication and remote
+verification remain planned at this source snapshot; dirty sibling and source
+`main` must remain unchanged. This authorization does not certify Windows/host
+behavior or permit upstream/stable publication.
 
 2026-10-19 validation:
 
