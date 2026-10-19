@@ -25,9 +25,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-PLUGIN_ID = "virtuoso"
+PLUGIN_ID = "virtuoso_lab"
 SCHEMA_VERSION = 1
-TEMP_ROOT_NAME = ".virtuoso-temp"
+TEMP_ROOT_NAME = ".virtuoso_lab-temp"
 SAMPLE_RATE = 44100
 
 
@@ -69,7 +69,7 @@ def _tunings_path(context: dict) -> Path:
 # a `conn` (sqlite3.Connection with check_same_thread=False) and `_lock`
 # (threading.Lock) — same pattern FeedBack uses for its own loops table.
 #
-# We keep our state in two dedicated tables prefixed `virtuoso_` so they
+# We keep our state in two dedicated tables prefixed `virtuoso_lab_` so they
 # don't get confused with the songs library. Schemas are conservative — IDs
 # are TEXT for presets (so the existing slug-style IDs from the JSON file
 # survive migration) and INTEGER AUTOINCREMENT for tunings (since the
@@ -79,7 +79,7 @@ def _ensure_tables(meta_db) -> None:
     with meta_db._lock:
         meta_db.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS virtuoso_presets (
+            CREATE TABLE IF NOT EXISTS virtuoso_lab_presets (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
                 kind TEXT NOT NULL DEFAULT 'exercise',
@@ -90,7 +90,7 @@ def _ensure_tables(meta_db) -> None:
         )
         meta_db.conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS virtuoso_tunings (
+            CREATE TABLE IF NOT EXISTS virtuoso_lab_tunings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL UNIQUE,
                 family TEXT NOT NULL,
@@ -114,7 +114,7 @@ def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
         return
     try:
         existing = meta_db.conn.execute(
-            "SELECT COUNT(*) FROM virtuoso_presets"
+            "SELECT COUNT(*) FROM virtuoso_lab_presets"
         ).fetchone()[0]
     except Exception:
         return
@@ -140,7 +140,7 @@ def _migrate_presets_from_json(meta_db, presets_path: Path) -> None:
             except (TypeError, ValueError):
                 created = now
             meta_db.conn.execute(
-                "INSERT OR REPLACE INTO virtuoso_presets "
+                "INSERT OR REPLACE INTO virtuoso_lab_presets "
                 "(id, name, kind, config_json, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
@@ -163,7 +163,7 @@ def _migrate_tunings_from_json(meta_db, tunings_path: Path) -> None:
         return
     try:
         existing = meta_db.conn.execute(
-            "SELECT COUNT(*) FROM virtuoso_tunings"
+            "SELECT COUNT(*) FROM virtuoso_lab_tunings"
         ).fetchone()[0]
     except Exception:
         return
@@ -196,7 +196,7 @@ def _migrate_tunings_from_json(meta_db, tunings_path: Path) -> None:
             except (TypeError, ValueError):
                 created = now
             meta_db.conn.execute(
-                "INSERT OR IGNORE INTO virtuoso_tunings "
+                "INSERT OR IGNORE INTO virtuoso_lab_tunings "
                 "(name, family, string_count, midis_csv, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (
@@ -249,7 +249,7 @@ def _snapshot_presets(meta_db, path: Path) -> None:
     try:
         rows = meta_db.conn.execute(
             "SELECT id, name, kind, config_json, created_at "
-            "FROM virtuoso_presets ORDER BY created_at DESC"
+            "FROM virtuoso_lab_presets ORDER BY created_at DESC"
         ).fetchall()
         presets = []
         for r in rows:
@@ -268,7 +268,7 @@ def _snapshot_tunings(meta_db, path: Path) -> None:
     try:
         rows = meta_db.conn.execute(
             "SELECT id, name, family, string_count, midis_csv, created_at "
-            "FROM virtuoso_tunings ORDER BY family, string_count, name"
+            "FROM virtuoso_lab_tunings ORDER BY family, string_count, name"
         ).fetchall()
         tunings = []
         for r in rows:
@@ -673,7 +673,7 @@ def _sanitize_card_filename(name: str) -> str:
     write outside the resolved directory via the name."""
     base = Path(str(name or "")).name
     base = _CARD_NAME_RE.sub("-", base)
-    base = re.sub(r"\s+", " ", base).strip(" -_.") or "virtuoso-card"
+    base = re.sub(r"\s+", " ", base).strip(" -_.") or "virtuoso_lab-card"
     if not base.lower().endswith(".png"):
         base = re.sub(r"\.[^.]*$", "", base) + ".png"
     return base[:120]
@@ -708,7 +708,7 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(400, "body is not a PNG image")
         auto = request.query_params.get("auto", "") in ("1", "true", "yes")
         target = _resolve_card_dir(request.query_params.get("dir", ""), auto=auto)
-        name = _sanitize_card_filename(request.query_params.get("name", "virtuoso-card.png"))
+        name = _sanitize_card_filename(request.query_params.get("name", "virtuoso_lab-card.png"))
         try:
             target.mkdir(parents=True, exist_ok=True)
             path = target / name
@@ -739,7 +739,7 @@ def setup(app: FastAPI, context: dict) -> None:
             "db_backed": meta_db is not None,
         }
 
-    # Self-hosted WebAudioFont player + GM presets (the engine:'sample' backing
+    # Self-hosted VirtuosoLabWebAudioFont player + GM presets (the engine:'sample' backing
     # path) — bundled under static/wafonts/ and served here, so there's no
     # runtime CDN dependency and playback is offline-safe. Only the bundled .js
     # files are served; reject path traversal.
@@ -820,7 +820,7 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(503, "Plugin DB context unavailable.")
         rows = meta_db.conn.execute(
             "SELECT id, name, kind, config_json, created_at "
-            "FROM virtuoso_presets ORDER BY created_at DESC"
+            "FROM virtuoso_lab_presets ORDER BY created_at DESC"
         ).fetchall()
         out = []
         for r in rows:
@@ -836,11 +836,11 @@ def setup(app: FastAPI, context: dict) -> None:
         if meta_db is None:
             raise HTTPException(503, "Plugin DB context unavailable.")
         existing = meta_db.conn.execute(
-            "SELECT 1 FROM virtuoso_presets WHERE id = ?", (payload.id,)
+            "SELECT 1 FROM virtuoso_lab_presets WHERE id = ?", (payload.id,)
         ).fetchone()
         with meta_db._lock:
             meta_db.conn.execute(
-                "INSERT OR REPLACE INTO virtuoso_presets "
+                "INSERT OR REPLACE INTO virtuoso_lab_presets "
                 "(id, name, kind, config_json, created_at) "
                 "VALUES (?, ?, ?, ?, ?)",
                 (payload.id, payload.name, payload.kind,
@@ -856,7 +856,7 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(503, "Plugin DB context unavailable.")
         with meta_db._lock:
             cur = meta_db.conn.execute(
-                "DELETE FROM virtuoso_presets WHERE id = ?", (preset_id,)
+                "DELETE FROM virtuoso_lab_presets WHERE id = ?", (preset_id,)
             )
             meta_db.conn.commit()
         if cur.rowcount == 0:
@@ -875,7 +875,7 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(503, "Plugin DB context unavailable.")
         rows = meta_db.conn.execute(
             "SELECT id, name, family, string_count, midis_csv, created_at "
-            "FROM virtuoso_tunings ORDER BY family, string_count, name"
+            "FROM virtuoso_lab_tunings ORDER BY family, string_count, name"
         ).fetchall()
         out = []
         for r in rows:
@@ -900,19 +900,19 @@ def setup(app: FastAPI, context: dict) -> None:
                 raise HTTPException(400, f"midi out of range: {m}")
         csv = ",".join(str(int(m)) for m in payload.midis)
         existing = meta_db.conn.execute(
-            "SELECT id FROM virtuoso_tunings WHERE name = ?", (payload.name,)
+            "SELECT id FROM virtuoso_lab_tunings WHERE name = ?", (payload.name,)
         ).fetchone()
         with meta_db._lock:
             if existing:
                 meta_db.conn.execute(
-                    "UPDATE virtuoso_tunings SET family=?, string_count=?, midis_csv=? "
+                    "UPDATE virtuoso_lab_tunings SET family=?, string_count=?, midis_csv=? "
                     "WHERE id=?",
                     (payload.family, payload.string_count, csv, existing[0]),
                 )
                 tuning_id = existing[0]
             else:
                 cur = meta_db.conn.execute(
-                    "INSERT INTO virtuoso_tunings "
+                    "INSERT INTO virtuoso_lab_tunings "
                     "(name, family, string_count, midis_csv, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
                     (payload.name, payload.family, payload.string_count, csv, time.time()),
@@ -928,7 +928,7 @@ def setup(app: FastAPI, context: dict) -> None:
             raise HTTPException(503, "Plugin DB context unavailable.")
         with meta_db._lock:
             cur = meta_db.conn.execute(
-                "DELETE FROM virtuoso_tunings WHERE id = ?", (tuning_id,)
+                "DELETE FROM virtuoso_lab_tunings WHERE id = ?", (tuning_id,)
             )
             meta_db.conn.commit()
         if cur.rowcount == 0:
@@ -957,9 +957,9 @@ def setup(app: FastAPI, context: dict) -> None:
         scale = str(session.get("scale", "major")).replace("_", " ")
         mode = str(session.get("mode", "practice")).replace("_", " ")
         title = f"Virtuoso - {key} {scale} {mode}"
-        slug = "virtuoso-" + uuid.uuid4().hex[:12]
+        slug = "virtuoso_lab-" + uuid.uuid4().hex[:12]
         sloppak_dir = temp_root / f"{slug}.sloppak"
-        work_dir = Path(tempfile.mkdtemp(prefix="virtuoso-work-", dir=str(data_dir)))
+        work_dir = Path(tempfile.mkdtemp(prefix="virtuoso_lab-work-", dir=str(data_dir)))
         try:
             (work_dir / "arrangements").mkdir(parents=True, exist_ok=True)
             stems_dir = work_dir / "stems"
@@ -984,7 +984,7 @@ def setup(app: FastAPI, context: dict) -> None:
                     "capo": 0,
                 }],
                 "stems": [{"id": "full", "file": stem_file, "default": True}],
-                "virtuoso": {"version": SCHEMA_VERSION, "generated": True, "session": session},
+                "virtuoso_lab": {"version": SCHEMA_VERSION, "generated": True, "session": session},
             }
             (work_dir / "manifest.yaml").write_text(_dump_yaml(manifest), encoding="utf-8")
 

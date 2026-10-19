@@ -1,5 +1,5 @@
-console.log('load _tone_0000_FluidR3_GM_sf2_file');
-var _tone_0000_FluidR3_GM_sf2_file={
+console.log('load _virtuoso_lab_tone_0000_FluidR3_GM_sf2_file');
+var _virtuoso_lab_tone_0000_FluidR3_GM_sf2_file={
 	zones:[
 		{
 			midi:0

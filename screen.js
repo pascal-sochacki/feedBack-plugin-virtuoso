@@ -1,12 +1,14 @@
 // Virtuoso — FeedBack practice chart generator + renderer adapter.
+import { NOTE_NAMES, NOTE_ALIASES, pcName, midiToFreq } from './src/core/pitch.js';
+
 (function () {
   'use strict';
 
   // ===========================================================================
   // TABLE OF CONTENTS
-  // One IIFE, loaded by the host as a classic <script> (no type="module", so no
-  // import/export — see CLAUDE.md "screen.js structure"). Major sections are
-  // marked with a "§N" banner below; grep "§" to jump between them.
+  // The IIFE remains during bottom-up native-module extraction so startup and
+  // closure state keep their original order. See docs/native-modules.md.
+  // Major sections are marked with a "§N" banner below.
   //
   //   §1  Constants & music-theory data
   //   §2  Curated pathways (PATHWAYS)
@@ -22,7 +24,7 @@
   //   §12 Renderer factory + borrowed host viz
   //   §13 Live fretboard strip
   //   §14 Transport, HUD, playback clock + audio engine
-  //   §15 DOM wiring (bind) + public surface (window.Virtuoso)
+  //   §15 DOM wiring (bind) + public surface (window.VirtuosoLab)
   // ===========================================================================
   //
   // CORE / SHELL BOUNDARY (host-independence — see CLAUDE.md "Key constraints"):
@@ -48,15 +50,13 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.6';
+  const VIRTUOSO_VERSION = '0.2.7-lab.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
   // note names, string setups, scale intervals, chord formulas, diatonic
   // qualities, common progressions, sequence + chromatic patterns.
   // ===========================================================================
-  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
   const AUDIO_LOOKAHEAD_SECONDS = 0.20;
   // Rolling-window scheduling (backing-engine step 0, 2026-06-05). Audio is
@@ -2412,8 +2412,8 @@
       ]
     }
   };
-  const PATHWAY_STORAGE_KEY = 'virtuoso.lastPathway';
-  const MODE_STORAGE_KEY = 'virtuoso.lastMode';   // resume-last-mode (data-mode token)
+  const PATHWAY_STORAGE_KEY = 'virtuoso_lab.lastPathway';
+  const MODE_STORAGE_KEY = 'virtuoso_lab.lastMode';   // resume-last-mode (data-mode token)
   // First-ever launch lands on the first pathway (Chromatic Warmup, the root of
   // the skill tree) on 6-string guitar — its base config sets guitar_6_standard.
   // Only applies when nothing is stored; later launches restore the last pathway.
@@ -3260,11 +3260,11 @@
   // Populate the Shape dropdown for the current key + system. Preserves the
   // currently-selected shape if it's still valid for the new system.
   function syncShapeDropdown() {
-    const sel = (typeof document !== 'undefined') ? document.getElementById('virtuoso-shape') : null;
+    const sel = (typeof document !== 'undefined') ? document.getElementById('virtuoso_lab-shape') : null;
     if (!sel) return;
-    const sysEl = document.getElementById('virtuoso-fretboard-system');
-    const keyEl = document.querySelector('#virtuoso-controls [name="key"]');
-    const scaleEl = document.querySelector('#virtuoso-controls [name="scale"]');
+    const sysEl = document.getElementById('virtuoso_lab-fretboard-system');
+    const keyEl = document.querySelector('#virtuoso_lab-controls [name="key"]');
+    const scaleEl = document.querySelector('#virtuoso_lab-controls [name="scale"]');
     const system = sysEl ? sysEl.value : 'caged';
     const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
     const scale = scaleEl ? scaleEl.value : 'major';
@@ -3305,7 +3305,7 @@
 
     // Mirror the active shape into the legacy cagedShape hidden input so the
     // chord-template helpers keep working. Only meaningful when system is CAGED.
-    const cagedHidden = document.getElementById('virtuoso-caged-shape-value');
+    const cagedHidden = document.getElementById('virtuoso_lab-caged-shape-value');
     if (cagedHidden) {
       if (system === 'caged') cagedHidden.value = sel.value || 'C';
       // For 3NPS/Open, leave the hidden value alone — chord-template helpers
@@ -3338,7 +3338,7 @@
 
   // Expose for DevTools inspection and (soon) chart generation.
   if (typeof window !== 'undefined') {
-    window.__virtuosoShapes = {
+    window.__virtuoso_labShapes = {
       CAGED_SHAPES,
       THREE_NPS_POSITION_DEFS,
       CAGED_CYCLE,
@@ -3600,7 +3600,7 @@
     // breaking the host's stem decode ("ctx.decodeAudioData is not a function").
     // Scoping to the active screen keeps the highway-click fix (Virtuoso on
     // screen) while leaving the global pristine for everyone else.
-    const virtuosoActive = () => { const r = document.getElementById('virtuoso-root'); return !!(r && r.offsetParent); };
+    const virtuoso_labActive = () => { const r = document.getElementById('virtuoso_lab-root'); return !!(r && r.offsetParent); };
     const Patched = function(...args) {
       // Only fake when there's NO scoring SDK. The fake exists solely to suppress the
       // borrowed highway's audio-reactive-bg AudioContext (an audible click) on OLD
@@ -3610,7 +3610,7 @@
       // fake would BREAK (resume() is undefined, state 'closed') → the tuner / grading /
       // per-note gems silently die. So when the SDK is present, always hand out the REAL
       // context. (ptAvailable() ⇔ "current host" — the scorer + #650 shipped together.)
-      if (virtuosoActive() && audioCtx && audioCtx.state !== 'closed' && !ptAvailable()) return makeFakeCtx();
+      if (virtuoso_labActive() && audioCtx && audioCtx.state !== 'closed' && !ptAvailable()) return makeFakeCtx();
       return new Ctor(...args);
     };
     Patched.prototype = Ctor.prototype;
@@ -3667,14 +3667,14 @@
     },
   };
   // Active theme for renderers that participate. Light is the default.
-  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('virtuoso.renderTheme')) || 'light';
+  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('virtuoso_lab.renderTheme')) || 'light';
   if (currentRenderTheme !== 'light' && currentRenderTheme !== 'dark') currentRenderTheme = 'light';
   function getRenderTheme() { return RENDER_THEMES[currentRenderTheme] || RENDER_THEMES.light; }
   // Hand-marks display switch (hand-marks Slice 1; UX ruling): ONE toggle,
   // default ON, persisted, never auto-flipped — beginner/advanced scaling
   // happens at EMISSION (the pedagogy lane), not by flipping the player's
   // switch. Read per-frame by the Tab renderer + fretboard strip.
-  function handMarksOn() { try { return localStorage.getItem('virtuoso.showHandMarks') !== 'off'; } catch (_) { return true; } }
+  function handMarksOn() { try { return localStorage.getItem('virtuoso_lab.showHandMarks') !== 'off'; } catch (_) { return true; } }
   // Hand-marks "lesson" sets (panel ruling 2026-06-18): on these drills the marks
   // ARE the content, so the renderers must NOT thin them at dense spacing.
   // chromatic/spider/sweep/fingerstyle → the FRET-HAND fingers are the lesson;
@@ -3692,7 +3692,7 @@
   function setRenderTheme(name) {
     if (name !== 'light' && name !== 'dark') return;
     currentRenderTheme = name;
-    try { localStorage.setItem('virtuoso.renderTheme', name); } catch (_) {}
+    try { localStorage.setItem('virtuoso_lab.renderTheme', name); } catch (_) {}
     if (renderer && activeBundle) drawOnce();
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
@@ -3744,7 +3744,7 @@
   // over the run's offset-free detections, refine by mean residual — the
   // host's `_ndCalibrateOffsetMs` objective, note_detect screen.js:708).
   // EMA-blended (0.7 old / 0.3 new), clamped 0–250ms, persisted
-  // `virtuoso.latencyMs`. No UI (the roundtable's "hidden latency setting");
+  // `virtuoso_lab.latencyMs`. No UI (the roundtable's "hidden latency setting");
   // disclosed in the verbose diagnostics. Seeding order (2026-06-07): our own
   // MEASURED anchor wins when stored; else the host tuner's latencyOffset
   // slider (localStorage['slopsmith_notedetect'] — the player already dialed
@@ -3754,9 +3754,9 @@
   let _ptLatencyS = (() => {
     // CONSUME the host tuner's player-dialed latencyOffset, else the host's
     // shipped 80ms default. We no longer SELF-MEASURE latency: the old
-    // `virtuoso.latencyMs` sweep was YIN-fed and never hears a DI, so it wrote
+    // `virtuoso_lab.latencyMs` sweep was YIN-fed and never hears a DI, so it wrote
     // stale offsets (the 123ms that delayed the hit-flare). Sweep that key out.
-    try { localStorage.removeItem('virtuoso.latencyMs'); } catch (_) {}
+    try { localStorage.removeItem('virtuoso_lab.latencyMs'); } catch (_) {}
     try {
       const s = JSON.parse(localStorage.getItem('slopsmith_notedetect') || '{}');
       if (Number.isFinite(s.latencyOffset)) return Math.max(0, Math.min(0.25, s.latencyOffset));
@@ -4340,12 +4340,10 @@
   let jamEnergy = 'auto';         // J-3: band-intensity macro — 'chill'|'groove'|'drive' PIN density (1/2/3); 'auto' = the build→peak→breakdown section-arc across passes (persisted)
   let _jamPlayed = [];            // J-3 played-note mirror: recent detected pitches {pc,midi,t(ms)} for the fading strip mark (Jam only)
   let _jamMirror = null;          // J-3: cumulative jam recap accumulator (reset each jamPlay; read at the deliberate jam stop)
-  let jamSpotlight = false;       // J-3 Spotlight (trade-solos form): you↔band take turns per pass; persisted virtuoso.jamSpotlight
+  let jamSpotlight = false;       // J-3 Spotlight (trade-solos form): you↔band take turns per pass; persisted virtuoso_lab.jamSpotlight
   let _spotlightCueTurn = null;   // last-shown spotlight turn — DOM-thrash guard for the cue banner
 
   function $(id) { return document.getElementById(id); }
-  function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
-  function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
   function storage(key, fallback) { try { const value = localStorage.getItem(key); return value === null ? fallback : value; } catch { return fallback; } }
   function readHighwayInverted() { return storage('invertHighway', 'false') === 'true'; }
   function readLefty() { return storage('lefty', '0') === '1'; }
@@ -4368,7 +4366,7 @@
   }
 
   function readConfig() {
-    const data = new FormData($('virtuoso-controls'));
+    const data = new FormData($('virtuoso_lab-controls'));
     const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
     const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
     // Effective open-string tuning: a custom per-string override (DADGAD, Drop A,
@@ -4395,7 +4393,7 @@
     // pathway-set fret window silently reverted to 0/5 (the chromatic warmup's
     // 5th/9th-fret vary steps were inert; surfaced by the 2026-06-12 spider
     // build). Element value == FormData value whenever the card is enabled.
-    const _fretForm = $('virtuoso-controls');
+    const _fretForm = $('virtuoso_lab-controls');
     const _fretVal = (name, dflt) => { const el = _fretForm && _fretForm.elements[name]; return (el && el.value) || data.get(name) || dflt; };
     let fretMin = Math.min(MAX_FRET - 1, Math.max(0, parseInt(_fretVal('fretMin', '0'), 10) || 0));
     let fretMax = Math.min(MAX_FRET, Math.max(fretMin + 1, parseInt(_fretVal('fretMax', '5'), 10) || 5));
@@ -4445,7 +4443,7 @@
       // Shape WALK (The Five CAGED Shapes): bar i voiced in the i-th CAGED shape
       // low→high — see buildStrumCompExercise. Pathway-driven hidden field.
       shapeWalk: advancedMode && String(data.get('shapeWalk') || '') === 'true',
-      renderer: data.get('renderer') || localStorage.getItem('virtuoso.renderer') || 'highway_3d',
+      renderer: data.get('renderer') || localStorage.getItem('virtuoso_lab.renderer') || 'highway_3d',
       instrument: setup.instrument,
       stringSetup,
       setupLabel: setup.label,
@@ -4482,7 +4480,7 @@
         // count-in (no saved default, field at the 1-bar default). An explicit
         // player choice — saved default or a touched field — always wins.
         try {
-          if (bars === 1 && !localStorage.getItem('virtuoso.countInDefault')) {
+          if (bars === 1 && !localStorage.getItem('virtuoso_lab.countInDefault')) {
             const m = parseMeter(data.get('meter'));
             if (m && countInSubTicks({ subdivision: String(data.get('subdivision') || ''), meter: m }) >= 4) bars = 2;
           }
@@ -4543,7 +4541,7 @@
       backingComp: (data.get('backingComp') || '').toString(),
       backingBass: (data.get('backingBass') || '').toString(),
       backingDensity: data.get('backingDensity') !== null && data.get('backingDensity') !== '' ? Math.max(0, Math.min(3, parseInt(data.get('backingDensity'), 10) || 0)) : undefined,
-      backingPadDev: (() => { try { return localStorage.getItem('virtuoso.backingPad') === 'pad'; } catch (_) { return false; } })(),
+      backingPadDev: (() => { try { return localStorage.getItem('virtuoso_lab.backingPad') === 'pad'; } catch (_) { return false; } })(),
       // Herta accent slot (0–3) + walk flag: pathway-driven hidden fields. These
       // were UNPLUMBED until hand-marks Slice 2 (the pick_herta vary steps wrote
       // to a nonexistent field → the accent ladder was silently inert in the UI;
@@ -4589,7 +4587,7 @@
   // The player never picks a cab/voice/instrument: a genre/pathway declares one
   // string `audioProfile` and this resolves it to the backing voice + brightness.
   // Today the realizable harmony voices are the oscillator tones (pad/epiano/
-  // organ); when the WebAudioFont (acoustic) + amp (distorted) tracks land, a
+  // organ); when the VirtuosoLabWebAudioFont (acoustic) + amp (distorted) tracks land, a
   // profile's voice/engine maps to those without touching genre data.
   // Each family declares three voices: harmony (the backing comp), notes (the
   // practice voice — what the player is meant to play), and bass (the backing
@@ -4714,7 +4712,7 @@
   // (kit_rock/kit_jazz/kit_acoustic_soft/…) land in Phase D4. `resolveDrumKit`
   // falls any unregistered kit id back to kit_909 → in D1–D3 every style plays a
   // synth beat until the sampled kits exist (intentional; fix on the backend in D4).
-  // Sampled kits (Phase D4) play self-hosted WebAudioFont drum one-shots — one tiny
+  // Sampled kits (Phase D4) play self-hosted VirtuosoLabWebAudioFont drum one-shots — one tiny
   // preset file per GM percussion note, served from static/wafonts/ by the /wafont
   // route (zero route changes), same MIT WAF provenance as the melodic tones. The
   // piece→GM-note map is shared (FluidR3_GM kit); kits differ by level/groove, not
@@ -4733,7 +4731,7 @@
     clap:39,
   };
   const drumFile = (note, font, variant) => `128${note}_${variant}_${font}_sf2_file.js`;
-  const drumVar  = (note, font, variant) => `_drum_${note}_${variant}_${font}_sf2_file`;
+  const drumVar  = (note, font, variant) => `_virtuoso_lab_drum_${note}_${variant}_${font}_sf2_file`;
   // GM notes that ACTUALLY ship a committed FluidR3 one-shot under static/wafonts.
   // The step-5 extended pieces (snare_xstick 37, tom_floor 41, china 52, ride_bell
   // 53, splash 55, crash_r 57, bell 80) have NO sample yet → they take the synth
@@ -5799,20 +5797,20 @@
     return out;
   }
 
-  // ── WebAudioFont sampler (the engine:'sample' path) ───────────────────────
+  // ── VirtuosoLabWebAudioFont sampler (the engine:'sample' path) ───────────────────────
   // Borrows the host's GM-multisample approach. Loads the player + a GM preset
   // on demand, caches it, and harmony notes for sampled profiles play via
   // queueWaveTable onto the 'harmony' bus — with the oscillator voice as the
   // fallback until the (async) preset finishes loading. Self-hosted: bundled
   // under static/wafonts/, served by routes.py (no runtime CDN dependency,
-  // offline-safe). LICENSING (verified 2026-06-12): WebAudioFont code is MIT;
+  // offline-safe). LICENSING (verified 2026-06-12): VirtuosoLabWebAudioFont code is MIT;
   // the sound data is FluidR3_GM (MIT — provenance + license pointers in
   // static/wafonts/README.md). The previously-bundled JCLive variants were
   // REMOVED the same day: their sound-data provenance is unverifiable upstream
   // (an open license-clarification issue with no maintainer answer) — don't
   // reintroduce them in tracked files.
-  const WAF_BASE = '/api/plugins/virtuoso/wafont/';
-  const WAF_PLAYER_URL = '/api/plugins/virtuoso/wafont/WebAudioFontPlayer.js';
+  const WAF_BASE = '/api/plugins/virtuoso_lab/wafont/';
+  const WAF_PLAYER_URL = '/api/plugins/virtuoso_lab/wafont/WebAudioFontPlayer.js';
   const WAF_SF = 'FluidR3_GM_sf2_file';
   // Symbolic voice id → General MIDI program. Bundled under static/wafonts/ and
   // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
@@ -5842,7 +5840,7 @@
     }
   })();
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
-  const wafVar  = gm => '_tone_' + wafFile(gm);
+  const wafVar  = gm => '_virtuoso_lab_tone_' + wafFile(gm);
   const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
   let wafPlayer = null;
   const wafPresets = {}; // gm -> { state: 'loading'|'ready'|'failed', preset }
@@ -5862,11 +5860,11 @@
     wafPresets[key] = entry;
     entry.promise = (async () => {
       try {
-        await loadScriptOnce('virtuoso-waf-player', WAF_PLAYER_URL);
-        if (typeof WebAudioFontPlayer === 'undefined') throw new Error('WebAudioFontPlayer missing');
-        if (!wafPlayer) wafPlayer = new WebAudioFontPlayer();
+        await loadScriptOnce('virtuoso_lab-waf-player', WAF_PLAYER_URL);
+        if (typeof VirtuosoLabWebAudioFontPlayer === 'undefined') throw new Error('VirtuosoLabWebAudioFontPlayer missing');
+        if (!wafPlayer) wafPlayer = new VirtuosoLabWebAudioFontPlayer();
         const ctx = ensureAudioCtx();
-        if (!window[varName]) await loadScriptOnce('virtuoso-waf-' + key, url);
+        if (!window[varName]) await loadScriptOnce('virtuoso_lab-waf-' + key, url);
         const preset = window[varName];
         if (!preset) throw new Error('preset var missing');
         wafPlayer.adjustPreset(ctx, preset);
@@ -5967,7 +5965,7 @@
   // Selection: the GUIDE (notes) voice now DEFAULTS to this sample for guitar
   // instruments (profile notes.sg — the by-ear gate passed 2026-06-12, see
   // sgNotesWanted); Rhythm/Keys still opt in via the mixer 'Electric DI' pin.
-  const SG_BASE = '/api/plugins/virtuoso/sample/';
+  const SG_BASE = '/api/plugins/virtuoso_lab/sample/';
   const SG_KEYCENTERS = [37, 40, 42, 45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84];
   const SG_VEL_HARD = 0.9;   // ev.vel ≥ 0.9 (accent tier) → the harder vl3 layer
   const SG_LEVEL = 1.0;      // voice trim vs the WAF voices (by-ear tunable)
@@ -6177,8 +6175,8 @@
   // a small detune. The doubled voice naturally pulls the OTHER round-robin
   // take (sgRR increments per call) — real double-tracking is two takes.
   function sgVoice(ctx, busName, when, midi, d, vol, artic, vel, opts) {
-    if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) {
-      const st = (globalThis.__ss_sgStats = globalThis.__ss_sgStats || { voices: 0, doubled: 0, chucks: 0, mutestr: 0 });
+    if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) {
+      const st = (globalThis.__virtuoso_lab_sgStats = globalThis.__virtuoso_lab_sgStats || { voices: 0, doubled: 0, chucks: 0, mutestr: 0 });
       st.voices++;
       if (opts && opts.pan != null) st.doubled++;
       if (artic === 'chuck') st.chucks++;
@@ -7443,7 +7441,7 @@
     else if (/7/.test(q)) r += '7';
     return r;
   }
-  function isJamMode() { const r = $('virtuoso-root'); return !!(r && (r.classList.contains('vir-mode-jam') || r.classList.contains('virtuoso-jam-mode'))); }
+  function isJamMode() { const r = $('virtuoso_lab-root'); return !!(r && (r.classList.contains('virtuoso_lab_vir-mode-jam') || r.classList.contains('virtuoso_lab-jam-mode'))); }
 
   // ── Chord timeline — the single source of "what chord at what bar/beat" ──────
   // Derived ONCE from the cfg (progression × key × scale × chordDepth/override ×
@@ -12188,7 +12186,7 @@
       if (i >= 0) return RUN_TIER_MOD_BY_IDX[i] || 1;
     }
     // Live Pathways Climb tier — only meaningful while a pathway is the active mode.
-    const pathwayMode = !!($('virtuoso-root')?.classList.contains('virtuoso-pathway-mode'));
+    const pathwayMode = !!($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode'));
     if (pathwayMode && activePathwayId && activePathwayId !== 'custom') {
       return RUN_TIER_MOD_BY_IDX[activeTempoTierIdx] || 1;
     }
@@ -12776,7 +12774,7 @@
     }
     const bundle = {
       currentTime:0,
-      songInfo:{ title:exerciseTitle(cfg), artist:'Virtuoso', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'virtuoso-practice', fretboardSystem:cfg.fretboardSystem },
+      songInfo:{ title:exerciseTitle(cfg), artist:'Virtuoso', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'virtuoso_lab-practice', fretboardSystem:cfg.fretboardSystem },
       config:cfg,
       // Finite-run eligibility (Depth Ladder slice 1): a run with a real mode
       // (Pathways/Custom AND a Workout session) plays its tiled length ONCE then
@@ -12842,7 +12840,7 @@
 
   // ===========================================================================
   // §11 · BUILT-IN 2D RENDERERS
-  // Jumping-Tab fallback (makeBuiltin2DRenderer), Tab, Notation. Draw #virtuoso-canvas.
+  // Jumping-Tab fallback (makeBuiltin2DRenderer), Tab, Notation. Draw #virtuoso_lab-canvas.
   // ===========================================================================
   function makeBuiltin2DRenderer() {
     let canvas = null, ctx = null, W = 0, H = 0;
@@ -12851,7 +12849,7 @@
 
     function resize() {
       if (!canvas) return;
-      const box = canvas.parentElement || $('virtuoso-render-host');
+      const box = canvas.parentElement || $('virtuoso_lab-render-host');
       const r = box ? box.getBoundingClientRect() : { width: canvas.width, height: canvas.height };
       W = Math.max(640, Math.round(r.width || 1280));
       H = Math.max(420, Math.round(r.height || 720));
@@ -13154,7 +13152,7 @@
 
     function resize() {
       if (!canvas) return;
-      const box = canvas.parentElement || $('virtuoso-render-host');
+      const box = canvas.parentElement || $('virtuoso_lab-render-host');
       const r = box ? box.getBoundingClientRect() : { width: canvas.width, height: canvas.height };
       W = Math.max(640, Math.round(r.width || 1280));
       H = Math.max(420, Math.round(r.height || 720));
@@ -14306,7 +14304,7 @@
     // a source checkout without the Desktop-bundled Jumping Tab/Piano), bail
     // immediately instead of polling 3s for a global that will never register.
     // Fast, clean, QUIET fallback to the in-tree renderer (legitimate absence).
-    try { await loadScriptOnce('virtuoso-viz-' + vizId, scriptPath); }
+    try { await loadScriptOnce('virtuoso_lab-viz-' + vizId, scriptPath); }
     catch (_) { loaded = false; }
     if (loaded) {
       // Loaded — but the host may register its global a tick or two after onload.
@@ -14367,7 +14365,7 @@
     return { factory:makeBuiltin2DRenderer, label:'2D Highway (default)' };
   }
 
-  function replaceCanvas() { const host = $('virtuoso-render-host'), old = $('virtuoso-canvas'), canvas = document.createElement('canvas'); canvas.id = 'virtuoso-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
+  function replaceCanvas() { const host = $('virtuoso_lab-render-host'), old = $('virtuoso_lab-canvas'), canvas = document.createElement('canvas'); canvas.id = 'virtuoso_lab-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; }
 
   // ── Rolling-window loop scheduling ───────────────────────────────────────────
@@ -14494,7 +14492,7 @@
     const cfg = exercise.session;
     // Honour saved renderer preference when the form hasn't been explicitly changed
     if (!cfg.renderer || cfg.renderer === 'highway_3d') {
-      const saved = localStorage.getItem('virtuoso.renderer');
+      const saved = localStorage.getItem('virtuoso_lab.renderer');
       if (saved) cfg.renderer = saved;
     }
     // The host 3D Highway renders 4–8 strings (resolveStringCount + an 8-entry
@@ -14533,14 +14531,14 @@
     if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a FeedBack-compatible renderer object.');
     if (typeof renderer.init === 'function') { renderer.init(canvas, rendererBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
     if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
-    const rect = (canvas.parentElement || $('virtuoso-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
+    const rect = (canvas.parentElement || $('virtuoso_lab-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
     if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    const rendererStatus = $('virtuoso-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
+    const rendererStatus = $('virtuoso_lab-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
     resetTransportLoop();
   }
 
   function syncPlayButton() {
-    const btn = $('virtuoso-play');
+    const btn = $('virtuoso_lab-play');
     if (!btn) return;
     // Three transport states (DAW convention — Stop is its own button now):
     // stopped → "▶ Play" · running → "⏸ Pause" · paused → "▶ Play" (resume).
@@ -14550,7 +14548,7 @@
     btn.classList.toggle('is-playing', !!(playing && !paused));
     btn.classList.toggle('is-paused', !!(playing && paused));
     btn.textContent = (playing && !paused) ? '⏸' : '▶';
-    const stopBtn = $('virtuoso-stop');
+    const stopBtn = $('virtuoso_lab-stop');
     if (stopBtn) stopBtn.disabled = !playing;   // enabled while running OR paused
     updateStartCta();
   }
@@ -14563,9 +14561,9 @@
     return seg.length > 52 ? seg.slice(0, 50).trim() + '…' : seg;
   }
   function updateStartCta() {
-    const cta = $('virtuoso-start-cta'); if (!cta) return;
+    const cta = $('virtuoso_lab-start-cta'); if (!cta) return;
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
-    const verb = $('virtuoso-start-verb'), name = $('virtuoso-start-name'), skill = $('virtuoso-start-skill');
+    const verb = $('virtuoso_lab-start-verb'), name = $('virtuoso_lab-start-name'), skill = $('virtuoso_lab-start-skill');
     if (verb) verb.textContent = (playing && !paused) ? '⏸ PAUSE' : (paused ? '▶ RESUME' : '▶ START');
     if (name) name.textContent = pw ? pw.label : 'this exercise';
     if (skill) skill.textContent = pw ? startSkillHook(pw) : '';
@@ -14616,7 +14614,7 @@
     bass:   { chord:'Roots — most support', guide:'Next root — see the change coming', scale:'Approach tones', off:'Off — bare neck' },
   };
   let jamHighlightMode = 'chord';   // chord | guide | scale | off
-  try { const m = localStorage.getItem('virtuoso.jamHighlight'); if (m) jamHighlightMode = m; } catch (_) {}
+  try { const m = localStorage.getItem('virtuoso_lab.jamHighlight'); if (m) jamHighlightMode = m; } catch (_) {}
   // Spotlight (J-3): which turn the playhead is in — even pass = you solo, odd =
   // band solos. Derived from the per-pass sections (one per pass) so it tracks the
   // chart. null when not a spotlight jam.
@@ -14793,32 +14791,32 @@
   }
   // Reflect the toggle state onto the root class (drives strip visibility) and
   // the toggle button. The strip only actually appears when the active renderer
-  // is also fretboard-capable (see syncViewSwitcher's .virtuoso-fb-capable).
+  // is also fretboard-capable (see syncViewSwitcher's .virtuoso_lab-fb-capable).
   function syncJamHighlightUI() {
     const labels = jamIsBassContext() ? JAM_HL_LABELS.bass : JAM_HL_LABELS.guitar;
-    $('virtuoso-jam-hl')?.setAttribute('aria-label', jamIsBassContext() ? 'Bass target map' : 'Fretboard highlight');
-    document.querySelectorAll('#virtuoso-jam-hl .virtuoso-jam-hl-btn').forEach(b => {
+    $('virtuoso_lab-jam-hl')?.setAttribute('aria-label', jamIsBassContext() ? 'Bass target map' : 'Fretboard highlight');
+    document.querySelectorAll('#virtuoso_lab-jam-hl .virtuoso_lab-jam-hl-btn').forEach(b => {
       const mode = b.dataset.hl || 'off';
       if (labels[mode]) b.textContent = labels[mode];
       b.classList.toggle('active', mode === jamHighlightMode);
     });
   }
   function syncFretboardUI() {
-    $('virtuoso-root')?.classList.toggle('virtuoso-fb-on', fretboardOn);
-    const toggle = $('virtuoso-fretboard-toggle');
+    $('virtuoso_lab-root')?.classList.toggle('virtuoso_lab-fb-on', fretboardOn);
+    const toggle = $('virtuoso_lab-fretboard-toggle');
     toggle?.setAttribute('aria-checked', String(fretboardOn));
     const jam = isJamMode();
-    const label = $('virtuoso-fretboard-toggle-label');
+    const label = $('virtuoso_lab-fretboard-toggle-label');
     if (label) label.textContent = jam ? (fretboardOn ? 'Target map' : 'Target map off') : 'Fretboard view';
     toggle?.setAttribute('aria-label', jam ? (fretboardOn ? 'Toggle target map' : 'Turn target map on') : 'Toggle fretboard view');
-    const wrap = $('virtuoso-fretboard-toggle-wrap');
+    const wrap = $('virtuoso_lab-fretboard-toggle-wrap');
     if (wrap) wrap.title = jam
       ? (fretboardOn ? 'Chord and target tones light on the neck while you jam.' : 'Turn the target map on to light the changes on the neck while you jam.')
       : '';
   }
   function maybePrimeJamFretboardMap() {
     let hasPref = false;
-    try { hasPref = localStorage.getItem('virtuoso.fretboard') != null; } catch (_) {}
+    try { hasPref = localStorage.getItem('virtuoso_lab.fretboard') != null; } catch (_) {}
     if (hasPref || !jamFretboardEligible()) return false;
     if (!fretboardOn) fretboardOn = true;
     syncFretboardUI();
@@ -14826,13 +14824,13 @@
   }
   // Reflect the keep-looping state onto its toggle (visibility is CSS, per mode).
   function syncKeepLoopUI() {
-    $('virtuoso-keeploop-toggle')?.setAttribute('aria-checked', String(keepLooping));
+    $('virtuoso_lab-keeploop-toggle')?.setAttribute('aria-checked', String(keepLooping));
   }
-  // Reflect the active swing/feel (hidden #virtuoso-swing) onto the visible
+  // Reflect the active swing/feel (hidden #virtuoso_lab-swing) onto the visible
   // Feel segmented control.
   function syncFeelControl() {
-    const v = ($('virtuoso-swing')?.value) || 'straight';
-    document.querySelectorAll('.virtuoso-feel-btn').forEach(b => {
+    const v = ($('virtuoso_lab-swing')?.value) || 'straight';
+    document.querySelectorAll('.virtuoso_lab-feel-btn').forEach(b => {
       const on = b.dataset.feel === v;
       b.classList.toggle('active', on);
       b.setAttribute('aria-pressed', String(on));
@@ -14841,11 +14839,11 @@
   // Left settings panel collapse/expand. Reflects state onto the root class
   // (drives the layout) and the chevron button (glyph + a11y).
   function syncPanelToggle() {
-    $('virtuoso-root')?.classList.toggle('virtuoso-collapsed', panelCollapsed);
+    $('virtuoso_lab-root')?.classList.toggle('virtuoso_lab-collapsed', panelCollapsed);
     // « collapse (in the pane) / » expand (floats when collapsed) — CSS shows the
-    // right one off .virtuoso-collapsed; just keep a11y state honest.
-    $('virtuoso-pane-collapse-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
-    $('virtuoso-pane-expand-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
+    // right one off .virtuoso_lab-collapsed; just keep a11y state honest.
+    $('virtuoso_lab-pane-collapse-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
+    $('virtuoso_lab-pane-expand-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
   }
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
@@ -14856,23 +14854,23 @@
     refitStageDuring(340);
   }
   // ── Focus mode (fullscreen the stage) ──────────────────────────────────────
-  // Fullscreens just the .virtuoso-stage (transport + ruler + render) so the
+  // Fullscreens just the .virtuoso_lab-stage (transport + ruler + render) so the
   // host chrome drops away. requestFullscreen needs a user gesture (the click
   // provides it); Esc exits via the browser before the host's Escape handler.
   function toggleFocus() {
-    const stage = document.querySelector('.virtuoso-stage');
+    const stage = document.querySelector('.virtuoso_lab-stage');
     if (!stage) return;
     if (!document.fullscreenElement) { try { stage.requestFullscreen?.(); } catch (_) {} }
     else { try { document.exitFullscreen?.(); } catch (_) {} }
   }
   function onFullscreenChange() {
     const on = !!document.fullscreenElement;
-    $('virtuoso-root')?.classList.toggle('virtuoso-focused', on);
-    $('virtuoso-focus-btn')?.setAttribute('aria-pressed', String(on));
+    $('virtuoso_lab-root')?.classList.toggle('virtuoso_lab-focused', on);
+    $('virtuoso_lab-focus-btn')?.setAttribute('aria-pressed', String(on));
     // Re-fit the renderer to the resized stage on the next frame (after layout settles).
     requestAnimationFrame(() => {
       if (renderer && typeof renderer.resize === 'function') {
-        const host = $('virtuoso-render-host');
+        const host = $('virtuoso_lab-render-host');
         if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
       }
       drawOnce();
@@ -14881,10 +14879,10 @@
 
   // ===========================================================================
   // §13 · LIVE FRETBOARD STRIP
-  // horizontal neck on #virtuoso-fretboard; hollow pattern + glowing live notes.
+  // horizontal neck on #virtuoso_lab-fretboard; hollow pattern + glowing live notes.
   // ===========================================================================
   function drawFretboardFrame() {
-    const canvas = $('virtuoso-fretboard');
+    const canvas = $('virtuoso_lab-fretboard');
     if (!canvas || canvas.offsetParent === null) return;  // hidden (wrong view / piano / display:none)
     // The strip now SLIDES via max-height (it stays display:block when capable-but-
     // off), so also skip when it's collapsed/mid-close — no point drawing a canvas the
@@ -14968,9 +14966,9 @@
       ctx.globalAlpha = 1;
     }
     // Jam target-highlight: light the current chord's chord/guide/scale tones within
-    // the lead box (green = --vir-meter "target") so the player sees which box notes to
+    // the lead box (green = --virtuoso_lab_vir-meter "target") so the player sees which box notes to
     // aim for as the changes move. Drawn under the live glow.
-    const jamOn = $('virtuoso-root')?.classList.contains('vir-mode-jam');
+    const jamOn = $('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-mode-jam');
     // D-J7 ghost HOME BOX (slice J-1): a faint dashed frame around the suggested
     // box (the silent guide pattern's fret span) — a suggestion the player can
     // ignore; the whole neck stays live. Replaces the old hard frets-2-9 cage.
@@ -15104,7 +15102,7 @@
   // zone — see the pointer handler in bind(). Pure draw; reads tpA/tpB + time.
   const RULER_LOOP_ZONE = 18;  // px height of the top loop/cycle strip
   function rulerGeom() {
-    const canvas = $('virtuoso-ruler-canvas'); if (!canvas) return null;
+    const canvas = $('virtuoso_lab-ruler-canvas'); if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
     const padX = 2, usableW = Math.max(1, rect.width - padX * 2);
     const dur = activeBundle?.songInfo?.duration || 0;
@@ -15202,7 +15200,7 @@
     return { done: sb[nextIdx - 1], next: sb[nextIdx], idx: nextIdx, total: sb.length };
   }
   function drawRulerFrame() {
-    const canvas = $('virtuoso-ruler-canvas');
+    const canvas = $('virtuoso_lab-ruler-canvas');
     if (!canvas || canvas.offsetParent === null) return;  // hidden view
     if (!rulerCtx || rulerCtx.canvas !== canvas) rulerCtx = canvas.getContext('2d');
     const ctx = rulerCtx; if (!ctx) return;
@@ -15338,7 +15336,7 @@
   }
   let overviewCtx = null;
   function drawOverviewFrame() {
-    const canvas = $('virtuoso-overview-canvas');
+    const canvas = $('virtuoso_lab-overview-canvas');
     if (!canvas || canvas.offsetParent === null) return;
     if (!overviewCtx || overviewCtx.canvas !== canvas) overviewCtx = canvas.getContext('2d');
     const ctx = overviewCtx; if (!ctx) return;
@@ -15463,7 +15461,7 @@
     return (tmpl && Array.isArray(tmpl.frets) && tmpl.frets.length) ? tmpl : null;
   }
   function drawChordBoxFrame() {
-    const canvas = $('virtuoso-chordbox'); if (!canvas) return;
+    const canvas = $('virtuoso_lab-chordbox'); if (!canvas) return;
     const tmpl = activeBundle ? currentChordTemplate() : null;
     if (!tmpl) { if (canvas.style.display !== 'none') canvas.style.display = 'none'; return; }
     canvas.style.display = 'block';
@@ -15520,13 +15518,13 @@
   // there too). The ruler owns the countdown digit — this card owns the NAMES.
   let _seamCapKey = '';
   function updateSeamCaption() {
-    const el = $('virtuoso-seam-caption'); if (!el) return;
+    const el = $('virtuoso_lab-seam-caption'); if (!el) return;
     const v = (playing && !paused) ? seamVerdictInfo() : null;
     if (!v) { if (_seamCapKey) { el.classList.remove('is-on'); _seamCapKey = ''; } return; }
     const key = `${v.idx}/${v.total}`;
     if (key !== _seamCapKey) {
-      const doneEl = el.querySelector('.virtuoso-seam-done');
-      const nextEl = el.querySelector('.virtuoso-seam-next');
+      const doneEl = el.querySelector('.virtuoso_lab-seam-done');
+      const nextEl = el.querySelector('.virtuoso_lab-seam-next');
       // Honest closure (Tier A): if the mic was live this run but the just-ended
       // block got NO input, the player skipped/watched it — don't claim "✓ done"
       // (silence is never narrated). Mic-less runs keep the plain completion line.
@@ -15543,7 +15541,7 @@
         } catch (_) {}
       }
       if (doneEl) doneEl.textContent = doneTxt;
-      if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="virtuoso-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
+      if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="virtuoso_lab-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
       el.classList.add('is-on');
       _seamCapKey = key;
     }
@@ -15551,7 +15549,7 @@
   // Spotlight (J-3): the always-visible "whose turn" cue over the stage — your solo
   // vs comp-behind-the-band. Only touches the DOM on a turn change (thrash guard).
   function updateSpotlightCue() {
-    const el = $('virtuoso-jam-cue'); if (!el) return;
+    const el = $('virtuoso_lab-jam-cue'); if (!el) return;
     const on = playing && isJamMode() && !!(activeBundle && activeBundle.config && activeBundle.config.jamSpotlight);
     if (!on) { if (!el.hidden) { el.hidden = true; _spotlightCueTurn = null; } return; }
     const turn = jamSpotlightTurn(currentPracticeTime);
@@ -15572,7 +15570,7 @@
     const t0 = performance.now();
     const step = () => {
       if (renderer && typeof renderer.resize === 'function') {
-        const host = $('virtuoso-render-host');
+        const host = $('virtuoso_lab-render-host');
         if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
       }
       drawOnce();
@@ -15630,7 +15628,7 @@
       // doesn't keep running in the background. Covers the host top-nav and
       // leaving a tutorial, which bypass Virtuoso's own back buttons. The rAF
       // tick only runs while playing, so this is the natural place to catch it.
-      const screenRoot = $('virtuoso-root');
+      const screenRoot = $('virtuoso_lab-root');
       if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
       // Paused: keep the RAF alive (the nav-guard above + redraws stay armed)
       // but freeze the clock — no advance, no loop wraps, no finite-run end.
@@ -15674,10 +15672,10 @@
           playAnchorChartTime -= loopLen;
           currentPracticeTime -= loopLen;
           if (hostBus() && typeof hostBus().emit === 'function') {
-            hostBus().emit('virtuoso:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: currentPracticeTime });
+            hostBus().emit('virtuoso_lab:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: currentPracticeTime });
           }
           _loopWraps++;
-          const lc = $('virtuoso-loop-count');
+          const lc = $('virtuoso_lab-loop-count');
           if (lc) {
             const showLoopCount = !isJamMode();
             lc.hidden = !showLoopCount;
@@ -15791,7 +15789,7 @@
     return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
       .filter((t) => t && !SINK_STOPWORDS.has(t));
   }
-  // Pure matcher (unit-testable via __ss_debug): JUCE device name → one of the
+  // Pure matcher (unit-testable via __virtuoso_lab_debug): JUCE device name → one of the
   // browser's audiooutput devices, or null. Exact → substring → token-overlap
   // (≥0.5 of the JUCE name's informative tokens, unique winner). Any ambiguity
   // (sibling outputs like "Line 1/2" vs "Line 3/4") bails to default.
@@ -16105,7 +16103,7 @@
   // (v30_4x12.wav, GPL-3 via AIDA-X) ships, so everyone gets the real metal cab.
   // wireTrackAmp builds a chain once + caches it (not per-pass), so when an IR
   // decodes after the chain was built, swap the buffer on the waiting convolver.
-  const IR_BASE = '/api/plugins/virtuoso/ir/';
+  const IR_BASE = '/api/plugins/virtuoso_lab/ir/';
   let _irBufs = {}, _irBufCtx = null;       // name -> { state, buf }  (reset per ctx)
   const _irPending = {};                    // name -> [convolver nodes awaiting the buffer]
   // ── Rig: user cab IRs + per-amp output trim (the Mixer's "Rig" view, 2026-06-13)
@@ -16117,13 +16115,13 @@
   // reset are all identical. A user upload is THEIR licensing problem (never
   // committed); a bad file decode-fails → the procedural cab stays (never silent).
   const RIG_AMPS = ['clean', 'drive', 'metal'];
-  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso.rig')) || {}; } catch (_) { return {}; } })();
-  function rigSave() { try { localStorage.setItem('virtuoso.rig', JSON.stringify(rigState)); } catch (_) {} }
+  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso_lab.rig')) || {}; } catch (_) { return {}; } })();
+  function rigSave() { try { localStorage.setItem('virtuoso_lab.rig', JSON.stringify(rigState)); } catch (_) {} }
   let _rigDbP = null;
   function rigDb() {
     if (_rigDbP) return _rigDbP;
     _rigDbP = new Promise((res, rej) => {
-      let r; try { r = indexedDB.open('virtuoso-rig', 1); } catch (e) { rej(e); return; }
+      let r; try { r = indexedDB.open('virtuoso_lab-rig', 1); } catch (e) { rej(e); return; }
       r.onupgradeneeded = () => { try { r.result.createObjectStore('irs'); } catch (_) {} };
       r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
     });
@@ -16619,12 +16617,12 @@
   }
   function mixerLoad() {
     try {
-      const s = JSON.parse(localStorage.getItem('virtuoso.mixer') || 'null');
+      const s = JSON.parse(localStorage.getItem('virtuoso_lab.mixer') || 'null');
       if (s && s.ch) { Object.keys(s.ch).forEach(k => { ensureChannelState(k); Object.assign(mixerState[k], s.ch[k]); }); mixerBackingDim = !!s.dim; }
       if (s && Number.isFinite(s.master)) mixerMasterLevel = Math.max(0, Math.min(2, s.master));
     } catch (_) {}
   }
-  function mixerSave() { try { localStorage.setItem('virtuoso.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim, master: mixerMasterLevel })); } catch (_) {} }
+  function mixerSave() { try { localStorage.setItem('virtuoso_lab.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim, master: mixerMasterLevel })); } catch (_) {} }
   // Effective gain for a bus given the mixer state (1.0 = no change). Solo on any
   // channel mutes the un-soloed; Backing dim ducks the backing buses.
   function mixerGainFor(name) {
@@ -16698,7 +16696,7 @@
     try { audioBus.master.gain.setTargetAtTime(mv, ctx.currentTime, 0.02); } catch (_) { audioBus.master.gain.value = mv; }
   }
   function renderMixer() {
-    const host = $('virtuoso-mixer-channels'); if (!host) return;
+    const host = $('virtuoso_lab-mixer-channels'); if (!host) return;
     // Console deck — one vertical strip per channel, split into PERSONAL │ BAND │ SUM
     // (track-architecture stage 3b). The deck is DYNAMIC: BAND strips come from the
     // active band (recipeTracks), labeled by the resolved INSTRUMENT (Banjo/Guitar/
@@ -16716,7 +16714,7 @@
     // glows (the genre-switch reveal). Tracked only while the deck is on-screen, so an
     // off-screen resync doesn't spend the reveal — it fires when the player next sees it.
     // Never on the first open (no baseline → set it, don't flash the whole band).
-    const _mxVisible = !!($('virtuoso-root') && $('virtuoso-root').classList.contains('vir-mixer-open'));
+    const _mxVisible = !!($('virtuoso_lab-root') && $('virtuoso_lab-root').classList.contains('virtuoso_lab_vir-mixer-open'));
     const reveal = {}; const curSig = {};
     band.forEach(c => { curSig[c.key] = meta[c.key].headline; });
     if (_mxVisible && _mixerRevealSig) band.forEach(c => { if (_mixerRevealSig[c.key] !== curSig[c.key]) reveal[c.key] = true; });
@@ -16725,34 +16723,34 @@
       const st = mixerState[c.key];
       const m = meta[c.key], headline = m ? m.headline : c.label, chip = m ? m.chip : '';
       const selHtml = c.instr
-        ? `<select class="virtuoso-mixer-instr" data-k="${c.key}" title="${headline} instrument" aria-label="${headline} instrument">` +
+        ? `<select class="virtuoso_lab-mixer-instr" data-k="${c.key}" title="${headline} instrument" aria-label="${headline} instrument">` +
             MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
           `</select>`
         : c.kit
-        ? `<select class="virtuoso-mixer-kit" data-k="${c.key}" title="${headline} kit" aria-label="${headline} kit">` +
+        ? `<select class="virtuoso_lab-mixer-kit" data-k="${c.key}" title="${headline} kit" aria-label="${headline} kit">` +
             MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
           `</select>`
-        : `<span class="virtuoso-mixer-instr-none" aria-hidden="true"></span>`;
+        : `<span class="virtuoso_lab-mixer-instr-none" aria-hidden="true"></span>`;
       // Amp insert row (Guide + Rhythm); other strips get a spacer so the
       // console rows stay aligned (design-in-context: one grid, no ragged strips).
       const ampHtml = c.amp
-        ? `<select class="virtuoso-mixer-amp" data-k="${c.key}" title="${headline} amp (Clean / Overdrive / Metal)" aria-label="${headline} amp">` +
+        ? `<select class="virtuoso_lab-mixer-amp" data-k="${c.key}" title="${headline} amp (Clean / Overdrive / Metal)" aria-label="${headline} amp">` +
             AMP_OPTIONS.map(([v, l]) => `<option value="${v}"${(st.amp || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
           `</select>`
-        : `<span class="virtuoso-mixer-instr-none" aria-hidden="true"></span>`;
-      return `<div class="virtuoso-mixer-strip${c.dynamic ? ' dynamic' : ''}${reveal[c.key] ? ' reveal' : ''}" data-strip="${c.key}">` +
+        : `<span class="virtuoso_lab-mixer-instr-none" aria-hidden="true"></span>`;
+      return `<div class="virtuoso_lab-mixer-strip${c.dynamic ? ' dynamic' : ''}${reveal[c.key] ? ' reveal' : ''}" data-strip="${c.key}">` +
         selHtml + ampHtml +
-        `<input type="range" class="virtuoso-mixer-pan" data-k="${c.key}" min="-1" max="1" step="0.01" value="${mixerPanFor(c.key)}" aria-label="${headline} pan" title="Pan — double-click to reset">` +
-        `<div class="virtuoso-mixer-msrow">` +
-          `<button type="button" class="virtuoso-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
-          `<button type="button" class="virtuoso-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
+        `<input type="range" class="virtuoso_lab-mixer-pan" data-k="${c.key}" min="-1" max="1" step="0.01" value="${mixerPanFor(c.key)}" aria-label="${headline} pan" title="Pan — double-click to reset">` +
+        `<div class="virtuoso_lab-mixer-msrow">` +
+          `<button type="button" class="virtuoso_lab-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
+          `<button type="button" class="virtuoso_lab-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
         `</div>` +
-        `<div class="virtuoso-mixer-fadercol">` +
-          `<input type="range" class="virtuoso-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(st.level)}" data-k="${c.key}" aria-label="${headline} level" aria-orientation="vertical">` +
-          `<div class="virtuoso-mixer-meter" aria-hidden="true"><div class="virtuoso-mixer-meter-fill" data-k="${c.key}"></div></div>` +
+        `<div class="virtuoso_lab-mixer-fadercol">` +
+          `<input type="range" class="virtuoso_lab-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(st.level)}" data-k="${c.key}" aria-label="${headline} level" aria-orientation="vertical">` +
+          `<div class="virtuoso_lab-mixer-meter" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="${c.key}"></div></div>` +
         `</div>` +
-        `<span class="virtuoso-mixer-val" data-k="${c.key}">${faderDb(st.level)}</span>` +
-        `<span class="virtuoso-mixer-ch-label">${headline}${chip ? `<span class="virtuoso-mixer-rolechip">${chip}</span>` : ''}</span>` +
+        `<span class="virtuoso_lab-mixer-val" data-k="${c.key}">${faderDb(st.level)}</span>` +
+        `<span class="virtuoso_lab-mixer-ch-label">${headline}${chip ? `<span class="virtuoso_lab-mixer-rolechip">${chip}</span>` : ''}</span>` +
       `</div>`;
     };
     // INPUT strip (far left, console convention): the player's LIVE guitar/bass
@@ -16762,42 +16760,42 @@
     // nam_tone plugin is installed, its amp-tone screen (feature-detected).
     const hasNamTone = !!document.getElementById('plugin-nam_tone');
     const inputHtml =
-      `<div class="virtuoso-mixer-strip input" data-strip="input">` +
-        `<div class="virtuoso-mixer-lim" title="Your live input — the signal the judge hears">YOU</div>` +
-        `<div class="virtuoso-mixer-inbtns">` +
-          `<button type="button" class="virtuoso-mixer-inbtn" data-go="settings" title="Audio interface & host settings">Audio…</button>` +
-          (hasNamTone ? `<button type="button" class="virtuoso-mixer-inbtn" data-go="plugin-nam_tone" title="Amp tone setup (NAM)">Tone…</button>` : '') +
+      `<div class="virtuoso_lab-mixer-strip input" data-strip="input">` +
+        `<div class="virtuoso_lab-mixer-lim" title="Your live input — the signal the judge hears">YOU</div>` +
+        `<div class="virtuoso_lab-mixer-inbtns">` +
+          `<button type="button" class="virtuoso_lab-mixer-inbtn" data-go="settings" title="Audio interface & host settings">Audio…</button>` +
+          (hasNamTone ? `<button type="button" class="virtuoso_lab-mixer-inbtn" data-go="plugin-nam_tone" title="Amp tone setup (NAM)">Tone…</button>` : '') +
         `</div>` +
-        `<div class="virtuoso-mixer-fadercol input">` +
-          `<div class="virtuoso-mixer-meter wide" aria-hidden="true"><div class="virtuoso-mixer-meter-fill" data-k="input"></div></div>` +
+        `<div class="virtuoso_lab-mixer-fadercol input">` +
+          `<div class="virtuoso_lab-mixer-meter wide" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="input"></div></div>` +
         `</div>` +
-        `<span class="virtuoso-mixer-val" data-k="input">in</span>` +
-        `<span class="virtuoso-mixer-ch-label">Input</span>` +
+        `<span class="virtuoso_lab-mixer-val" data-k="input">in</span>` +
+        `<span class="virtuoso_lab-mixer-ch-label">Input</span>` +
       `</div>`;
     const masterHtml =
-      `<div class="virtuoso-mixer-strip master" data-strip="master">` +
-        `<div class="virtuoso-mixer-lim" id="virtuoso-mixer-lim" title="Master limiter activity"><span class="virtuoso-mixer-led"></span>LIM</div>` +
-        `<div class="virtuoso-mixer-msrow">` +
-          `<button type="button" class="virtuoso-mixer-tog dim${mixerBackingDim ? ' active' : ''}" data-act="dim" title="Duck the backing band (practice focus)" aria-pressed="${mixerBackingDim}">Dim</button>` +
+      `<div class="virtuoso_lab-mixer-strip master" data-strip="master">` +
+        `<div class="virtuoso_lab-mixer-lim" id="virtuoso_lab-mixer-lim" title="Master limiter activity"><span class="virtuoso_lab-mixer-led"></span>LIM</div>` +
+        `<div class="virtuoso_lab-mixer-msrow">` +
+          `<button type="button" class="virtuoso_lab-mixer-tog dim${mixerBackingDim ? ' active' : ''}" data-act="dim" title="Duck the backing band (practice focus)" aria-pressed="${mixerBackingDim}">Dim</button>` +
         `</div>` +
-        `<div class="virtuoso-mixer-fadercol">` +
-          `<input type="range" class="virtuoso-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(mixerMasterLevel)}" data-k="master" aria-label="Master level" aria-orientation="vertical">` +
-          `<div class="virtuoso-mixer-meter" aria-hidden="true"><div class="virtuoso-mixer-meter-fill" data-k="master"></div></div>` +
+        `<div class="virtuoso_lab-mixer-fadercol">` +
+          `<input type="range" class="virtuoso_lab-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(mixerMasterLevel)}" data-k="master" aria-label="Master level" aria-orientation="vertical">` +
+          `<div class="virtuoso_lab-mixer-meter" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="master"></div></div>` +
         `</div>` +
-        `<span class="virtuoso-mixer-val" data-k="master">${faderDb(mixerMasterLevel)}</span>` +
-        `<span class="virtuoso-mixer-ch-label">Master</span>` +
+        `<span class="virtuoso_lab-mixer-val" data-k="master">${faderDb(mixerMasterLevel)}</span>` +
+        `<span class="virtuoso_lab-mixer-ch-label">Master</span>` +
       `</div>`;
     // One-line band caption (the band-reveal's verbal cue) + the PERSONAL│BAND│SUM deck.
     let styleName = '';
     try { const id = cfgAudioProfile((activeBundle && activeBundle.config) || readConfig()); styleName = (id && STYLE_PALETTES[id] && STYLE_PALETTES[id].label) || ''; } catch (_) {}
     const bandNames = band.map(c => meta[c.key].headline + (meta[c.key].chip ? ' ' + meta[c.key].chip : ''));
     const caption = band.length
-      ? `<div class="virtuoso-mixer-caption">${styleName ? `<b>${styleName}</b> band — ` : 'Your band — '}${bandNames.join(' · ')}</div>`
-      : `<div class="virtuoso-mixer-caption">Just you and the click — this drill has no backing band.</div>`;
-    const grp = (cls, label, strips) => `<div class="virtuoso-mixer-group ${cls}"><span class="virtuoso-mixer-grouplabel">${label}</span><div class="virtuoso-mixer-groupstrips">${strips}</div></div>`;
-    host.innerHTML = caption + `<div class="virtuoso-mixer-deck">` +
+      ? `<div class="virtuoso_lab-mixer-caption">${styleName ? `<b>${styleName}</b> band — ` : 'Your band — '}${bandNames.join(' · ')}</div>`
+      : `<div class="virtuoso_lab-mixer-caption">Just you and the click — this drill has no backing band.</div>`;
+    const grp = (cls, label, strips) => `<div class="virtuoso_lab-mixer-group ${cls}"><span class="virtuoso_lab-mixer-grouplabel">${label}</span><div class="virtuoso_lab-mixer-groupstrips">${strips}</div></div>`;
+    host.innerHTML = caption + `<div class="virtuoso_lab-mixer-deck">` +
       grp('personal', 'Personal', inputHtml + personal.map(stripHtml).join('')) +
-      grp('band', 'Band', band.length ? band.map(stripHtml).join('') : `<div class="virtuoso-mixer-bandempty">No backing band for this drill.</div>`) +
+      grp('band', 'Band', band.length ? band.map(stripHtml).join('') : `<div class="virtuoso_lab-mixer-bandempty">No backing band for this drill.</div>`) +
       grp('sum', 'Sum', masterHtml) +
     `</div>`;
   }
@@ -16812,33 +16810,33 @@
     return v <= 0.0001 ? '−∞' : (20 * Math.log10(v)).toFixed(1);
   }
   function renderRig(flag) {
-    const host = $('virtuoso-mixer-rig'); if (!host) return;
+    const host = $('virtuoso_lab-mixer-rig'); if (!host) return;
     const card = (id) => {
       const ov = rigState[id] || {}, p = AMP_PRESETS[id] || {};
       const custom = !!ov.irName;
       const cabName = custom ? ov.irName.replace(/\.wav$/i, '') : (RIG_DEFAULT_CAB[id] || 'Default');
       const outV = (ov.output != null ? ov.output : (p.makeup || 0.5));
-      return `<div class="virtuoso-rig-card" data-amp="${id}">` +
-        `<div class="virtuoso-rig-cardhead">${RIG_AMP_LABELS[id] || id}</div>` +
-        `<div class="virtuoso-rig-row">` +
-          `<span class="virtuoso-rig-rowlbl">Cab</span>` +
-          `<span class="virtuoso-rig-cabname${custom ? ' custom' : ''}" title="${custom ? 'Your cab IR' : 'Built-in cab'}">${cabName}</span>` +
-          `<button type="button" class="virtuoso-rig-load" data-amp="${id}">Load…</button>` +
-          (custom ? `<button type="button" class="virtuoso-rig-reset" data-amp="${id}" data-what="ir" title="Reset to the built-in cab" aria-label="Reset cab">↺</button>` : '') +
+      return `<div class="virtuoso_lab-rig-card" data-amp="${id}">` +
+        `<div class="virtuoso_lab-rig-cardhead">${RIG_AMP_LABELS[id] || id}</div>` +
+        `<div class="virtuoso_lab-rig-row">` +
+          `<span class="virtuoso_lab-rig-rowlbl">Cab</span>` +
+          `<span class="virtuoso_lab-rig-cabname${custom ? ' custom' : ''}" title="${custom ? 'Your cab IR' : 'Built-in cab'}">${cabName}</span>` +
+          `<button type="button" class="virtuoso_lab-rig-load" data-amp="${id}">Load…</button>` +
+          (custom ? `<button type="button" class="virtuoso_lab-rig-reset" data-amp="${id}" data-what="ir" title="Reset to the built-in cab" aria-label="Reset cab">↺</button>` : '') +
         `</div>` +
-        `<div class="virtuoso-rig-row">` +
-          `<span class="virtuoso-rig-rowlbl">Output</span>` +
-          `<input type="range" class="virtuoso-rig-out" data-amp="${id}" min="0" max="1.2" step="0.01" value="${outV}" aria-label="${RIG_AMP_LABELS[id]} amp output">` +
-          `<span class="virtuoso-rig-outdb" data-amp="${id}">${rigOutputDb(id)} dB</span>` +
-          (ov.output != null ? `<button type="button" class="virtuoso-rig-reset" data-amp="${id}" data-what="out" title="Reset output" aria-label="Reset output">↺</button>` : '') +
+        `<div class="virtuoso_lab-rig-row">` +
+          `<span class="virtuoso_lab-rig-rowlbl">Output</span>` +
+          `<input type="range" class="virtuoso_lab-rig-out" data-amp="${id}" min="0" max="1.2" step="0.01" value="${outV}" aria-label="${RIG_AMP_LABELS[id]} amp output">` +
+          `<span class="virtuoso_lab-rig-outdb" data-amp="${id}">${rigOutputDb(id)} dB</span>` +
+          (ov.output != null ? `<button type="button" class="virtuoso_lab-rig-reset" data-amp="${id}" data-what="out" title="Reset output" aria-label="Reset output">↺</button>` : '') +
         `</div>` +
       `</div>`;
     };
     host.innerHTML =
-      `<p class="virtuoso-rig-intro">Your <b>backing band's</b> amp cabs — load your own cab IR (<code>.wav</code>) per amp. <span class="virtuoso-rig-dim">For your own live tone, use the <b>YOU</b> strip → Tone…</span></p>` +
-      (flag === 'bad' ? `<p class="virtuoso-rig-bad">That file couldn't be read as audio — kept the current cab.</p>` : '') +
-      `<div class="virtuoso-rig-cards">${RIG_AMPS.map(card).join('')}</div>` +
-      `<input type="file" id="virtuoso-rig-file" accept=".wav,audio/wav,audio/*" hidden>`;
+      `<p class="virtuoso_lab-rig-intro">Your <b>backing band's</b> amp cabs — load your own cab IR (<code>.wav</code>) per amp. <span class="virtuoso_lab-rig-dim">For your own live tone, use the <b>YOU</b> strip → Tone…</span></p>` +
+      (flag === 'bad' ? `<p class="virtuoso_lab-rig-bad">That file couldn't be read as audio — kept the current cab.</p>` : '') +
+      `<div class="virtuoso_lab-rig-cards">${RIG_AMPS.map(card).join('')}</div>` +
+      `<input type="file" id="virtuoso_lab-rig-file" accept=".wav,audio/wav,audio/*" hidden>`;
   }
   // Live console meters — drawn only while the Mixer is open (its own rAF loop;
   // the playback tick is untouched, and there is zero cost while closed). Reads
@@ -16864,9 +16862,9 @@
     return _mixIn.lvl;
   }
   function mixerMeterFrame() {
-    const root = $('virtuoso-root');
-    if (!root || !root.classList.contains('vir-mixer-open')) { _mixMeterRaf = 0; return; }
-    const host = $('virtuoso-mixer-channels');
+    const root = $('virtuoso_lab-root');
+    if (!root || !root.classList.contains('virtuoso_lab_vir-mixer-open')) { _mixMeterRaf = 0; return; }
+    const host = $('virtuoso_lab-mixer-channels');
     if (host) {
       if (!_mixMeterBuf) _mixMeterBuf = new Uint8Array(256);
       const peakOf = (an) => {
@@ -16881,7 +16879,7 @@
       const draw = (k, an, lvl) => {
         const sm = Math.max(lvl != null ? lvl : peakOf(an), (_mixMeterPk[k] || 0) * 0.88);   // fast attack, smooth release
         _mixMeterPk[k] = sm;
-        const fill = host.querySelector(`.virtuoso-mixer-meter-fill[data-k="${k}"]`);
+        const fill = host.querySelector(`.virtuoso_lab-mixer-meter-fill[data-k="${k}"]`);
         if (!fill) return;
         const db = sm <= 0.001 ? -60 : 20 * Math.log10(sm);
         fill.style.height = (Math.max(0, Math.min(1, (db + 48) / 48)) * 100).toFixed(1) + '%';
@@ -16890,7 +16888,7 @@
       if (audioBus) {
         allChannels().forEach(c => draw(c.key, audioBus.analysers[c.key]));
         draw('master', audioBus.masterAnalyser);
-        const lim = $('virtuoso-mixer-lim');
+        const lim = $('virtuoso_lab-mixer-lim');
         if (lim) {
           const r = audioBus.limiter && typeof audioBus.limiter.reduction === 'number' ? audioBus.limiter.reduction : 0;
           lim.classList.toggle('lit', r < -1);
@@ -16904,31 +16902,31 @@
   // Panel toggles (M / P / ? overlays). Slide transitions + open state live in CSS
   // (reduced-motion aware); these flip the root class + aria + the button highlight.
   function toggleMixer(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-mixer-open');
-    if (open) { root.classList.remove('vir-library-open'); root.classList.remove('vir-starters-open'); }   // mutually exclusive bottom drawers
-    root.classList.toggle('vir-mixer-open', open);
-    $('virtuoso-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('virtuoso-mixer-btn')?.classList.toggle('active', open);
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-mixer-open');
+    if (open) { root.classList.remove('virtuoso_lab_vir-library-open'); root.classList.remove('virtuoso_lab_vir-starters-open'); }   // mutually exclusive bottom drawers
+    root.classList.toggle('virtuoso_lab_vir-mixer-open', open);
+    $('virtuoso_lab-mixer')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('virtuoso_lab-mixer-btn')?.classList.toggle('active', open);
     if (open) {
       renderMixer(); renderRig(); applyMixer();
       if (!_mixMeterRaf) _mixMeterRaf = requestAnimationFrame(mixerMeterFrame);   // meters run only while open
     }
   }
   function toggleProgressSheet(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-progress-open');
-    root.classList.toggle('vir-progress-open', open);
-    $('virtuoso-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('virtuoso-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-progress-open');
+    root.classList.toggle('virtuoso_lab_vir-progress-open', open);
+    $('virtuoso_lab-progress-sheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('virtuoso_lab-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
     if (open) renderProgressSheet();
   }
   function toggleCheatSheet(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-cheat-open');
-    root.classList.toggle('vir-cheat-open', open);
-    $('virtuoso-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('virtuoso-help-btn')?.classList.toggle('active', open);
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-cheat-open');
+    root.classList.toggle('virtuoso_lab_vir-cheat-open', open);
+    $('virtuoso_lab-cheatsheet')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('virtuoso_lab-help-btn')?.classList.toggle('active', open);
   }
 
   // ── Library browse drawer (Phase 9 Slice 3) ─────────────────────────────────
@@ -16945,21 +16943,21 @@
     return [...set].sort();
   }
   function toggleLibrary(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-library-open');
-    if (open) { root.classList.remove('vir-mixer-open'); root.classList.remove('vir-starters-open'); }   // both slide up from the bottom — mutually exclusive
-    root.classList.toggle('vir-library-open', open);
-    $('virtuoso-library')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('virtuoso-library-open')?.classList.toggle('active', open);
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-library-open');
+    if (open) { root.classList.remove('virtuoso_lab_vir-mixer-open'); root.classList.remove('virtuoso_lab_vir-starters-open'); }   // both slide up from the bottom — mutually exclusive
+    root.classList.toggle('virtuoso_lab_vir-library-open', open);
+    $('virtuoso_lab-library')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('virtuoso_lab-library-open')?.classList.toggle('active', open);
     if (open) renderLibrary();
   }
   function _libChipRow(dim, label, values) {
     const cur = _libFilters[dim];
-    const chip = (val, txt) => `<button type="button" class="virtuoso-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="virtuoso-lib-chiprow"><span class="virtuoso-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
   function renderLibraryFilters() {
-    const el = $('virtuoso-library-filters'); if (!el) return;
+    const el = $('virtuoso_lab-library-filters'); if (!el) return;
     const genres = _libGenres().map(g => [g, LIB_GENRE_LABELS[g] || g]);
     const skills = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
@@ -16973,18 +16971,18 @@
     let dose = '';
     try { const seg = rollSegment(t, { variantIdx: 0 }); const d = segmentEstDuration(seg); dose = d < 60 ? `~${Math.round(d)}s` : `~${Math.floor(d / 60)}m${Math.round(d % 60)}s`; } catch (_) {}
     const meta = [t.competency, t.style ? (LIB_GENRE_LABELS[t.style] || t.style) : 'all-purpose', t.instrument, dose].filter(Boolean).join(' · ');
-    return `<div class="virtuoso-lib-card">
-      <div class="virtuoso-segment-header">
-        <span class="virtuoso-segment-badge" style="color:${color}">${esc(klabel)}</span>
-        <span class="virtuoso-segment-name">${esc(t.label || id)}</span>
-        <button type="button" class="virtuoso-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
+    return `<div class="virtuoso_lab-lib-card">
+      <div class="virtuoso_lab-segment-header">
+        <span class="virtuoso_lab-segment-badge" style="color:${color}">${esc(klabel)}</span>
+        <span class="virtuoso_lab-segment-name">${esc(t.label || id)}</span>
+        <button type="button" class="virtuoso_lab-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
       </div>
-      <div class="virtuoso-segment-meta">${esc(meta)}</div>
+      <div class="virtuoso_lab-segment-meta">${esc(meta)}</div>
     </div>`;
   }
   function renderLibrary() {
     renderLibraryFilters();
-    const body = $('virtuoso-library-body'), cnt = $('virtuoso-library-count'); if (!body) return;
+    const body = $('virtuoso_lab-library-body'), cnt = $('virtuoso_lab-library-count'); if (!body) return;
     const f = _libFilters;
     const ids = Object.keys(SEGMENT_TEMPLATES);
     const match = id => { const t = SEGMENT_TEMPLATES[id];
@@ -16998,10 +16996,10 @@
     for (const role of roleOrder) {
       const inRole = shown.filter(id => SEGMENT_TEMPLATES[id].role === role);
       if (!inRole.length) continue;
-      html += `<div class="virtuoso-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="virtuoso-lib-rolecount">${inRole.length}</span></div>`;
-      html += `<div class="virtuoso-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
+      html += `<div class="virtuoso_lab-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="virtuoso_lab-lib-rolecount">${inRole.length}</span></div>`;
+      html += `<div class="virtuoso_lab-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
     }
-    body.innerHTML = html || `<div class="virtuoso-lib-empty">No blocks match these filters — clear one to see more.</div>`;
+    body.innerHTML = html || `<div class="virtuoso_lab-lib-empty">No blocks match these filters — clear one to see more.</div>`;
   }
 
   // ── Starter-workout browse drawer (Phase 9 Slice 4) ─────────────────────────
@@ -17026,21 +17024,21 @@
     return { genre, level, instrument: setup.instrument };
   }
   function toggleStarters(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-starters-open');
-    if (open) { root.classList.remove('vir-mixer-open'); root.classList.remove('vir-library-open'); }   // mutually exclusive bottom drawers
-    root.classList.toggle('vir-starters-open', open);
-    $('virtuoso-starters')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    $('virtuoso-starters-open')?.classList.toggle('active', open);
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-starters-open');
+    if (open) { root.classList.remove('virtuoso_lab_vir-mixer-open'); root.classList.remove('virtuoso_lab_vir-library-open'); }   // mutually exclusive bottom drawers
+    root.classList.toggle('virtuoso_lab_vir-starters-open', open);
+    $('virtuoso_lab-starters')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    $('virtuoso_lab-starters-open')?.classList.toggle('active', open);
     if (open) { _pendingStarter = null; renderStarters(); }
   }
   function _starterChipRow(dim, label, values) {
     const cur = _starterFilters[dim];
-    const chip = (val, txt) => `<button type="button" class="virtuoso-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="virtuoso-lib-chiprow"><span class="virtuoso-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
+    return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
   function renderStarterFilters() {
-    const el = $('virtuoso-starters-filters'); if (!el) return;
+    const el = $('virtuoso_lab-starters-filters'); if (!el) return;
     const present = new Set(Object.keys(BUILT_IN_SESSIONS).map(id => _sessionFacets(id).genre));
     const genres = ['blues','rock','metal','jazz','funk','pop','country','gospel','general'].filter(g => present.has(g))
       .map(g => [g, g === 'general' ? 'General' : (LIB_GENRE_LABELS[g] || g)]);
@@ -17050,10 +17048,10 @@
   }
   function _starterDotsHtml(id) {
     const segs = (BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean);
-    return `<span class="virtuoso-starter-dots">` + segs.map(s => {
+    return `<span class="virtuoso_lab-starter-dots">` + segs.map(s => {
       const c = ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b';
       const lbl = (SEGMENT_ROLES[s.role] || {}).label || KIND_LABELS[s.kind] || s.kind;
-      return `<span class="virtuoso-starter-dot" style="background:${c}" title="${lbl}"></span>`;
+      return `<span class="virtuoso_lab-starter-dot" style="background:${c}" title="${lbl}"></span>`;
     }).join('') + `</span>`;
   }
   function _starterCardHtml(id) {
@@ -17064,26 +17062,26 @@
     const dur = segs.reduce((a, s) => a + segmentEstDuration(s), 0);
     const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m`;
     const meta = [`${segs.length} blocks`, f.genre === 'general' ? null : (LIB_GENRE_LABELS[f.genre] || f.genre), f.level === 'any' ? null : f.level, f.instrument, durStr].filter(Boolean).join(' · ');
-    return `<div class="virtuoso-lib-card virtuoso-starter-card">
-      <div class="virtuoso-segment-header">
-        <span class="virtuoso-segment-name">${esc(sess.name || id)}</span>
-        <button type="button" class="virtuoso-lib-add virtuoso-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
+    return `<div class="virtuoso_lab-lib-card virtuoso_lab-starter-card">
+      <div class="virtuoso_lab-segment-header">
+        <span class="virtuoso_lab-segment-name">${esc(sess.name || id)}</span>
+        <button type="button" class="virtuoso_lab-lib-add virtuoso_lab-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
       </div>
       ${_starterDotsHtml(id)}
-      <div class="virtuoso-segment-meta">${esc(meta)}</div>
+      <div class="virtuoso_lab-segment-meta">${esc(meta)}</div>
     </div>`;
   }
   function renderStarters() {
     renderStarterFilters();
-    const body = $('virtuoso-starters-body'), cnt = $('virtuoso-starters-count'), confirm = $('virtuoso-starters-confirm');
+    const body = $('virtuoso_lab-starters-body'), cnt = $('virtuoso_lab-starters-count'), confirm = $('virtuoso_lab-starters-confirm');
     if (!body) return;
     // Replace-guard strip (only when the draft has unsaved edits): inline, not a modal.
     if (confirm) {
       if (_pendingStarter && BUILT_IN_SESSIONS[_pendingStarter]) {
         const n = ((_workoutDraft && _workoutDraft.segments) || []).length;
         confirm.innerHTML = `<span>Replace your ${n} edited block${n === 1 ? '' : 's'} with “${BUILT_IN_SESSIONS[_pendingStarter].name}”?</span>`
-          + `<button type="button" class="virtuoso-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
-          + `<button type="button" class="virtuoso-starter-confirm-no">Cancel</button>`;
+          + `<button type="button" class="virtuoso_lab-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
+          + `<button type="button" class="virtuoso_lab-starter-confirm-no">Cancel</button>`;
         confirm.hidden = false;
       } else { confirm.hidden = true; confirm.innerHTML = ''; }
     }
@@ -17097,8 +17095,8 @@
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
     const routinesHtml = routinesSectionHtml();   // the user's saved routines, above the built-in starters
     const startersHtml = shown.length
-      ? `${routinesHtml ? '<div class="virtuoso-lib-group-title">Starters</div>' : ''}<div class="virtuoso-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
-      : `<div class="virtuoso-lib-empty">No starters match these filters — clear one to see more.</div>`;
+      ? `${routinesHtml ? '<div class="virtuoso_lab-lib-group-title">Starters</div>' : ''}<div class="virtuoso_lab-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
+      : `<div class="virtuoso_lab-lib-empty">No starters match these filters — clear one to see more.</div>`;
     body.innerHTML = routinesHtml + startersHtml;
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
@@ -17123,7 +17121,7 @@
   let _savedRoutines = null;   // cache of the user's kind:'workout' presets
   async function loadSavedRoutines() {
     try {
-      const r = await fetch('/api/plugins/virtuoso/presets');
+      const r = await fetch('/api/plugins/virtuoso_lab/presets');
       const data = r.ok ? await r.json() : null;
       const all = (data && Array.isArray(data.presets)) ? data.presets : [];
       _savedRoutines = all.filter(p => p && p.kind === 'workout' && p.config && Array.isArray(p.config.segments));
@@ -17138,7 +17136,7 @@
     const session = Object.assign({}, draft, { version: 1, name });   // the editable draft IS the session
     const id = routineSlug(name);
     try {
-      const res = await fetch('/api/plugins/virtuoso/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, kind: 'workout', config: session }) });
+      const res = await fetch('/api/plugins/virtuoso_lab/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, kind: 'workout', config: session }) });
       if (!res.ok) throw new Error(await res.text());
     } catch (_) { showStatus('Could not save the routine.'); return false; }
     showStatus(`Saved routine: ${name}`);
@@ -17152,7 +17150,7 @@
     clearRefreshSummary(); renderWorkoutDraft(); toggleStarters(false);
   }
   async function deleteRoutine(id) {
-    try { await fetch('/api/plugins/virtuoso/presets/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (_) {}
+    try { await fetch('/api/plugins/virtuoso_lab/presets/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (_) {}
     if (_savedRoutines) _savedRoutines = _savedRoutines.filter(p => p.id !== id);
     renderStarters();
   }
@@ -17162,18 +17160,18 @@
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const cards = rts.map(rt => {
       const n = (rt.config.segments || []).length;
-      return `<div class="virtuoso-lib-card virtuoso-routine-card">
-        <div class="virtuoso-segment-header">
-          <span class="virtuoso-segment-name">${esc(rt.name || rt.id)}</span>
-          <span class="virtuoso-routine-card-actions">
-            <button type="button" class="virtuoso-lib-add virtuoso-routine-load" data-routine-id="${esc(rt.id)}" title="Load this routine into the timeline">Load</button>
-            <button type="button" class="virtuoso-routine-del" data-routine-id="${esc(rt.id)}" title="Delete this routine" aria-label="Delete routine">✕</button>
+      return `<div class="virtuoso_lab-lib-card virtuoso_lab-routine-card">
+        <div class="virtuoso_lab-segment-header">
+          <span class="virtuoso_lab-segment-name">${esc(rt.name || rt.id)}</span>
+          <span class="virtuoso_lab-routine-card-actions">
+            <button type="button" class="virtuoso_lab-lib-add virtuoso_lab-routine-load" data-routine-id="${esc(rt.id)}" title="Load this routine into the timeline">Load</button>
+            <button type="button" class="virtuoso_lab-routine-del" data-routine-id="${esc(rt.id)}" title="Delete this routine" aria-label="Delete routine">✕</button>
           </span>
         </div>
-        <div class="virtuoso-segment-meta">${n} block${n === 1 ? '' : 's'} · your routine</div>
+        <div class="virtuoso_lab-segment-meta">${n} block${n === 1 ? '' : 's'} · your routine</div>
       </div>`;
     }).join('');
-    return `<div class="virtuoso-lib-group-title">Your routines</div><div class="virtuoso-lib-grid virtuoso-routines-grid">${cards}</div>`;
+    return `<div class="virtuoso_lab-lib-group-title">Your routines</div><div class="virtuoso_lab-lib-grid virtuoso_lab-routines-grid">${cards}</div>`;
   }
 
   // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
@@ -17185,13 +17183,13 @@
   // until Save (works on a draft copy). "Remove" = move back to Available, never delete.
   function packsLoad() {
     try {
-      const o = JSON.parse(localStorage.getItem('virtuoso.packs') || '{}');
+      const o = JSON.parse(localStorage.getItem('virtuoso_lab.packs') || '{}');
       return { installed: Array.isArray(o.installed) ? o.installed : [],
                order:     Array.isArray(o.order)     ? o.order     : [] };
     } catch { return { installed: [], order: [] }; }
   }
   function packsSave(state) {
-    try { localStorage.setItem('virtuoso.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
+    try { localStorage.setItem('virtuoso_lab.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
     catch (e) { console.warn('[Virtuoso] packs save failed', e); }
   }
   const _stylePackIds = () => PATHWAY_BANDS.filter(b => b.kind === 'style').map(b => b.id);
@@ -17213,18 +17211,18 @@
   let _packsSel = null;     // { col:'available'|'installed', id } current selection
 
   function togglePackManager(force) {
-    const root = $('virtuoso-root'); if (!root) return;
-    const open = force != null ? force : !root.classList.contains('vir-packs-open');
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-packs-open');
     if (open) { _packsDraft = { order: installedStyleOrder() }; _packsSel = null; }
-    root.classList.toggle('vir-packs-open', open);
-    $('virtuoso-packs-modal')?.setAttribute('aria-hidden', open ? 'false' : 'true');
-    document.querySelectorAll('.virtuoso-band-add').forEach(b => b.classList.toggle('active', open));
+    root.classList.toggle('virtuoso_lab_vir-packs-open', open);
+    $('virtuoso_lab-packs-modal')?.setAttribute('aria-hidden', open ? 'false' : 'true');
+    document.querySelectorAll('.virtuoso_lab-band-add').forEach(b => b.classList.toggle('active', open));
     if (open) renderPackManager(); else { _packsDraft = null; _packsSel = null; }
   }
 
   function renderPackManager() {
-    const inst = $('virtuoso-packs-installed');
-    const avail = $('virtuoso-packs-available');
+    const inst = $('virtuoso_lab-packs-installed');
+    const avail = $('virtuoso_lab-packs-available');
     if (!inst || !avail || !_packsDraft) return;
     const installedStyles = _packsDraft.order.slice();
     const availableStyles = _stylePackIds().filter(id => !installedStyles.includes(id));
@@ -17232,7 +17230,7 @@
     // Installed column: Core (pinned, locked) → hairline → Style (draggable, ordered)
     inst.innerHTML = '';
     _corePackIds().forEach(id => inst.appendChild(_packRow(id, 'installed', { core: true })));
-    const hr = document.createElement('div'); hr.className = 'virtuoso-pack-hairline'; inst.appendChild(hr);
+    const hr = document.createElement('div'); hr.className = 'virtuoso_lab-pack-hairline'; inst.appendChild(hr);
     if (!installedStyles.length) {
       inst.appendChild(_packEmpty('No style packs installed — add one from Available.'));
     } else {
@@ -17248,28 +17246,28 @@
       const fams = PACK_FAMILY_ORDER.filter(f => availableStyles.some(id => famOf(id) === f));
       availableStyles.forEach(id => { const f = famOf(id); if (f && !fams.includes(f)) fams.push(f); });
       fams.forEach(f => {
-        const head = document.createElement('div'); head.className = 'virtuoso-pack-fam'; head.textContent = f; avail.appendChild(head);
+        const head = document.createElement('div'); head.className = 'virtuoso_lab-pack-fam'; head.textContent = f; avail.appendChild(head);
         availableStyles.filter(id => famOf(id) === f).forEach(id => avail.appendChild(_packRow(id, 'available', {})));
       });
     }
     _syncPackMoveButtons();
   }
 
-  function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'virtuoso-pack-empty'; d.textContent = msg; return d; }
+  function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'virtuoso_lab-pack-empty'; d.textContent = msg; return d; }
 
   function _packRow(id, col, opts) {
     const b = PATHWAY_BANDS.find(x => x.id === id) || { label: id };
     const row = document.createElement('div');
-    row.className = 'virtuoso-segment-card virtuoso-pack-row'
+    row.className = 'virtuoso_lab-segment-card virtuoso_lab-pack-row'
       + (opts.core ? ' is-core' : '')
       + (_packsSel && _packsSel.col === col && _packsSel.id === id ? ' active' : '');
     row.dataset.packId = id;
     row.dataset.col = col;
     row.setAttribute('role', 'option');
-    const lead = opts.core ? '<span class="virtuoso-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
-      : (col === 'installed' ? '<span class="virtuoso-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
-    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="virtuoso-pw-sub">${b.buildsOn}</div>` : '';
-    row.innerHTML = `<div class="virtuoso-pw-rowtop">${lead}<span class="virtuoso-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
+    const lead = opts.core ? '<span class="virtuoso_lab-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
+      : (col === 'installed' ? '<span class="virtuoso_lab-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
+    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="virtuoso_lab-pw-sub">${b.buildsOn}</div>` : '';
+    row.innerHTML = `<div class="virtuoso_lab-pw-rowtop">${lead}<span class="virtuoso_lab-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
     if (!opts.core) {
       row.tabIndex = 0;
       const select = () => { _packsSel = { col, id }; renderPackManager(); };
@@ -17299,13 +17297,13 @@
   }
   // Which installed Style row a drop at clientY lands before (null = append to end).
   function _packRowUnder(container, clientY) {
-    const rows = [...container.querySelectorAll('.virtuoso-pack-row:not(.is-core)')];
+    const rows = [...container.querySelectorAll('.virtuoso_lab-pack-row:not(.is-core)')];
     for (const r of rows) { const box = r.getBoundingClientRect(); if (clientY < box.top + box.height / 2) return r.dataset.packId; }
     return null;
   }
   function _syncPackMoveButtons() {
-    const toInst = $('virtuoso-packs-to-installed');
-    const toAvail = $('virtuoso-packs-to-available');
+    const toInst = $('virtuoso_lab-packs-to-installed');
+    const toAvail = $('virtuoso_lab-packs-to-available');
     if (toInst) toInst.disabled = !(_packsSel && _packsSel.col === 'available');
     if (toAvail) toAvail.disabled = !(_packsSel && _packsSel.col === 'installed');
   }
@@ -17321,14 +17319,14 @@
     const sk = s.scale ? `${s.key || ''} ${String(s.scale).replace(/_/g, ' ')}`.trim() : '';
     let tierLine = '';
     if (s.tierCleared && s.clearedTier != null) {
-      tierLine = `<div class="virtuoso-vir-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
+      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
     } else if (s.mode === 'pathway' && s.bpm_tier != null && s.bpm_tier >= 0) {
-      tierLine = `<div class="virtuoso-vir-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.bpm) {
-      tierLine = `<div class="virtuoso-vir-line">${s.bpm} BPM</div>`;
+      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">${s.bpm} BPM</div>`;
     }
     const streakLine = s.streak > 0
-      ? `<div class="virtuoso-vir-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
+      ? `<div class="virtuoso_lab-virtuoso_lab_vir-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
       : '';
     // Depth-ladder credit (Phase 9 Slice 5) — gained-only, surfaced from
     // _lastEndedSession.depth = { xpGained, travelKey, travelRung } | null. The
@@ -17336,9 +17334,9 @@
     // key is neutral progress; XP is a calm readout. Null in Off mode → nothing.
     const d = s.depth;
     let depthLine = '';
-    if (d && d.travelRung) depthLine = `<div class="virtuoso-vir-cleared">▲ Travel rung cleared — it travels now</div>`;
-    else if (d && d.travelKey) depthLine = `<div class="virtuoso-vir-line">New ground — first clean run in ${d.travelKey}</div>`;
-    const xpLine = (d && d.xpGained > 0) ? `<div class="virtuoso-vir-line">+${d.xpGained} XP</div>` : '';
+    if (d && d.travelRung) depthLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">▲ Travel rung cleared — it travels now</div>`;
+    else if (d && d.travelKey) depthLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">New ground — first clean run in ${d.travelKey}</div>`;
+    const xpLine = (d && d.xpGained > 0) ? `<div class="virtuoso_lab-virtuoso_lab_vir-line">+${d.xpGained} XP</div>` : '';
     // Proof-loop (flagged, pilot): a competency CLAIM replaces the generic tier line —
     // ONLY when something was actually proven — plus a Copy-the-card affordance.
     let proofLine = '', copyBtn = '';
@@ -17351,18 +17349,18 @@
       const sub = s.proof.kind === 'guide_tones'
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
-      proofLine = `<div class="virtuoso-vir-cleared">${claim}</div>` +
-        (sub ? `<div class="virtuoso-vir-sub virtuoso-vir-transfer">${sub}</div>` : '');
+      proofLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">${claim}</div>` +
+        (sub ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">${sub}</div>` : '');
     }
     // Tier C: the cooperative share card is offered for ANY shareworthy run (a tier/
     // depth flip, a completed Workout, a new badge — not only the proof pilot).
     copyBtn = shareRowHtml();   // Copy card + Save — every run (incl. Jam's descriptive card)
-    return `<div class="virtuoso-progress-sheet-section virtuoso-vir-card">` +
-      `<div class="virtuoso-vir-head"><h4>Last session</h4>` +
-      `<button type="button" class="virtuoso-vir-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
-      `<div class="virtuoso-vir-what">${s.displayName}</div>` +
-      (sk ? `<div class="virtuoso-vir-sub">${sk}</div>` : '') +
-      `<div class="virtuoso-vir-line">Practiced ${dur}</div>` +
+    return `<div class="virtuoso_lab-progress-sheet-section virtuoso_lab-virtuoso_lab_vir-card">` +
+      `<div class="virtuoso_lab-virtuoso_lab_vir-head"><h4>Last session</h4>` +
+      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
+      `<div class="virtuoso_lab-virtuoso_lab_vir-what">${s.displayName}</div>` +
+      (sk ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub">${sk}</div>` : '') +
+      `<div class="virtuoso_lab-virtuoso_lab_vir-line">Practiced ${dur}</div>` +
       (s.proof ? proofLine : tierLine) + depthLine + xpLine + streakLine + copyBtn +
       `</div>`;
   }
@@ -17404,16 +17402,16 @@
   // Routed by what the run's data supports (the instrument lanes' rule): a run
   // that MOVED on the neck (≥5 active cells) draws the hybrid heatmap — ink =
   // notes you landed, warm amber = spots to revisit, hollow = not judged; NEVER
-  // red (a new --vir-heat token, not --vir-danger). A one-cell groove run with
+  // red (a new --virtuoso_lab_vir-heat token, not --virtuoso_lab_vir-danger). A one-cell groove run with
   // enough timing samples draws the per-bar lean strip instead (felt-hold
   // vocabulary; per-bar medians, the pocket band drawn slightly behind zero).
   // Both are calm static canvas readouts — the verdict stays the modal's lead.
   function _heroColors() {
     const c = { text: '#e2e8f0', dim: '#cbd5e1', faint: '#64748b', border: '#334155', heat: '#f0a050', ok: '#22c55e' };
     try {
-      const cs = getComputedStyle($('virtuoso-root'));
+      const cs = getComputedStyle($('virtuoso_lab-root'));
       const pick = (v, k) => { const x = cs.getPropertyValue(v).trim(); if (x) c[k] = x; };
-      pick('--vir-text', 'text'); pick('--vir-text-faint', 'faint'); pick('--vir-border', 'border'); pick('--vir-heat', 'heat');
+      pick('--virtuoso_lab_vir-text', 'text'); pick('--virtuoso_lab_vir-text-faint', 'faint'); pick('--virtuoso_lab_vir-border', 'border'); pick('--virtuoso_lab_vir-heat', 'heat');
     } catch (_) {}
     return c;
   }
@@ -17464,7 +17462,7 @@
     // The nut + frame
     if (lo === 0) { ctx.strokeStyle = C.dim; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(xOf(1) - 0.5, padT); ctx.lineTo(xOf(1) - 0.5, padT + rows * ch); ctx.stroke(); }
     // String names (left) + fret numbers (bottom, decimated when wide)
-    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--vir-mono') || 'monospace');
+    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--virtuoso_lab_vir-mono') || 'monospace');
     ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
     const opens = heat.opens || [];
     for (let s = 0; s < rows; s++) ctx.fillText(opens[s] != null ? pcName(opens[s] % 12) : String(s), gridX - 5, yOf(s) + ch / 2);
@@ -17509,7 +17507,7 @@
       ctx.globalAlpha = 1;
     }
     // Axis words — the readable promise (rush above, drag below), bar count.
-    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--vir-mono') || 'monospace');
+    ctx.fillStyle = C.faint; ctx.font = '9px ' + (getComputedStyle(document.body).getPropertyValue('--virtuoso_lab_vir-mono') || 'monospace');
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
     ctx.fillText('rush', 2, padT + 5); ctx.fillText('drag', 2, cssH - padB - 4);
     ctx.textAlign = 'center'; ctx.textBaseline = 'top';
@@ -17542,10 +17540,10 @@
         stat = `Most missed crossing: ${nm(a)}→${nm(b)} string`;
       }
       return {
-        html: `<div class="virtuoso-results-hero"><canvas id="virtuoso-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
-              `<div class="virtuoso-results-hero-cap">${esc(cap)}</div>` +
-              (stat ? `<div class="virtuoso-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
-        draw: () => drawHeatmapHero($('virtuoso-results-hero-cv'), heat),
+        html: `<div class="virtuoso_lab-results-hero"><canvas id="virtuoso_lab-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
+              `<div class="virtuoso_lab-results-hero-cap">${esc(cap)}</div>` +
+              (stat ? `<div class="virtuoso_lab-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        draw: () => drawHeatmapHero($('virtuoso_lab-results-hero-cv'), heat),
       };
     }
     if (lean && lean.bars.length >= 4 && (info.leanN || 0) >= 16) {
@@ -17557,10 +17555,10 @@
         stat = `You ${lean.chg.med < 0 ? 'rush' : 'sit late on'} the first beat after a change by ~${Math.abs(lean.chg.med)}ms`;
       }
       return {
-        html: `<div class="virtuoso-results-hero"><canvas id="virtuoso-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
-              `<div class="virtuoso-results-hero-cap">${esc(cap)}</div>` +
-              (stat ? `<div class="virtuoso-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
-        draw: () => drawLeanStripHero($('virtuoso-results-hero-cv'), lean),
+        html: `<div class="virtuoso_lab-results-hero"><canvas id="virtuoso_lab-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
+              `<div class="virtuoso_lab-results-hero-cap">${esc(cap)}</div>` +
+              (stat ? `<div class="virtuoso_lab-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        draw: () => drawLeanStripHero($('virtuoso_lab-results-hero-cv'), lean),
       };
     }
     return null;
@@ -17589,9 +17587,9 @@
     // prescribed focus per spec (mode + rung), and prefer last run's focus if it
     // still trips a threshold — the pure applyCoachHysteresis decides.
     const key = `${s.mode || ''}:${s.pathway_id || s.practice_type || ''}`;
-    let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso.coach_focus') || '{}'); } catch (_) {}
+    let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso_lab.coach_focus') || '{}'); } catch (_) {}
     const { chosen, focus } = applyCoachHysteresis(candidates, store[key] || null);
-    try { store[key] = focus; localStorage.setItem('virtuoso.coach_focus', JSON.stringify(store)); } catch (_) {}
+    try { store[key] = focus; localStorage.setItem('virtuoso_lab.coach_focus', JSON.stringify(store)); } catch (_) {}
     return chosen;
   }
   // PR 1.4 · localize a timing fault to the worst bar-region (not the run median).
@@ -17619,7 +17617,7 @@
     return { from, to, label: from === to ? `bar ${from}` : `bars ${from}–${to}` };
   }
   // The PURE fault→drill mapping (no DOM / no closure state) — the durable IP of
-  // the coach loop, unit-tested via the __virtuosoCoach debug hook. Returns ALL
+  // the coach loop, unit-tested via the __virtuoso_labCoach debug hook. Returns ALL
   // faults that trip their threshold, in priority order (each tagged with a
   // `fault` category so the hysteresis layer can keep the player on one fix).
   function coachRxCandidates(ctx) {
@@ -17712,10 +17710,10 @@
   function coachRxHtml(rx) {
     if (!rx || !PATHWAYS[rx.pathwayId]) return '';
     const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<button type="button" class="virtuoso-results-coach" id="virtuoso-results-coach-go" data-pw="${rx.pathwayId}">`
-      + `<span class="virtuoso-results-coach-lead">Practice next</span>`
-      + `<span class="virtuoso-results-coach-why">${esc(rx.why)}</span>`
-      + `<span class="virtuoso-results-coach-cta">${esc(PATHWAYS[rx.pathwayId].label)} →</span>`
+    return `<button type="button" class="virtuoso_lab-results-coach" id="virtuoso_lab-results-coach-go" data-pw="${rx.pathwayId}">`
+      + `<span class="virtuoso_lab-results-coach-lead">Practice next</span>`
+      + `<span class="virtuoso_lab-results-coach-why">${esc(rx.why)}</span>`
+      + `<span class="virtuoso_lab-results-coach-cta">${esc(PATHWAYS[rx.pathwayId].label)} →</span>`
       + `</button>`;
   }
   // ── PR 1.5 · Bass Pocket-Diagnosis ──────────────────────────────────────────
@@ -17756,14 +17754,14 @@
   // "smoke mocks the verifier" blind spot — they take fixtures directly). `buildCoachRx`
   // + `lastEndedSession` additionally let the suite drive a REAL run and assert the
   // _lastEndedSession → curPw snapshot seam (the field-drop the pure hooks couldn't catch).
-  if (typeof window !== 'undefined') window.__virtuosoCoach = { coachRxFor, coachRxCandidates, applyCoachHysteresis, coachRxHtml, buildPocketDiagnosis, buildCoachRx, lastEndedSession: () => _lastEndedSession };
+  if (typeof window !== 'undefined') window.__virtuoso_labCoach = { coachRxFor, coachRxCandidates, applyCoachHysteresis, coachRxHtml, buildPocketDiagnosis, buildCoachRx, lastEndedSession: () => _lastEndedSession };
   // ── J-3 end-of-jam reflection (warm, NO score — mirror not judge) ───────────
   // A deliberate Jam stop opens the SAME modal shell as the results card, but
   // with descriptive content only: time jammed, how many notes, the tones you
   // moved through, over what style/key. NO %, rank, or verdict (the panel
   // fence). Reuses closeResultsModal + the overlay/Esc close wiring.
   function showJamRecap(s) {
-    const root = $('virtuoso-root'), body = $('virtuoso-results-body'), title = $('virtuoso-results-title');
+    const root = $('virtuoso_lab-root'), body = $('virtuoso_lab-results-body'), title = $('virtuoso_lab-results-title');
     if (!root || !body) return;
     const m = _jamMirror;
     const esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -17771,13 +17769,13 @@
     const mins = Math.floor(ms / 60000), secs = Math.round((ms % 60000) / 1000);
     const dur = ms >= 1000 ? `${mins}:${String(secs).padStart(2, '0')}` : 'a moment';
     const style = (s && s.style) || (STYLE_PALETTES[currentJamStyleId()] || {}).label || 'your style';
-    const key = (($('virtuoso-jam-key') || {}).value) || 'A';
-    const prog = (s && s.progression) ? jamProgressionLabel(s.progression) : jamProgressionLabel((($('virtuoso-jam-prog') || {}).value) || '');
+    const key = (($('virtuoso_lab-jam-key') || {}).value) || 'A';
+    const prog = (s && s.progression) ? jamProgressionLabel(s.progression) : jamProgressionLabel((($('virtuoso_lab-jam-prog') || {}).value) || '');
     const noteCount = m ? m.noteCount : 0;
     const pcs = m ? [...m.pcs].sort((a, b) => a - b).map(pcName) : [];
     const toneList = pcs.length ? pcs.join(' · ') : 'No pitch was detected.';
     const analysis = noteCount > 0 ? jamRecapAnalysisLines() : [];
-    const analysisHtml = analysis.map(line => `<div class="virtuoso-jam-recap-line">${esc(line)}</div>`).join('');
+    const analysisHtml = analysis.map(line => `<div class="virtuoso_lab-jam-recap-line">${esc(line)}</div>`).join('');
     // Gold rung (career passports): the comb-verified conformity readout,
     // always shown when notes were confirmed — observability before gating —
     // and the mint moment when the whole bar clears (gained-only).
@@ -17789,7 +17787,7 @@
         : 'heard by the browser ear — Gold listens through the desktop verifier';
       // Descriptive N-of-M counts, the recap's own convention — a mirror line,
       // not a score-to-beat (percent-vs-threshold framing stays out of the jam).
-      goldHtml = `<div class="virtuoso-jam-recap-line">Verified notes: <b>${gold.inKey} of ${gold.confirmed}</b> sat in the key, <b>${gold.inChord}</b> on chord tones, played over <b>${gold.chordHops}</b> chord change${gold.chordHops === 1 ? '' : 's'} <span class="virtuoso-jam-recap-sub">(${esc(ear)})</span></div>`;
+      goldHtml = `<div class="virtuoso_lab-jam-recap-line">Verified notes: <b>${gold.inKey} of ${gold.confirmed}</b> sat in the key, <b>${gold.inChord}</b> on chord tones, played over <b>${gold.chordHops}</b> chord change${gold.chordHops === 1 ? '' : 's'} <span class="virtuoso_lab-jam-recap-sub">(${esc(ear)})</span></div>`;
       if (gold.met) {
         const styleId = currentJamStyleId();
         const minted = goldStore(styleId, gold);
@@ -17800,34 +17798,34 @@
           inKeyPct: Math.round(gold.inKeyPct * 100) / 100,
           chords: gold.chordHops, pcCount: gold.pcCount, verifier: gold.verifier,
         });
-        goldHtml += `<div class="virtuoso-jam-recap-line virtuoso-jam-recap-gold">🏅 <b>GOLD</b> — ${minted ? 'a verified improv: this style\'s gold rung is yours.' : 'another gold-bar jam (already minted).'}</div>`;
+        goldHtml += `<div class="virtuoso_lab-jam-recap-line virtuoso_lab-jam-recap-gold">🏅 <b>GOLD</b> — ${minted ? 'a verified improv: this style\'s gold rung is yours.' : 'another gold-bar jam (already minted).'}</div>`;
       }
     }
-    const intentLine = jamIntent ? `<div class="virtuoso-jam-recap-line">Intent: <b>${esc(jamIntent)}</b></div>` : '';
+    const intentLine = jamIntent ? `<div class="virtuoso_lab-jam-recap-line">Intent: <b>${esc(jamIntent)}</b></div>` : '';
     if (title) title.textContent = 'Jam mirror';
     body.innerHTML =
-      `<div class="virtuoso-jam-recap">` +
-        `<div class="virtuoso-jam-recap-line">You jammed <b>${esc(dur)}</b> over <b>${esc(style)}</b> in <b>${esc(key)}</b>${prog ? ` · <b>${esc(prog)}</b>` : ''}.</div>` +
+      `<div class="virtuoso_lab-jam-recap">` +
+        `<div class="virtuoso_lab-jam-recap-line">You jammed <b>${esc(dur)}</b> over <b>${esc(style)}</b> in <b>${esc(key)}</b>${prog ? ` · <b>${esc(prog)}</b>` : ''}.</div>` +
         intentLine +
         (noteCount > 0
-          ? `<div class="virtuoso-jam-recap-line">${noteCount} notes — you moved through <b>${pcs.length}</b> tone${pcs.length === 1 ? '' : 's'}:</div>`
-          : `<div class="virtuoso-jam-recap-line">No pitch was detected, so this stays a form-and-intent recap.</div>`) +
-        `<div class="virtuoso-jam-recap-tones">${esc(toneList)}</div>` +
+          ? `<div class="virtuoso_lab-jam-recap-line">${noteCount} notes — you moved through <b>${pcs.length}</b> tone${pcs.length === 1 ? '' : 's'}:</div>`
+          : `<div class="virtuoso_lab-jam-recap-line">No pitch was detected, so this stays a form-and-intent recap.</div>`) +
+        `<div class="virtuoso_lab-jam-recap-tones">${esc(toneList)}</div>` +
         analysisHtml + goldHtml +
-        `<div class="virtuoso-jam-recap-sub">A mirror, never a score. Use the form, intent, tones, and targets as prompts for the next pass.</div>` +
-        `<div class="virtuoso-jam-recap-cta">` +
-          `<button type="button" class="virtuoso-results-primary" data-act="jam-again">Jam again</button>` +
-          `<button type="button" class="virtuoso-results-quiet" data-act="jam-done">Done</button>` +
+        `<div class="virtuoso_lab-jam-recap-sub">A mirror, never a score. Use the form, intent, tones, and targets as prompts for the next pass.</div>` +
+        `<div class="virtuoso_lab-jam-recap-cta">` +
+          `<button type="button" class="virtuoso_lab-results-primary" data-act="jam-again">Jam again</button>` +
+          `<button type="button" class="virtuoso_lab-results-quiet" data-act="jam-done">Done</button>` +
         `</div>` +
       `</div>`;
     body.querySelector('[data-act="jam-again"]')?.addEventListener('click', () => { closeResultsModal(); jamPlay(); });
     body.querySelector('[data-act="jam-done"]')?.addEventListener('click', closeResultsModal);
-    root.classList.add('vir-results-open');
-    $('virtuoso-results-modal')?.setAttribute('aria-hidden', 'false');
+    root.classList.add('virtuoso_lab_vir-results-open');
+    $('virtuoso_lab-results-modal')?.setAttribute('aria-hidden', 'false');
     body.querySelector('[data-act="jam-again"]')?.focus();
   }
   function showResultsModal(s) {
-    const root = $('virtuoso-root'), body = $('virtuoso-results-body'), title = $('virtuoso-results-title');
+    const root = $('virtuoso_lab-root'), body = $('virtuoso_lab-results-body'), title = $('virtuoso_lab-results-title');
     if (!root || !body || !s) return;
     const r = s.results || {};
     const info = r.info || null;
@@ -17850,7 +17848,7 @@
     let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
     // Mastery crest — the card's overall-standing seal (accent-family; stays accent even on an
     // earned/green card, so a cleared run shows BOTH signals). Hidden at rank 0 / XP-Off.
-    const _crestEl = $('virtuoso-results-crest');
+    const _crestEl = $('virtuoso_lab-results-crest');
     if (_crestEl) {
       const _cst = crestState();
       if (_cst.rank) { _crestEl.innerHTML = crestSvg(_cst.rank); _crestEl.title = _cst.label + ' — ' + _cst.desc; _crestEl.hidden = false; }
@@ -17880,8 +17878,8 @@
     let verdict = '';
     if (feltFlip) {
       const word = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
-      verdict = `<div class="virtuoso-vir-cleared virtuoso-results-verdict">✓ ${word} — cleared ${s.feltResult.tierName}</div>` +
-        (s.feltResult.feltPB ? `<div class="virtuoso-vir-sub virtuoso-vir-transfer">Grooves owned — held Locked to ${s.feltResult.feltBpm} BPM</div>` : '');
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">✓ ${word} — cleared ${s.feltResult.tierName}</div>` +
+        (s.feltResult.feltPB ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">Grooves owned — held Locked to ${s.feltResult.feltBpm} BPM</div>` : '');
     } else if (s.proof) {
       const claim = s.proof.kind === 'guide_tones'
         ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
@@ -17889,13 +17887,13 @@
       const psub = s.proof.kind === 'guide_tones'
         ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
-      verdict = `<div class="virtuoso-vir-cleared virtuoso-results-verdict">${claim}</div>` +
-        (psub ? `<div class="virtuoso-vir-sub virtuoso-vir-transfer">${psub}</div>` : '');
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">${claim}</div>` +
+        (psub ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">${psub}</div>` : '');
         // (the share card now rides the unified shareRow below — every run)
     } else if (ownTierFlip && !isFelt) {
-      verdict = `<div class="virtuoso-vir-cleared virtuoso-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
-      verdict = `<div class="virtuoso-vir-cleared virtuoso-results-verdict">▲ Travel rung cleared — it travels now</div>`;
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Travel rung cleared — it travels now</div>`;
     }
 
     // 2 · the % readout — ALWAYS neutral color; the sub-line keeps the
@@ -17920,9 +17918,9 @@
       const rungs = s.ladder.tiers.map((b, i) => {
         const clr = i <= s.ladder.highestCleared;
         const isNew = !xpOff && s.tierCleared && i === s.clearedTier;
-        return `<span class="virtuoso-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
+        return `<span class="virtuoso_lab-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
       }).join('');
-      stripBits.push(`<div class="virtuoso-results-ladder">${rungs}</div>`);
+      stripBits.push(`<div class="virtuoso_lab-results-ladder">${rungs}</div>`);
     }
     if (!xpOff) {
       const d = s.depth, deltas = [];
@@ -17935,55 +17933,55 @@
           deltas.push(`${s.ladder.tiers[nIdx] - s.bpm} BPM to ${TIER_LABELS[nIdx] || ('T' + (nIdx + 1))}`);
         }
       }
-      if (deltas.length) stripBits.push(`<div class="virtuoso-results-deltas">${deltas.join(' · ')}</div>`);
+      if (deltas.length) stripBits.push(`<div class="virtuoso_lab-results-deltas">${deltas.join(' · ')}</div>`);
       // "Best here" — a STANDING TARGET FACT (L&D ruling 2026-06-06): no "today",
       // no "was", no gap — the UI never performs the comparison for the player.
       // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
       // best (the recognizer below carries that, upward).
       if (s.specBest && !rough && !isFelt && s.specBest.runs >= 3 && !s.specBest.isNew) {
-        stripBits.push(`<div class="virtuoso-results-deltas">Best here: ${s.specBest.best}%</div>`);
+        stripBits.push(`<div class="virtuoso_lab-results-deltas">Best here: ${s.specBest.best}%</div>`);
       }
       // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
       if (s.recognizer && s.recognizer.kind === 'first_clear') {
-        stripBits.push(`<div class="virtuoso-results-recog">First clear on ${s.displayName}</div>`);
+        stripBits.push(`<div class="virtuoso_lab-results-recog">First clear on ${s.displayName}</div>`);
       } else if (s.recognizer && s.recognizer.kind === 'fastest') {
-        stripBits.push(`<div class="virtuoso-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
+        stripBits.push(`<div class="virtuoso_lab-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
       } else if (s.recognizer && s.recognizer.kind === 'best_pct') {
-        stripBits.push(`<div class="virtuoso-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
+        stripBits.push(`<div class="virtuoso_lab-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
       } else if (d && d.travelKey) {
-        stripBits.push(`<div class="virtuoso-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
+        stripBits.push(`<div class="virtuoso_lab-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
       }
       // Tier C — quiet AMBIENT deltas (never the accent recognizer slot, never the
       // hero, never green): a woodshed level-up + any new competency badge(s).
-      if (s.levelUp) stripBits.push(`<div class="virtuoso-results-deltas">${s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`}</div>`);
-      if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="virtuoso-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
+      if (s.levelUp) stripBits.push(`<div class="virtuoso_lab-results-deltas">${s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`}</div>`);
+      if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="virtuoso_lab-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
     }
-    const strip = stripBits.length ? `<div class="virtuoso-results-strip">${stripBits.join('')}</div>` : '';
+    const strip = stripBits.length ? `<div class="virtuoso_lab-results-strip">${stripBits.join('')}</div>` : '';
 
     // 6 · ▸ How this run was judged — player language ("name the capability,
     // never the implementation", 2026-06-06 copy round): the rows answer "did
     // you count everything? → why not those? → what was listening?", every
     // exemption phrased as the system's limit, never the player's fault. The
     // dev-verbatim strings (byte-comparable across detection builds) ride as
-    // dim mono tails behind the `virtuoso.resultsVerbose` flag, with a Copy
+    // dim mono tails behind the `virtuoso_lab.resultsVerbose` flag, with a Copy
     // diagnostics button — the field-debugging instrument.
-    let verbose = false; try { verbose = localStorage.getItem('virtuoso.resultsVerbose') === 'on'; } catch (_) {}
-    const devTail = (t) => verbose ? ` <span class="virtuoso-results-dev">${t}</span>` : '';
+    let verbose = false; try { verbose = localStorage.getItem('virtuoso_lab.resultsVerbose') === 'on'; } catch (_) {}
+    const devTail = (t) => verbose ? ` <span class="virtuoso_lab-results-dev">${t}</span>` : '';
     const rows = [];
     if (judged && r.missed > 0) rows.push(`Missed: <strong>${r.missed}</strong> judged notes`);
     if (info) {
       const exempt = info.total - info.judged;
       if (exempt > 0) {
         rows.push(`Judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong> — the other ${exempt} were shown, not judged:${devTail(`(judged ${info.judged}/${info.total})`)}`);
-        if (info.exemptChords) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
-        if (info.exemptSubFloor) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail(`(&lt; ${DETECTOR_MIN_HZ} Hz floor)`)}</span>`);
-        if (info.exemptMuted) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
-        if (info.exemptFast) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
-        if (info.exemptLegato) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
+        if (info.exemptChords) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
+        if (info.exemptSubFloor) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail(`(&lt; ${DETECTOR_MIN_HZ} Hz floor)`)}</span>`);
+        if (info.exemptMuted) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
+        if (info.exemptFast) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
+        if (info.exemptLegato) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
       } else {
         rows.push(`Every note judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong>`);
       }
-      if (info.tremoloSpans) rows.push(`<span class="virtuoso-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
+      if (info.tremoloSpans) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
       const earPlayer = String(info.ear || '').indexOf('verifier') === 0
         ? 'chord-aware verifier · single-note for the display meter'
         : 'single-note (the mic hears one pitch at a time)';
@@ -18004,7 +18002,7 @@
         rows.push(`Only <strong>${r.judgedPassed}</strong> notes were mic-judged this run — too few to grade; cleared on completion${devTail('(< PT_MIN_JUDGED=8 → lenient path)')}`);
       }
     }
-    let detailsOpen = false; try { detailsOpen = localStorage.getItem('virtuoso.resultsDetails') === 'open'; } catch (_) {}
+    let detailsOpen = false; try { detailsOpen = localStorage.getItem('virtuoso_lab.resultsDetails') === 'open'; } catch (_) {}
 
     // 7 · CTA row — close-and-arm, never autoplay; CHALLENGE voice (2026-06-06
     // copy round): the dare names the destination ("Take it to 88"), the dim
@@ -18052,13 +18050,13 @@
     }
     const btnHtml = (p) => `<span class="cta-dare">${p.label}</span>` + (p.sub ? `<span class="cta-sub">${p.sub}</span>` : '');
     const ctaHtml =
-      `<div class="virtuoso-results-cta">` +
-      (primary ? `<button type="button" id="virtuoso-results-primary" class="virtuoso-results-primary">${btnHtml(primary)}</button>` : '') +
-      (secondaryAgain ? `<button type="button" id="virtuoso-results-again" class="virtuoso-results-quiet">Run it back</button>` : '') +
-      (stepdown ? `<button type="button" id="virtuoso-results-stepdown" class="virtuoso-results-quiet">${stepdown.label}</button>` : '') +
-      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="virtuoso-results-jam" class="virtuoso-results-quiet">Jam this skill</button>` : '') +
-      (isWorkout ? `<button type="button" id="virtuoso-results-build" class="virtuoso-results-quiet">Build another</button>` : '') +
-      `<button type="button" id="virtuoso-results-done" class="virtuoso-results-quiet">Done</button>` +
+      `<div class="virtuoso_lab-results-cta">` +
+      (primary ? `<button type="button" id="virtuoso_lab-results-primary" class="virtuoso_lab-results-primary">${btnHtml(primary)}</button>` : '') +
+      (secondaryAgain ? `<button type="button" id="virtuoso_lab-results-again" class="virtuoso_lab-results-quiet">Run it back</button>` : '') +
+      (stepdown ? `<button type="button" id="virtuoso_lab-results-stepdown" class="virtuoso_lab-results-quiet">${stepdown.label}</button>` : '') +
+      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="virtuoso_lab-results-jam" class="virtuoso_lab-results-quiet">Jam this skill</button>` : '') +
+      (isWorkout ? `<button type="button" id="virtuoso_lab-results-build" class="virtuoso_lab-results-quiet">Build another</button>` : '') +
+      `<button type="button" id="virtuoso_lab-results-done" class="virtuoso_lab-results-quiet">Done</button>` +
       `</div>`;
 
     // ── Workout recap session HTML (Tier 3) — header + chapter list ─────────────
@@ -18075,17 +18073,17 @@
       seenRoles.sort((a, b) => ((SEGMENT_ROLES[a]?.order ?? 9) - (SEGMENT_ROLES[b]?.order ?? 9)));
       const arc = seenRoles.map(roleLabel).filter(Boolean).join(' → ');
       sessionHeadHtml =
-        `<div class="virtuoso-results-session-head">` +
-        `<div class="virtuoso-results-session-title">Workout complete</div>` +
-        `<div class="virtuoso-results-session-meta">${s.chapters.length} blocks · ${dur} practiced</div>` +
-        (arc ? `<div class="virtuoso-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
+        `<div class="virtuoso_lab-results-session-head">` +
+        `<div class="virtuoso_lab-results-session-title">Workout complete</div>` +
+        `<div class="virtuoso_lab-results-session-meta">${s.chapters.length} blocks · ${dur} practiced</div>` +
+        (arc ? `<div class="virtuoso_lab-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
         `</div>`;
       // Chapter rows, role-divider grouped (a divider when the role changes from the
-      // prior row — shows the real sequence). dot/✓ NEVER --vir-meter green.
+      // prior row — shows the real sequence). dot/✓ NEVER --virtuoso_lab_vir-meter green.
       let lastRole = null;
       const rows2 = s.chapters.map(c => {
         const out = [];
-        if (c.role !== lastRole) { out.push(`<div class="virtuoso-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
+        if (c.role !== lastRole) { out.push(`<div class="virtuoso_lab-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
         const color = ROLE_COLORS[c.role] || KIND_COLORS[c.kind] || '#64748b';
         // Added review/2nd-app rows carry their context in the NAME ("Revisited —
         // …") — so suppress the competency sub-line for them (no double-naming).
@@ -18109,18 +18107,18 @@
         const glyph = earned ? '✓' : (!c.reached ? '—' : (touched ? '○' : '●'));
         const stateCls = earned ? ' is-earned' : (!c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played'));
         out.push(
-          `<div class="virtuoso-results-chapter${stateCls}">` +
-          `<span class="virtuoso-results-chapter-dot" style="background:${color}"></span>` +
-          `<span class="virtuoso-results-chapter-main">` +
-          `<span class="virtuoso-results-chapter-name">${c.name || roleLabel(c.role)}</span>` +
-          (comp ? `<span class="virtuoso-results-chapter-comp">${comp}</span>` : '') +
+          `<div class="virtuoso_lab-results-chapter${stateCls}">` +
+          `<span class="virtuoso_lab-results-chapter-dot" style="background:${color}"></span>` +
+          `<span class="virtuoso_lab-results-chapter-main">` +
+          `<span class="virtuoso_lab-results-chapter-name">${c.name || roleLabel(c.role)}</span>` +
+          (comp ? `<span class="virtuoso_lab-results-chapter-comp">${comp}</span>` : '') +
           `</span>` +
-          `<span class="virtuoso-results-chapter-dur">${fmtMS(c.durSec)}</span>` +
-          `<span class="virtuoso-results-chapter-done">${glyph}</span>` +
+          `<span class="virtuoso_lab-results-chapter-dur">${fmtMS(c.durSec)}</span>` +
+          `<span class="virtuoso_lab-results-chapter-done">${glyph}</span>` +
           `</div>`);
         return out.join('');
       }).join('');
-      chaptersHtml = `<div class="virtuoso-results-chapters">${rows2}</div>`;
+      chaptersHtml = `<div class="virtuoso_lab-results-chapters">${rows2}</div>`;
     }
 
     // Cooperative share card (Copy card + Save): on EVERY results page, every run —
@@ -18140,13 +18138,13 @@
         const MAP = { dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick', settling: 'Settling — finding the pocket', locked: 'Locked the pocket' };
         const word = v ? (MAP[v] || 'Settling — finding the pocket')
           : (s.felt && s.felt.untight ? 'Keep working the pocket' : 'Couldn’t catch the low strings — go by feel');
-        feltBodyHtml = `<div class="virtuoso-results-verdict virtuoso-results-felt">${word}</div>`;
+        feltBodyHtml = `<div class="virtuoso_lab-results-verdict virtuoso_lab-results-felt">${word}</div>`;
         // PR 1.5: the specific pocket read under the verdict word (which one of
         // lean / drift / jitter it actually is — they have different fixes).
         const pd = buildPocketDiagnosis(s.felt);
-        if (pd) feltBodyHtml += `<div class="virtuoso-results-pocket virtuoso-pocket-${pd.tone}">${pd.text}</div>`;
+        if (pd) feltBodyHtml += `<div class="virtuoso_lab-results-pocket virtuoso_lab-pocket-${pd.tone}">${pd.text}</div>`;
       }
-      feltBodyHtml += `<div class="virtuoso-results-practiced">${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}</div>`;
+      feltBodyHtml += `<div class="virtuoso_lab-results-practiced">${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}</div>`;
     }
 
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
@@ -18159,31 +18157,31 @@
         : isFelt
         ? feltBodyHtml + coachHtml + strip + shareBtn
         : verdict +
-          `<div class="virtuoso-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
-          `<div class="virtuoso-results-head">${sub}</div>` +
+          `<div class="virtuoso_lab-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
+          `<div class="virtuoso_lab-results-head">${sub}</div>` +
           (hero ? hero.html : '') +
           coachHtml +
           strip +
-          `<div class="virtuoso-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
+          `<div class="virtuoso_lab-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
           shareBtn) +
-      `<button type="button" id="virtuoso-results-details-toggle" class="virtuoso-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
-      `<div id="virtuoso-results-details" class="virtuoso-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
-      (verbose && info ? `<button type="button" id="virtuoso-results-copydiag" class="virtuoso-results-quiet">Copy diagnostics</button>` : '') +
+      `<button type="button" id="virtuoso_lab-results-details-toggle" class="virtuoso_lab-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
+      `<div id="virtuoso_lab-results-details" class="virtuoso_lab-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
+      (verbose && info ? `<button type="button" id="virtuoso_lab-results-copydiag" class="virtuoso_lab-results-quiet">Copy diagnostics</button>` : '') +
       `</div>` +
       ctaHtml;
 
     // Earned-outcome chrome (the meter-green top edge) + the entry animation.
-    const card = root.querySelector('.virtuoso-results-card');
+    const card = root.querySelector('.virtuoso_lab-results-card');
     if (card) {
-      card.classList.toggle('vir-earned', earned && hasResult && !isWorkout);   // a Workout never earns the green edge (it's "I did the map", not a cleared competency)
-      card.classList.toggle('vir-has-hero', !!hero);   // the card widens only when a hero renders
-      card.classList.remove('vir-enter'); void card.offsetWidth; card.classList.add('vir-enter');
+      card.classList.toggle('virtuoso_lab_vir-earned', earned && hasResult && !isWorkout);   // a Workout never earns the green edge (it's "I did the map", not a cleared competency)
+      card.classList.toggle('virtuoso_lab_vir-has-hero', !!hero);   // the card widens only when a hero renders
+      card.classList.remove('virtuoso_lab_vir-enter'); void card.offsetWidth; card.classList.add('virtuoso_lab_vir-enter');
     }
     // Auto-save the card to the configured folder, once per run (opt-in; mirrors
     // note_detect). A run signature guards against re-saving when the same card is
     // re-opened. Best-effort + async (loads the display face first); silent on fail.
     try {
-      if (localStorage.getItem('virtuoso.autosaveCard') === '1') {
+      if (localStorage.getItem('virtuoso_lab.autosaveCard') === '1') {
         const sig = `${s.duration_ms || 0}|${s.bpm || 0}|${s.displayName || s.mode || ''}`;
         if (showResultsModal._autoSig !== sig) {
           showResultsModal._autoSig = sig;
@@ -18200,7 +18198,7 @@
     // Never on empty states or a Workout (no % element); reduced-motion gets the
     // final value immediately.
     if (judged && !reduceMotion && !isWorkout && !isFelt) {
-      const el = body.querySelector('.virtuoso-results-pct');
+      const el = body.querySelector('.virtuoso_lab-results-pct');
       const t0 = performance.now(), durMs = 550;
       const step = (now) => {
         if (!el.isConnected) return;
@@ -18211,10 +18209,10 @@
       requestAnimationFrame(step);
     }
     // Wiring — all CTAs close-and-arm (load config, focus Play, start nothing).
-    const focusPlay = () => { $('virtuoso-play')?.focus(); };
-    $('virtuoso-results-done')?.addEventListener('click', () => closeResultsModal());
-    $('virtuoso-results-build')?.addEventListener('click', () => { closeResultsModal(); selectMode('session'); });
-    $('virtuoso-results-primary')?.addEventListener('click', () => {
+    const focusPlay = () => { $('virtuoso_lab-play')?.focus(); };
+    $('virtuoso_lab-results-done')?.addEventListener('click', () => closeResultsModal());
+    $('virtuoso_lab-results-build')?.addEventListener('click', () => { closeResultsModal(); selectMode('session'); });
+    $('virtuoso_lab-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
         activeTempoTierIdx = primary.idx;
@@ -18232,8 +18230,8 @@
         focusPlay();
       }
     });
-    $('virtuoso-results-again')?.addEventListener('click', () => { closeResultsModal(); focusPlay(); });
-    $('virtuoso-results-copydiag')?.addEventListener('click', (ev) => {
+    $('virtuoso_lab-results-again')?.addEventListener('click', () => { closeResultsModal(); focusPlay(); });
+    $('virtuoso_lab-results-copydiag')?.addEventListener('click', (ev) => {
       // The verbatim dev block — byte-comparable across detection builds; the
       // "paste it in Discord" field-debugging instrument.
       const diag = [
@@ -18253,7 +18251,7 @@
       ].filter(Boolean).join('\n');
       try { navigator.clipboard.writeText(diag); ev.target.textContent = 'Copied ✓'; } catch (_) {}
     });
-    $('virtuoso-results-stepdown')?.addEventListener('click', () => {
+    $('virtuoso_lab-results-stepdown')?.addEventListener('click', () => {
       closeResultsModal();
       if (stepdown) {
         activeTempoTierIdx = stepdown.idx;
@@ -18265,7 +18263,7 @@
       }
       focusPlay();
     });
-    $('virtuoso-results-jam')?.addEventListener('click', () => {
+    $('virtuoso_lab-results-jam')?.addEventListener('click', () => {
       closeResultsModal();
       // D-J10: same device hand-off as the primary jam CTA.
       jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
@@ -18273,47 +18271,47 @@
     // Coach prescription (PR 1.3): close-and-arm into the Ladder, the SAME open
     // path the picker node-click uses (set the select + dispatch change → mode
     // switch happens first so the guided form is live).
-    $('virtuoso-results-coach-go')?.addEventListener('click', (ev) => {
+    $('virtuoso_lab-results-coach-go')?.addEventListener('click', (ev) => {
       const id = ev.currentTarget.getAttribute('data-pw');
       if (!id) return;
       closeResultsModal();
       selectMode('guided');
-      const sel = $('virtuoso-pathway');
+      const sel = $('virtuoso_lab-pathway');
       if (sel && [...sel.options].some(o => o.value === id)) { sel.value = id; sel.dispatchEvent(new Event('change')); }
       else applyPathwayById(id);
       focusPlay();
     });
-    $('virtuoso-results-details-toggle')?.addEventListener('click', () => {
-      const sec = $('virtuoso-results-details'), btn = $('virtuoso-results-details-toggle');
+    $('virtuoso_lab-results-details-toggle')?.addEventListener('click', () => {
+      const sec = $('virtuoso_lab-results-details'), btn = $('virtuoso_lab-results-details-toggle');
       if (!sec || !btn) return;
       const open = sec.hidden;
       sec.hidden = !open;
       btn.setAttribute('aria-expanded', String(open));
       btn.textContent = (open ? '▾' : '▸') + ' How this run was judged';
-      try { localStorage.setItem('virtuoso.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
+      try { localStorage.setItem('virtuoso_lab.resultsDetails', open ? 'open' : 'closed'); } catch (_) {}
     });
     body.querySelectorAll('[data-act="copy-card"], [data-act="download-card"]').forEach(btn => btn.addEventListener('click', () => shareCardClick(btn, s)));
-    root.classList.add('vir-results-open');
+    root.classList.add('virtuoso_lab_vir-results-open');
     // The dialog ships aria-hidden="true" in the markup (every other panel
     // toggles it in its open/close fns — this one was missed): flip it BEFORE
     // focusing the CTA, or the browser blocks the hidden state ("aria-hidden
     // on an element because its descendant retained focus", live console
     // report 2026-06-07).
-    $('virtuoso-results-modal')?.setAttribute('aria-hidden', 'false');
-    ($('virtuoso-results-primary') || $('virtuoso-results-done'))?.focus();
+    $('virtuoso_lab-results-modal')?.setAttribute('aria-hidden', 'false');
+    ($('virtuoso_lab-results-primary') || $('virtuoso_lab-results-done'))?.focus();
   }
   function closeResultsModal() {
-    const root = $('virtuoso-root'); if (!root) return;
-    const modal = $('virtuoso-results-modal');
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const modal = $('virtuoso_lab-results-modal');
     // Move focus OUT before re-hiding — aria-hidden on the focused element's
     // ancestor hides focus from assistive tech (and the browser refuses it).
     // The transport Play button is the natural close-and-arm landing spot.
     if (modal && modal.contains(document.activeElement)) {
-      const play = $('virtuoso-play');
+      const play = $('virtuoso_lab-play');
       if (play) play.focus(); else { try { document.activeElement.blur(); } catch (_) {} }
     }
     modal?.setAttribute('aria-hidden', 'true');
-    root.classList.remove('vir-results-open');
+    root.classList.remove('virtuoso_lab_vir-results-open');
     // The rail tier-glow fired at sessionEnd UNDER the modal scrim and burned out
     // unseen (UX finding 2026-06-06). Re-fire on dismiss so the player watches the
     // real artifact — the rail ladder — carry the new state.
@@ -18367,42 +18365,42 @@
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
     if (xpOff) return '';   // Off collapses the whole layer
     const w = woodshedLog();
-    if (w.sessions === 0) return `<div class="virtuoso-progress-sheet-section"><h4>Woodshed</h4><div class="virtuoso-pm-coming">Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled.</div></div>`;
-    const rows = [`<div class="virtuoso-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
-    if (w.weekMin > 0) rows.push(`<div class="virtuoso-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
-    rows.push(`<div class="virtuoso-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
+    if (w.sessions === 0) return `<div class="virtuoso_lab-progress-sheet-section"><h4>Woodshed</h4><div class="virtuoso_lab-pm-coming">Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled.</div></div>`;
+    const rows = [`<div class="virtuoso_lab-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
+    if (w.weekMin > 0) rows.push(`<div class="virtuoso_lab-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
+    rows.push(`<div class="virtuoso_lab-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
     // Tier C — the visible woodshed LEVEL (a legible readout of the accrued time×
     // difficulty XP, never a featured headline; the forward hint is opportunity, not
     // a grind bar). Behind XP-Off with the rest of this section.
     const lv = xpLevelInfo(w.xp);
-    rows.push(`<div class="virtuoso-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
+    rows.push(`<div class="virtuoso_lab-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
     // Forward line. Below the cap it names the next identity (opportunity, not a grind
     // bar). AT the cap (Lifer, no nextName) the old code went SILENT — the "Lifer cliff"
     // at our most-committed player. Reframe the summit as a graduation that points at the
     // UNCAPPED lifetime ledger below (hours keep counting; PBs / keys / badges never cap).
     // gamification+market verdict: keep finite levels, make the terminal state a graduation,
     // never an infinite treadmill. project_xp_leveling_cap_prestige_verdict.
-    if (lv.nextName) rows.push(`<div class="virtuoso-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
-    else rows.push(`<div class="virtuoso-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
+    if (lv.nextName) rows.push(`<div class="virtuoso_lab-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
+    else rows.push(`<div class="virtuoso_lab-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
     // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
     let numbersHtml = '';
     if (w.numbers.length) {
-      numbersHtml = `<div class="virtuoso-pm-sub">Your numbers — clean tempo to beat</div>` +
-        w.numbers.slice(0, 5).map(n => `<div class="virtuoso-pm-row"><span>${n.label}</span><strong>${n.bpm} BPM</strong></div>`).join('');
+      numbersHtml = `<div class="virtuoso_lab-pm-sub">Your numbers — clean tempo to beat</div>` +
+        w.numbers.slice(0, 5).map(n => `<div class="virtuoso_lab-pm-row"><span>${n.label}</span><strong>${n.bpm} BPM</strong></div>`).join('');
     }
     // Traveled — keys cleared (portability; the depth axis made visible).
     let travelHtml = '';
     if (w.travels.length) {
-      travelHtml = `<div class="virtuoso-pm-sub">Traveled — held in new keys</div>` +
-        w.travels.slice(0, 5).map(t => `<div class="virtuoso-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
+      travelHtml = `<div class="virtuoso_lab-pm-sub">Traveled — held in new keys</div>` +
+        w.travels.slice(0, 5).map(t => `<div class="virtuoso_lab-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
     }
     // Grooves owned — the bass felt-hold PBs (held in the pocket; tempo a fact, not a rank).
     let groovesHtml = '';
     if (w.grooves && w.grooves.length) {
-      groovesHtml = `<div class="virtuoso-pm-sub">Grooves owned — held in the pocket</div>` +
-        w.grooves.slice(0, 5).map(g => `<div class="virtuoso-pm-row"><span>${g.label}</span><strong>to ${g.bpm} BPM</strong></div>`).join('');
+      groovesHtml = `<div class="virtuoso_lab-pm-sub">Grooves owned — held in the pocket</div>` +
+        w.grooves.slice(0, 5).map(g => `<div class="virtuoso_lab-pm-row"><span>${g.label}</span><strong>to ${g.bpm} BPM</strong></div>`).join('');
     }
-    return `<div class="virtuoso-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}${groovesHtml}</div>`;
+    return `<div class="virtuoso_lab-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}${groovesHtml}</div>`;
   }
   // Competency BADGE rack (Tier C) — earned-only, gained-only (a badge is a one-time
   // false→true on a real competency artifact; nothing is ever shown locked-with-a-bar
@@ -18414,38 +18412,38 @@
     const earned = Object.keys(store.badges || {});
     if (!earned.length) return '';
     const chips = BADGES.filter(b => earned.includes(b.id))
-      .map(b => `<span class="virtuoso-badge" title="${b.desc}">${b.name}</span>`).join('');
-    return `<div class="virtuoso-progress-sheet-section"><h4>Badges</h4><div class="virtuoso-badge-rack">${chips}</div></div>`;
+      .map(b => `<span class="virtuoso_lab-badge" title="${b.desc}">${b.name}</span>`).join('');
+    return `<div class="virtuoso_lab-progress-sheet-section"><h4>Badges</h4><div class="virtuoso_lab-badge-rack">${chips}</div></div>`;
   }
   function renderProgressSheet() {
-    const body = $('virtuoso-progress-sheet-body'); if (!body) return;
+    const body = $('virtuoso_lab-progress-sheet-body'); if (!body) return;
     const pt = pathwayTiersLoad();
     // Forgiving streak, framed to celebrate the return (never punish the break).
     const _sessions = sessionsLoad();
     const streakN = streakCount(_sessions);
     const todayDone = new Set(_sessions.map(s => s.date)).has(localDateStr());
     const streakLine = streakN > 0
-      ? `<div class="virtuoso-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="virtuoso-pm-coming">Practice today to extend it.</div>'}`
-      : `<div class="virtuoso-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
+      ? `<div class="virtuoso_lab-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="virtuoso_lab-pm-coming">Practice today to extend it.</div>'}`
+      : `<div class="virtuoso_lab-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
     const dotRow = (id) => {
       const pw = PATHWAYS[id], hi = (pt[id].highest_tier ?? -1);
       const dots = (pw.tempoTiers || []).map((_, i) => `<span class="tree-tier-dot${i <= hi ? ' cleared' : ''}"></span>`).join('');
-      return `<div class="virtuoso-pm-row"><span>${pw.label}</span><span class="virtuoso-pm-dots">${dots}</span></div>`;
+      return `<div class="virtuoso_lab-pm-row"><span>${pw.label}</span><span class="virtuoso_lab-pm-dots">${dots}</span></div>`;
     };
     const _crest = crestState();
     const crestHtml = _crest.rank
-      ? `<div class="virtuoso-pm-crest"><span class="virtuoso-crest cr-rank-${_crest.rank}">${crestSvg(_crest.rank)}</span><div><div class="virtuoso-pm-crest-label">${_crest.label}</div><div class="virtuoso-pm-crest-desc">${_crest.desc}</div></div></div>`
+      ? `<div class="virtuoso_lab-pm-crest"><span class="virtuoso_lab-crest cr-rank-${_crest.rank}">${crestSvg(_crest.rank)}</span><div><div class="virtuoso_lab-pm-crest-label">${_crest.label}</div><div class="virtuoso_lab-pm-crest-desc">${_crest.desc}</div></div></div>`
       : '';
     body.innerHTML =
       crestHtml +
       sessionSummaryCardHtml() +
-      `<div class="virtuoso-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
+      `<div class="virtuoso_lab-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
       woodshedSectionHtml() +
       badgesSectionHtml() +
-      `<div class="virtuoso-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="virtuoso-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
+      `<div class="virtuoso_lab-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="virtuoso_lab-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
   // instrument + tuning; the popover toggles open. Closing on outside-click is bound
@@ -18455,7 +18453,7 @@
     const instrSel = document.querySelector('[name="instrument"]');
     const v = instrSel ? instrSel.value : 'guitar';
     const instr = v === 'bass' ? 'Bass' : v === 'piano' ? 'Piano' : 'Guitar';
-    const tun = $('virtuoso-tuning-select');
+    const tun = $('virtuoso_lab-tuning-select');
     let tuning = '';
     if (tun && tun.selectedOptions && tun.selectedOptions[0]) {
       tuning = tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim();
@@ -18465,20 +18463,20 @@
     return tuning ? `${instr} · ${count} · ${tuning}` : `${instr} · ${count}`;
   }
   function updateSetupButton() {
-    const lbl = $('virtuoso-setup-label');
+    const lbl = $('virtuoso_lab-setup-label');
     if (!lbl) return;
     lbl.textContent = setupLabelText();
     // Short form for the narrow-width degrade (CSS swaps to data-short via ::after).
     const instrSel = document.querySelector('[name="instrument"]');
     const v = instrSel ? instrSel.value : 'guitar';
     const short = v === 'bass' ? 'Bass' : v === 'piano' ? 'Pno' : 'Gtr';
-    const tun = $('virtuoso-tuning-select');
+    const tun = $('virtuoso_lab-tuning-select');
     const tShort = (tun && tun.selectedOptions && tun.selectedOptions[0])
       ? tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim().slice(0, 4) : '';
     lbl.dataset.short = tShort ? `${short} · ${tShort}` : short;
   }
   function toggleSetupPopover(force) {
-    const pop = $('virtuoso-setup-popover'), btn = $('virtuoso-setup-btn');
+    const pop = $('virtuoso_lab-setup-popover'), btn = $('virtuoso_lab-setup-btn');
     if (!pop || !btn) return;
     const open = force != null ? force : pop.hidden;
     pop.hidden = !open;
@@ -18488,9 +18486,9 @@
     // (The old courtesy "Floating tuner ↗" button retired 2026-07-10: the header
     // Tuner badge is that affordance now, in the host's own topbar position.)
     if (open) {
-      const row = $('virtuoso-tune-row');
+      const row = $('virtuoso_lab-tune-row');
       if (row) row.style.display = (ptAvailable() || ndVerifyAvailable()) ? '' : 'none';
-      const tuneBtn = $('virtuoso-tune-btn');
+      const tuneBtn = $('virtuoso_lab-tune-btn');
       if (tuneBtn) tuneBtn.style.display = ptAvailable() ? '' : 'none';
     }
   }
@@ -18559,7 +18557,7 @@
   // The panel's currently-effective open midis (custom override else the setup's).
   function effectiveMidisNow() {
     const count = currentStringCount();
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     const custom = (hidden?.value || '').split(',').map(Number).filter(Number.isFinite);
     if (custom.length === count) return custom;
     const setup = document.querySelector('[name="stringSetup"]');
@@ -18654,7 +18652,7 @@
     const { inst, count, midis } = res;
     const instrEl = document.querySelector('[name="instrument"]');
     const setupEl = document.querySelector('[name="stringSetup"]');
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     if (!instrEl || !setupEl) return;
     // Exact built-in setup match else custom override vs the family standard.
     let setupName = null;
@@ -18702,11 +18700,11 @@
   // the bus 'tuner:frame' stream ({note, cents, freq, hasSignal}). Never draws on
   // the tuner's surfaces or re-implements detection (the borrow boundary).
   function syncTunerBadge() {
-    const b = $('virtuoso-tuner-badge');
+    const b = $('virtuoso_lab-tuner-badge');
     if (b) b.hidden = typeof window.tuner?.toggle !== 'function';
   }
   function applyTunerFrame(d) {
-    const note = $('virtuoso-tuner-note'), meter = $('virtuoso-tuner-meter');
+    const note = $('virtuoso_lab-tuner-note'), meter = $('virtuoso_lab-tuner-meter');
     if (!note || !meter) return;
     const has = d && d.hasSignal !== false && d.note;
     note.textContent = has ? String(d.note) : 'Tuner';
@@ -18723,7 +18721,7 @@
   // Profile badge: compact mirror (avatar + streak + rank) + LINK. Renders nothing
   // unless the profile endpoint answers AND the player is onboarded (host rule).
   async function loadProfileBadge() {
-    const btn = $('virtuoso-profile-badge');
+    const btn = $('virtuoso_lab-profile-badge');
     if (!btn || !btn.hidden) return;   // absent or already rendered
     try {
       const r = await fetch('/api/profile');
@@ -18734,14 +18732,14 @@
       try { const r2 = await fetch('/api/profile/progress'); if (r2.ok) prog = await r2.json(); } catch (_) {}
       let rank = '';
       try { rank = String(window.v3Progression?.get?.()?.mastery_rank || ''); } catch (_) {}
-      const av = $('virtuoso-profile-avatar');
+      const av = $('virtuoso_lab-profile-avatar');
       if (av && p.avatar_url) { av.src = p.avatar_url; av.hidden = false; }
       const streak = Number(prog && prog.current_streak) || 0;
       const bits = [];
       if (streak > 0) bits.push(`${streak}🔥`);
       if (rank) bits.push(rank);
       if (!bits.length) bits.push(p.display_name || 'Profile');
-      const txt = $('virtuoso-profile-text');
+      const txt = $('virtuoso_lab-profile-text');
       if (txt) txt.textContent = bits.join(' · ');
       btn.title = [p.display_name, rank, streak ? `${streak}-day streak` : '']
         .filter(Boolean).join(' · ') || 'Profile';
@@ -18773,57 +18771,57 @@
   // stored default — ready for the unbuilt XP store), default count-in (seeds the
   // count-in control on load). All persisted to localStorage.
   function toggleSettingsMenu(force) {
-    const menu = $('virtuoso-settings-menu'), btn = $('virtuoso-settings-btn');
+    const menu = $('virtuoso_lab-settings-menu'), btn = $('virtuoso_lab-settings-btn');
     if (!menu || !btn) return;
     // Class-toggled (animated slide/fade); the CSS closed state is visibility-hidden
     // + pointer-events-none, so it's inert when closed without display:none (which
     // would kill the transition). Replaces the old menu.hidden flip.
-    const open = force != null ? force : !menu.classList.contains('vir-open');
-    menu.classList.toggle('vir-open', open);
+    const open = force != null ? force : !menu.classList.contains('virtuoso_lab_vir-open');
+    menu.classList.toggle('virtuoso_lab_vir-open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function applyTheme(name) {
-    const root = $('virtuoso-root'); if (!root) return;
+    const root = $('virtuoso_lab-root'); if (!root) return;
     // Drop any accent-theme class generically so the picker stays data-driven —
-    // a new swatch (data-theme="…") + its .vir-theme-… CSS works with no edit here.
-    Array.from(root.classList).forEach(c => { if (c.indexOf('vir-theme-') === 0) root.classList.remove(c); });
-    if (name) root.classList.add('vir-theme-' + name);
-    try { localStorage.setItem('virtuoso.theme', name || ''); } catch (_) {}
-    document.querySelectorAll('#virtuoso-theme-pick .virtuoso-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
+    // a new swatch (data-theme="…") + its .virtuoso_lab_vir-theme-… CSS works with no edit here.
+    Array.from(root.classList).forEach(c => { if (c.indexOf('virtuoso_lab_vir-theme-') === 0) root.classList.remove(c); });
+    if (name) root.classList.add('virtuoso_lab_vir-theme-' + name);
+    try { localStorage.setItem('virtuoso_lab.theme', name || ''); } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
   }
   function applyXpModeDefault(mode) {
-    try { localStorage.setItem('virtuoso.xpMode', mode); } catch (_) {}
+    try { localStorage.setItem('virtuoso_lab.xpMode', mode); } catch (_) {}
     // Tier C: this IS the live XP-Off switch — drive the real progress-store mode
     // that gates the whole engagement layer (XP/level/badges/woodshed/depth), not
     // just a settings default. Off genuinely collapses the layer everywhere.
     try { progressSetMode(mode); } catch (_) {}
-    document.querySelectorAll('#virtuoso-xp-mode .virtuoso-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
+    document.querySelectorAll('#virtuoso_lab-xp-mode .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.xp === mode));
     try { renderProgressSheet(); } catch (_) {}
   }
   // Count-in is always ≥1 bar (no 0-bar drop-in — a DAW recording convenience, not
   // a practice need). The setting picks the LENGTH (1/2/4); a stale '0' floors to 1.
   function countInDefaultBars() {
-    try { return Math.max(1, Math.min(8, parseInt(localStorage.getItem('virtuoso.countInDefault') || '1', 10) || 1)); } catch (_) { return 1; }
+    try { return Math.max(1, Math.min(8, parseInt(localStorage.getItem('virtuoso_lab.countInDefault') || '1', 10) || 1)); } catch (_) { return 1; }
   }
   // Count-in grid preview (the soft sub-ticks at the exercise's subdivision in the
   // last count-in bar / Workout break bars) — OPT-IN since 2026-06-12: real
   // beginner dogfood found the extra ticks made slow exercises FEEL faster.
   function countInGridOn() {
-    try { return localStorage.getItem('virtuoso.countInGrid') === 'on'; } catch (_) { return false; }
+    try { return localStorage.getItem('virtuoso_lab.countInGrid') === 'on'; } catch (_) { return false; }
   }
   function applyCountInGrid(val) {
-    document.querySelectorAll('#virtuoso-countin-grid .virtuoso-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === val));
+    document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === val));
   }
   // Studio energy (settings → Studio energy): the host-parity "Lit" chrome treatment
-  // is one root class (.vir-lit, default ON). 'calm' reverts to EXACTLY the restrained
+  // is one root class (.virtuoso_lab_vir-lit, default ON). 'calm' reverts to EXACTLY the restrained
   // base look — the user's toggle-back guarantee. Persisted; no playing-surface impact.
   function applyEnergy(mode) {
     const lit = mode !== 'calm';
-    const root = $('virtuoso-root'); if (root) root.classList.toggle('vir-lit', lit);
-    try { localStorage.setItem('virtuoso.energy', lit ? 'lit' : 'calm'); } catch (_) {}
-    document.querySelectorAll('#virtuoso-energy-pick .virtuoso-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.energy === (lit ? 'lit' : 'calm')));
+    const root = $('virtuoso_lab-root'); if (root) root.classList.toggle('virtuoso_lab_vir-lit', lit);
+    try { localStorage.setItem('virtuoso_lab.energy', lit ? 'lit' : 'calm'); } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.energy === (lit ? 'lit' : 'calm')));
   }
-  // Card theme (settings → Card theme): stamps data-vir-cardskin on the root — read ONLY
+  // Card theme (settings → Card theme): stamps data-virtuoso_lab_vir-cardskin on the root — read ONLY
   // by the results-card CSS + the copy-card canvas (renderShareCardImage), so the cockpit
   // stays calm. 'signature' = today's default look (no attribute; follows the Accent +
   // Lit/Calm). neon/esports/metal/warm/focus are opt-in note_detect-parity skins.
@@ -18833,7 +18831,7 @@
     signature: {
       id: 'signature', label: 'Signature', role: 'Virtuoso baseline', mode: 'dark',
       axes: ['host-native', 'calm', 'accent-led'],
-      typography: { displayFamily: 'var(--vir-font-display)', displayCase: 'mixed', tracking: 'normal' },
+      typography: { displayFamily: 'var(--virtuoso_lab_vir-font-display)', displayCase: 'mixed', tracking: 'normal' },
       shape: { controlRadius: 8, panelRadius: 10, borderWeight: 1 },
       material: { surface: 'graphite', treatment: 'quiet-raised' },
       motion: { ring: 'lit-toggle', reducedMotion: 'static' },
@@ -18844,7 +18842,7 @@
     neon: {
       id: 'neon', label: 'Neon', role: 'Synth arcade glass', mode: 'dark',
       axes: ['glass', 'glow', 'animated'],
-      typography: { displayFamily: 'var(--vir-font-display)', displayCase: 'uppercase moments', tracking: 'wide' },
+      typography: { displayFamily: 'var(--virtuoso_lab_vir-font-display)', displayCase: 'uppercase moments', tracking: 'wide' },
       shape: { controlRadius: 12, panelRadius: 12, borderWeight: 1 },
       material: { surface: 'dark glass', treatment: 'luminous-border' },
       motion: { ring: 'spin', glow: 'cyan-magenta', reducedMotion: 'static' },
@@ -18860,7 +18858,7 @@
     esports: {
       id: 'esports', label: 'Esports', role: 'Broadcast HUD', mode: 'dark',
       axes: ['flat', 'square', 'uppercase'],
-      typography: { displayFamily: 'VirtuosoEsports', displayCase: 'uppercase', tracking: 'wide' },
+      typography: { displayFamily: 'VirtuosoLabEsports', displayCase: 'uppercase', tracking: 'wide' },
       shape: { controlRadius: 0, panelRadius: 0, borderWeight: 1 },
       material: { surface: 'matte black', treatment: 'hard-edge' },
       motion: { ring: 'none', reducedMotion: 'static' },
@@ -18876,7 +18874,7 @@
     metal: {
       id: 'metal', label: 'Metal', role: 'Industrial plate', mode: 'dark',
       axes: ['bevel', 'steel', 'ember'],
-      typography: { displayFamily: 'VirtuosoMetal', displayCase: 'uppercase', tracking: 'wide' },
+      typography: { displayFamily: 'VirtuosoLabMetal', displayCase: 'uppercase', tracking: 'wide' },
       shape: { controlRadius: 6, panelRadius: 6, borderWeight: 1 },
       material: { surface: 'brushed steel', treatment: 'hard-bevel' },
       motion: { ring: 'pulse', glow: 'ember', reducedMotion: 'static' },
@@ -18930,14 +18928,14 @@
   }, {});
   function themeRecipeForSkin(skin) { return VIR_THEME_RECIPES[skin] || VIR_THEME_RECIPES.signature; }
   function renderCardSkinPicker(activeSkin) {
-    const host = $('virtuoso-cardskin-pick'); if (!host) return;
+    const host = $('virtuoso_lab-cardskin-pick'); if (!host) return;
     const active = VIR_CARD_SKINS.indexOf(activeSkin) !== -1 ? activeSkin : 'signature';
     host.innerHTML = '';
     VIR_CARD_SKINS.forEach(id => {
       const r = themeRecipeForSkin(id), p = r.preview || {};
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'virtuoso-skin-card' + (id === active ? ' active' : '');
+      b.className = 'virtuoso_lab-skin-card' + (id === active ? ' active' : '');
       b.dataset.cardskin = id;
       b.title = r.role || r.label;
       b.setAttribute('aria-label', r.label + ' theme');
@@ -18948,9 +18946,9 @@
       b.style.setProperty('--skin-b', p.b || '#60a5fa');
       b.style.setProperty('--skin-radius', p.radius || '8px');
       b.style.setProperty('--skin-shadow', p.shadow || 'none');
-      b.innerHTML = '<span class="virtuoso-skin-card-visual" aria-hidden="true"><span></span><i></i><b></b></span>' +
-        '<span class="virtuoso-skin-card-copy"><strong>' + r.label + '</strong><em>' + (r.role || '') + '</em></span>' +
-        '<span class="virtuoso-skin-card-axes" aria-hidden="true">' + (r.axes || []).slice(0, 3).map(x => '<i>' + x + '</i>').join('') + '</span>';
+      b.innerHTML = '<span class="virtuoso_lab-skin-card-visual" aria-hidden="true"><span></span><i></i><b></b></span>' +
+        '<span class="virtuoso_lab-skin-card-copy"><strong>' + r.label + '</strong><em>' + (r.role || '') + '</em></span>' +
+        '<span class="virtuoso_lab-skin-card-axes" aria-hidden="true">' + (r.axes || []).slice(0, 3).map(x => '<i>' + x + '</i>').join('') + '</span>';
       b.addEventListener('click', () => applyCardSkin(id));
       host.appendChild(b);
     });
@@ -18958,12 +18956,12 @@
   function cardToneForSkin(skin) {
     if (!VIR_CARD_TONES[skin]) return 'default';
     try {
-      const t = localStorage.getItem('virtuoso.cardTone.' + skin) || 'default';
+      const t = localStorage.getItem('virtuoso_lab.cardTone.' + skin) || 'default';
       return VIR_CARD_TONES[skin].some(x => x.id === t) ? t : 'default';
     } catch (_) { return 'default'; }
   }
   function renderCardTonePicker(skin, tone) {
-    const group = $('virtuoso-cardtone-group'), host = $('virtuoso-cardtone-pick'), label = $('virtuoso-cardtone-label');
+    const group = $('virtuoso_lab-cardtone-group'), host = $('virtuoso_lab-cardtone-pick'), label = $('virtuoso_lab-cardtone-label');
     if (!group || !host) return;
     const tones = VIR_CARD_TONES[skin] || [];
     group.hidden = !tones.length;
@@ -18973,7 +18971,7 @@
     tones.forEach(t => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'virtuoso-cardtone-swatch' + (t.id === tone ? ' active' : '');
+      b.className = 'virtuoso_lab-cardtone-swatch' + (t.id === tone ? ' active' : '');
       b.dataset.cardtone = t.id;
       b.style.setProperty('--sw-a', t.a);
       b.style.setProperty('--sw-b', t.b);
@@ -18984,47 +18982,47 @@
     });
   }
   function applyCardTone(skin, tone) {
-    const root = $('virtuoso-root'); if (!root) return;
+    const root = $('virtuoso_lab-root'); if (!root) return;
     const tones = VIR_CARD_TONES[skin] || [];
     const id = tones.some(t => t.id === tone) ? tone : 'default';
-    if (tones.length && id !== 'default') root.setAttribute('data-vir-cardtone', id);
-    else root.removeAttribute('data-vir-cardtone');
-    if (tones.length) { try { localStorage.setItem('virtuoso.cardTone.' + skin, id); } catch (_) {} }
+    if (tones.length && id !== 'default') root.setAttribute('data-virtuoso_lab_vir-cardtone', id);
+    else root.removeAttribute('data-virtuoso_lab_vir-cardtone');
+    if (tones.length) { try { localStorage.setItem('virtuoso_lab.cardTone.' + skin, id); } catch (_) {} }
     renderCardTonePicker(skin, id);
   }
   function applyCardSkin(name) {
-    const root = $('virtuoso-root'); if (!root) return;
+    const root = $('virtuoso_lab-root'); if (!root) return;
     const skin = VIR_CARD_SKINS.indexOf(name) !== -1 ? name : 'signature';
     const recipe = themeRecipeForSkin(skin);
     if (skin === 'signature') {
-      root.removeAttribute('data-vir-cardskin'); root.removeAttribute('data-vir-cardtone'); root.removeAttribute('data-vir-stageframe');
+      root.removeAttribute('data-virtuoso_lab_vir-cardskin'); root.removeAttribute('data-virtuoso_lab_vir-cardtone'); root.removeAttribute('data-virtuoso_lab_vir-stageframe');
     } else {
-      root.setAttribute('data-vir-cardskin', skin);
-      root.setAttribute('data-vir-stageframe', recipe.stageFrame?.style || skin);
+      root.setAttribute('data-virtuoso_lab_vir-cardskin', skin);
+      root.setAttribute('data-virtuoso_lab_vir-stageframe', recipe.stageFrame?.style || skin);
     }
-    try { localStorage.setItem('virtuoso.cardSkin', skin); } catch (_) {}
+    try { localStorage.setItem('virtuoso_lab.cardSkin', skin); } catch (_) {}
     renderCardSkinPicker(skin);
     if (skin === 'signature') renderCardTonePicker(skin, 'default');
     else applyCardTone(skin, cardToneForSkin(skin));
     try { syncSkinScopeAvail(); } catch (_) {}
   }
   // Card-theme REACH (settings → Apply theme): whether the chosen skin also skins the whole
-  // cockpit. Stamps data-vir-skincockpit on the root — read by the cockpit-extension CSS,
-  // which remaps the shell's --vir-accent* to the skin's --vir-card-* when ON. Default 'card'
-  // = calm cockpit (byte-identical). A no-op for Signature (no data-vir-cardskin → no bleed).
+  // cockpit. Stamps data-virtuoso_lab_vir-skincockpit on the root — read by the cockpit-extension CSS,
+  // which remaps the shell's --virtuoso_lab_vir-accent* to the skin's --virtuoso_lab_vir-card-* when ON. Default 'card'
+  // = calm cockpit (byte-identical). A no-op for Signature (no data-virtuoso_lab_vir-cardskin → no bleed).
   function applySkinScope(scope) {
-    const root = $('virtuoso-root'); if (!root) return;
+    const root = $('virtuoso_lab-root'); if (!root) return;
     const on = scope === 'cockpit';
-    if (on) root.setAttribute('data-vir-skincockpit', 'on');
-    else root.removeAttribute('data-vir-skincockpit');
-    try { localStorage.setItem('virtuoso.skinCockpit', on ? 'cockpit' : 'card'); } catch (_) {}
-    document.querySelectorAll('#virtuoso-skinscope-pick .virtuoso-mini-btn').forEach(b => b.classList.toggle('active', (b.dataset.skinscope || '') === (on ? 'cockpit' : 'card')));
+    if (on) root.setAttribute('data-virtuoso_lab_vir-skincockpit', 'on');
+    else root.removeAttribute('data-virtuoso_lab_vir-skincockpit');
+    try { localStorage.setItem('virtuoso_lab.skinCockpit', on ? 'cockpit' : 'card'); } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-skinscope-pick .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', (b.dataset.skinscope || '') === (on ? 'cockpit' : 'card')));
   }
   // Grey the "Apply theme" toggle when the active Card theme is Signature — nothing to extend
   // (Signature already follows the Accent picker; the cockpit bleed only applies to a real skin).
   function syncSkinScopeAvail() {
-    let skin = 'signature'; try { skin = localStorage.getItem('virtuoso.cardSkin') || 'signature'; } catch (_) {}
-    const grp = $('virtuoso-skinscope-group');
+    let skin = 'signature'; try { skin = localStorage.getItem('virtuoso_lab.cardSkin') || 'signature'; } catch (_) {}
+    const grp = $('virtuoso_lab-skinscope-group');
     if (grp) grp.classList.toggle('is-disabled', skin === 'signature');
   }
   function applyCountInDefault(val) {
@@ -19034,9 +19032,9 @@
   }
   function loadSettingsPrefs() {
     let theme = '', xp = 'casual', ci = null;
-    try { theme = localStorage.getItem('virtuoso.theme') || ''; } catch (_) {}
-    try { xp = localStorage.getItem('virtuoso.xpMode') || 'casual'; } catch (_) {}
-    try { ci = localStorage.getItem('virtuoso.countInDefault'); } catch (_) {}
+    try { theme = localStorage.getItem('virtuoso_lab.theme') || ''; } catch (_) {}
+    try { xp = localStorage.getItem('virtuoso_lab.xpMode') || 'casual'; } catch (_) {}
+    try { ci = localStorage.getItem('virtuoso_lab.countInDefault'); } catch (_) {}
     applyTheme(theme);
     applyXpModeDefault(xp);
     // A count-in is ALWAYS on (≥1 bar) — the 0-bar "drop-in" is a DAW recording
@@ -19044,14 +19042,14 @@
     // the LENGTH (1/2/4); absent or a stale '0' floors to 1.
     ci = String(Math.max(1, Math.min(8, parseInt(ci || '1', 10) || 1)));
     applyCountInDefault(ci);
-    const sel = $('virtuoso-countin-default');
+    const sel = $('virtuoso_lab-countin-default');
     if (sel) sel.value = ci;
     applyCountInGrid(countInGridOn() ? 'on' : 'off');
-    let energy = 'lit'; try { energy = localStorage.getItem('virtuoso.energy') || 'lit'; } catch (_) {}
+    let energy = 'lit'; try { energy = localStorage.getItem('virtuoso_lab.energy') || 'lit'; } catch (_) {}
     applyEnergy(energy);
-    let cardSkin = 'signature'; try { cardSkin = localStorage.getItem('virtuoso.cardSkin') || 'signature'; } catch (_) {}
+    let cardSkin = 'signature'; try { cardSkin = localStorage.getItem('virtuoso_lab.cardSkin') || 'signature'; } catch (_) {}
     applyCardSkin(cardSkin);
-    let skinScope = 'card'; try { skinScope = localStorage.getItem('virtuoso.skinCockpit') || 'card'; } catch (_) {}
+    let skinScope = 'card'; try { skinScope = localStorage.getItem('virtuoso_lab.skinCockpit') || 'card'; } catch (_) {}
     applySkinScope(skinScope);
   }
 
@@ -19534,7 +19532,7 @@
     crash_l:2.0, crash_r:2.0, splash:1.2, china:1.4,
     tom_hi:0.5, tom_mid:0.5, tom_low:0.5, tom_floor:0.55, clap:0.3,
   };
-  // Play one sampled drum hit via WebAudioFont — wafVoice MINUS wafLoudnessTrim (a
+  // Play one sampled drum hit via VirtuosoLabWebAudioFont — wafVoice MINUS wafLoudnessTrim (a
   // drum note number is a piece selector, not a pitch, so the pitch-tilt is wrong).
   // Routes through the drum sub-bus (its own comp + shelf, before the master limiter).
   function wafDrumVoice(ctx, preset, note, when, vol, dur) {
@@ -19744,7 +19742,7 @@
   // Applied inside wafVoice (and to the bent-note oscillator fallback so it matches
   // the sampled voice it stands in for). See ROADMAP audio-realism Phase A.
   const WAF_VOICE_VOL = { notes: 0.7, harmony: 0.5, pad: 0.5, bass: 0.8, drums: 0.7 };
-  // Per-WAF-preset loudness makeup (Jam-UX reliability slice, sound-design): WebAudioFont
+  // Per-WAF-preset loudness makeup (Jam-UX reliability slice, sound-design): VirtuosoLabWebAudioFont
   // peak-normalises each preset INDEPENDENTLY (it matches peaks, not perceived loudness),
   // so a sustained voice (organ/epiano/strings/pad) reads far louder than a plucked one
   // (clean/guitar/nylon) at the same peak — a live instrument swap then lurches in level
@@ -20121,7 +20119,7 @@
         scheduleClick(ctx, base + (b.time - startFrom), accent, false, b.brk ? 0.75 : 1);
         schedEnd = Math.max(schedEnd, base + (b.time - startFrom) + 0.1);
         // The grid-preview boosts (last count-in bar + break bars) are OPT-IN
-        // (virtuoso.countInGrid; 2026-06-12 beginner dogfood: the extra ticks
+        // (virtuoso_lab.countInGrid; 2026-06-12 beginner dogfood: the extra ticks
         // made slow exercises FEEL faster). An explicit clickSubdiv always plays.
         const gridOn = countInGridOn();
         const lastCountInBar = inCountIn && b.time >= lead - ciMeas - 1e-4;
@@ -20218,7 +20216,7 @@
     _downshiftEvaluated = true;        // one evaluation per run, whatever the outcome
     if (_ptScoredUnits / passed >= 0.4) return;   // holding up fine — stay quiet
     const idx = activeTempoTierIdx - 1;
-    const chip = $('virtuoso-downshift'), go = $('virtuoso-downshift-go');
+    const chip = $('virtuoso_lab-downshift'), go = $('virtuoso_lab-downshift-go');
     if (!chip || !go) return;
     go.textContent = `Try ${tierChipLabel(pw, idx)} ▸`;
     go.dataset.idx = String(idx);
@@ -20228,7 +20226,7 @@
     _downshiftSeen.add(id);            // once per rung per session
   }
   function hideDownshiftChip() {
-    const chip = $('virtuoso-downshift');
+    const chip = $('virtuoso_lab-downshift');
     if (!chip || chip.hidden) return;
     chip.classList.remove('show'); chip.setAttribute('aria-hidden', 'true'); chip.hidden = true;
   }
@@ -20301,7 +20299,7 @@
     syncListenButton();
   }
   function syncListenButton() {
-    const b = $('virtuoso-listen');
+    const b = $('virtuoso_lab-listen');
     if (!b) return;
     b.classList.toggle('active', _demoActive);
     b.innerHTML = _demoActive ? '◼ Stop' : '🔊 Hear it';
@@ -20390,7 +20388,7 @@
     await Promise.race([applyHostSink(), new Promise((r) => setTimeout(r, 150))]);
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
-    if ($('virtuoso-root')?.classList.contains('virtuoso-session-mode')) {
+    if ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode')) {
       if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
       await awaitVoices(activeBundle);  // start on WAF, not the oscillator
       startPlayback();
@@ -20424,7 +20422,7 @@
 
   // Per-frame light sync: scrubber position + current-time readout.
   function syncTransportTime() {
-    const cur = $('virtuoso-time-cur');
+    const cur = $('virtuoso_lab-time-cur');
     if (cur) cur.textContent = fmtTime(currentPracticeTime);
     updateActiveSegment();
   }
@@ -20434,24 +20432,24 @@
   // bundle change, loop change, and mode change — not every frame.
   function syncTransport() {
     const dur = activeBundle?.songInfo?.duration || 0;
-    const hudTitle = $('virtuoso-hud-title');
+    const hudTitle = $('virtuoso_lab-hud-title');
     if (hudTitle) hudTitle.textContent = activeBundle ? describeCurrentContent() : '';
-    const durEl = $('virtuoso-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
+    const durEl = $('virtuoso_lab-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
     syncTransportTime();
     paintLoopRegion();
-    $('virtuoso-loop-a')?.classList.toggle('active', tpA != null);
-    $('virtuoso-loop-b')?.classList.toggle('active', tpB != null);
-    const lc = $('virtuoso-loop-count');
+    $('virtuoso_lab-loop-a')?.classList.toggle('active', tpA != null);
+    $('virtuoso_lab-loop-b')?.classList.toggle('active', tpB != null);
+    const lc = $('virtuoso_lab-loop-count');
     if (lc) {
       const active = segmentLoopA != null && segmentLoopB != null && !isJamMode();
       lc.hidden = !active || _loopWraps < 1;
       if (active) lc.textContent = 'Loop ' + _loopWraps;
     }
-    const lr = $('virtuoso-loop-range');
+    const lr = $('virtuoso_lab-loop-range');
     if (lr) { const txt = loopReadoutText(); lr.hidden = !txt; lr.textContent = txt || ''; }
     syncFeelControl();
-    const ci = document.querySelector('#virtuoso-controls [name="countIn"]')?.value || '0';
-    document.querySelectorAll('.virtuoso-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
+    const ci = document.querySelector('#virtuoso_lab-controls [name="countIn"]')?.value || '0';
+    document.querySelectorAll('.virtuoso_lab-tp-seg').forEach(b => b.classList.toggle('active', b.dataset.countin === ci));
     renderSessionProgress();
     _activeSegIdx = -1; updateActiveSegment();
   }
@@ -20529,13 +20527,13 @@
 
   // Render the proportional segment bar (chunk width ∝ segment duration).
   function renderSessionProgress() {
-    const host = $('virtuoso-session-progress'); if (!host) return;
+    const host = $('virtuoso_lab-session-progress'); if (!host) return;
     const b = sessionBounds(), dur = activeBundle?.songInfo?.duration || 0;
     if (!b || !b.length || dur <= 0) { host.innerHTML = ''; return; }
     host.innerHTML = b.map((seg, i) => {
       const grow = Math.max(0.0001, (seg.end - seg.start) / dur);
       const label = String(seg.name || `Seg ${i + 1}`).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      return `<button type="button" class="virtuoso-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
+      return `<button type="button" class="virtuoso_lab-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
     }).join('');
   }
 
@@ -20544,8 +20542,8 @@
     const idx = currentSegmentIndex();
     if (idx === _activeSegIdx) return;
     _activeSegIdx = idx;
-    document.querySelectorAll('#virtuoso-session-progress .virtuoso-progress-seg').forEach((el, i) => el.classList.toggle('active', i === idx));
-    document.querySelectorAll('#virtuoso-segment-list .virtuoso-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
+    document.querySelectorAll('#virtuoso_lab-session-progress .virtuoso_lab-progress-seg').forEach((el, i) => el.classList.toggle('active', i === idx));
+    document.querySelectorAll('#virtuoso_lab-segment-list .virtuoso_lab-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
   }
 
   function jumpToSegment(i) { const b = sessionBounds(); if (b && b[i]) seekTo(b[i].start); }
@@ -20605,12 +20603,12 @@
   // a form field is focused or a modifier is held, and never touches Escape
   // (FeedBack owns Escape for return-to-menu). Comma/period are session-only.
   function onTransportKey(e) {
-    const root = $('virtuoso-root');
+    const root = $('virtuoso_lab-root');
     if (!root || !root.offsetParent) return; // screen not the active/visible one
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     const tag = (e.target?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
-    const sessionMode = root.classList.contains('virtuoso-session-mode');
+    const sessionMode = root.classList.contains('virtuoso_lab-session-mode');
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
       case 'ArrowLeft':  e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(-1)) break; nudgeBar(-1); break;
@@ -20632,15 +20630,15 @@
     }
   }
 
-  // Compact, glanceable LCD readout for #virtuoso-summary. Shows only the
+  // Compact, glanceable LCD readout for #virtuoso_lab-summary. Shows only the
   // GENERATED facts the left-panel controls don't already state — the readout
   // used to restate every menu selection (debug-log style); now it confirms
   // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
-  // Errors/fallback messages do NOT go here — they're routed to #virtuoso-status.
+  // Errors/fallback messages do NOT go here — they're routed to #virtuoso_lab-status.
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart;
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    const cell = (label, value) => `<div class="virtuoso-lcd-cell"><span class="virtuoso-lcd-lbl">${esc(label)}</span><span class="virtuoso-lcd-val">${esc(value)}</span></div>`;
+    const cell = (label, value) => `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val">${esc(value)}</span></div>`;
     const len = fmtTime(c.duration);
     // Sessions mix tempo/key/meter across segments, so show session-level facts
     // (name · segments · length · notes) rather than a single key/tempo/meter.
@@ -20661,7 +20659,7 @@
     // mode, exactly like the editable Tempo cell.
     const opt = (value, label, cur) => `<option value="${esc(value)}"${String(value) === String(cur) ? ' selected' : ''}>${esc(label)}</option>`;
     const lcdSel = (id, label, inner, title) =>
-      `<div class="virtuoso-lcd-cell"><span class="virtuoso-lcd-lbl">${esc(label)}</span><span class="virtuoso-lcd-val"><select id="${id}" class="virtuoso-lcd-select" aria-label="${esc(title)}" title="${esc(title)}">${inner}</select></span></div>`;
+      `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val"><select id="${id}" class="virtuoso_lab-lcd-select" aria-label="${esc(title)}" title="${esc(title)}">${inner}</select></span></div>`;
     // Key — root note editable; the scale name stays a static suffix. chromatic has
     // no key/scale, so it keeps a static Pattern identity cell.
     let keyCell;
@@ -20670,16 +20668,16 @@
     } else {
       const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       const scaleName = String(cfg.scale || '').replace(/_/g, ' ');
-      keyCell = `<div class="virtuoso-lcd-cell"><span class="virtuoso-lcd-lbl">Key</span><span class="virtuoso-lcd-val"><select id="virtuoso-lcd-key" class="virtuoso-lcd-select" aria-label="Key — root note" title="Key — root note">${NOTES.map(n => opt(n, n, cfg.key)).join('')}</select> ${esc(scaleName)}</span></div>`;
+      keyCell = `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">Key</span><span class="virtuoso_lab-lcd-val"><select id="virtuoso_lab-lcd-key" class="virtuoso_lab-lcd-select" aria-label="Key — root note" title="Key — root note">${NOTES.map(n => opt(n, n, cfg.key)).join('')}</select> ${esc(scaleName)}</span></div>`;
     }
     // Meter — mirror the Inspector meter <select> options (zero drift) with compact
     // n/d labels; editable here even when that Inspector field is Custom-only-hidden.
     const curMeterVal = (cfg.meter.grouping && cfg.meter.grouping.length > 1)
       ? `${cfg.meter.numerator}/${cfg.meter.denominator}:${cfg.meter.grouping.join('+')}`
       : `${cfg.meter.numerator}/${cfg.meter.denominator}`;
-    const formMeter = document.querySelector('#virtuoso-controls [name="meter"]');
+    const formMeter = document.querySelector('#virtuoso_lab-controls [name="meter"]');
     const meterCell = formMeter
-      ? lcdSel('virtuoso-lcd-meter', 'Meter', Array.from(formMeter.options).map(o => {
+      ? lcdSel('virtuoso_lab-lcd-meter', 'Meter', Array.from(formMeter.options).map(o => {
           const m = parseMeter(o.value);
           const short = m.grouping.length > 1 ? `${m.numerator}/${m.denominator} ${m.grouping.join('+')}` : `${m.numerator}/${m.denominator}`;
           return opt(o.value, short, curMeterVal);
@@ -20687,14 +20685,14 @@
       : cell('Meter', `${cfg.meter.numerator}/${cfg.meter.denominator}`);
     // Count-in — bars of lead-in (mirrors the Inspector Count-in select).
     const ciCur = cfg.countInBars != null ? cfg.countInBars : 1;
-    const countInCell = lcdSel('virtuoso-lcd-countin', 'Count-in',
+    const countInCell = lcdSel('virtuoso_lab-lcd-countin', 'Count-in',
       [1, 2, 4].map(n => opt(n, n === 1 ? '1 bar' : n + ' bars', ciCur)).join(''), 'Count-in bars');
     return [
       keyCell,
       // Tempo is an editable LCD cell (DAW transport convention): same glyphs as
       // a readout, commits via the delegated handler in bind() (two-way with the
       // Inspector BPM field). Sessions (above) keep no tempo cell — mixed tempos.
-      `<div class="virtuoso-lcd-cell"><span class="virtuoso-lcd-lbl">Tempo</span><span class="virtuoso-lcd-val"><input id="virtuoso-lcd-bpm" class="virtuoso-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
+      `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">Tempo</span><span class="virtuoso_lab-lcd-val"><input id="virtuoso_lab-lcd-bpm" class="virtuoso_lab-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
       meterCell,
       countInCell,
       cell('Bars', bars),
@@ -20702,7 +20700,7 @@
       cell('Notes', c.notes.length)
     ].join('');
   }
-  function showStatus(text) { const el = $('virtuoso-status'); if (el) el.textContent = text; }
+  function showStatus(text) { const el = $('virtuoso_lab-status'); if (el) el.textContent = text; }
   function describeCurrentContent() {
     try {
       // Jam describes the JAM, not the form (the form holds whatever exercise
@@ -20730,7 +20728,7 @@
   }
 
   async function onGenerate() {
-    const summary = $('virtuoso-summary');
+    const summary = $('virtuoso_lab-summary');
     try {
       const exercise = generateExercise(withRunTarget(readConfig()));
       lastExercise = exercise;
@@ -20747,7 +20745,7 @@
   }
   async function savePreset() {
     const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
-    const res = await fetch('/api/plugins/virtuoso/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
+    const res = await fetch('/api/plugins/virtuoso_lab/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
     if (!res.ok) throw new Error(await res.text());
     showStatus(`Saved preset: ${name}`);
   }
@@ -20758,16 +20756,16 @@
   // instead of stranding the player in 'position'.
   let stashedGuitarSystem = null;
   function syncInstrumentClass() {
-    const root = $('virtuoso-root');
+    const root = $('virtuoso_lab-root');
     const setup = document.querySelector('[name="stringSetup"]');
     if (!root || !setup) return;
     const isBass = (STRING_SETUPS[setup.value] || {}).instrument === 'bass';
-    root.classList.toggle('virtuoso-bass-instrument', isBass);
+    root.classList.toggle('virtuoso_lab-bass-instrument', isBass);
     // Piano is keyed off the instrument select directly (it has no string setup).
     // Drives the CSS that reveals the Piano Roll view and hides the guitar/bass
     // views. Piano can't be selected yet (chip disabled), so this is groundwork.
     const instrSel = document.querySelector('[name="instrument"]');
-    root.classList.toggle('virtuoso-piano-instrument', (instrSel?.value) === 'piano');
+    root.classList.toggle('virtuoso_lab-piano-instrument', (instrSel?.value) === 'piano');
     // Offer only the practice types applicable to this instrument (the ternary
     // offerable() tag — the single source of truth, replacing the old bending-only
     // hide). Hide/disable any n-a option; if the current selection becomes n-a,
@@ -20827,7 +20825,7 @@
   function syncInstrumentFamilyButtons() {
     const instr = document.querySelector('[name="instrument"]');
     const fam = instr ? instr.value : 'guitar';
-    document.querySelectorAll('.virtuoso-instr-btn').forEach(btn => {
+    document.querySelectorAll('.virtuoso_lab-instr-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.instrument === fam);
     });
   }
@@ -20842,7 +20840,7 @@
     // Drop any per-string custom tuning before flipping families — a guitar
     // custom tuning has the wrong string count and the wrong note ranges
     // for bass (and vice versa), so carrying it across is always wrong.
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     if (hidden) hidden.value = '';
     instr.value = family;
     instr.dispatchEvent(new Event('change', { bubbles: true }));
@@ -20850,7 +20848,7 @@
     // controls share one update path. This click, however, is a real player
     // declaration and must still propagate to the host.
     hostSettingsWriteSoon();
-    try { localStorage.setItem('virtuoso.instrumentFamily', family); } catch (_) {}
+    try { localStorage.setItem('virtuoso_lab.instrumentFamily', family); } catch (_) {}
     syncInstrumentFamilyButtons();
     syncStringCountChips();
     syncTuningOptions();
@@ -20893,9 +20891,9 @@
   function instrumentStoreSave({ writeHost = true } = {}) {
     try {
       const setupEl = document.querySelector('[name="stringSetup"]');
-      const hidden = $('virtuoso-custom-open-midis');
+      const hidden = $('virtuoso_lab-custom-open-midis');
       if (!setupEl || !STRING_SETUPS[setupEl.value]) return;
-      localStorage.setItem('virtuoso.instrument', JSON.stringify({
+      localStorage.setItem('virtuoso_lab.instrument', JSON.stringify({
         stringSetup: setupEl.value,
         customOpenMidis: (hidden?.value || '').trim(),
       }));
@@ -20911,7 +20909,7 @@
   }
   function instrumentStoreLoad() {
     try {
-      const o = JSON.parse(localStorage.getItem('virtuoso.instrument') || 'null');
+      const o = JSON.parse(localStorage.getItem('virtuoso_lab.instrument') || 'null');
       if (!o || !STRING_SETUPS[o.stringSetup]) return null;
       return { stringSetup: o.stringSetup, customOpenMidis: (o.customOpenMidis || '').trim() };
     } catch (_) { return null; }
@@ -20935,7 +20933,7 @@
     return cur.openMidis.length;
   }
   function syncStringCountChips() {
-    const row = $('virtuoso-string-count-row'); if (!row) return;
+    const row = $('virtuoso_lab-string-count-row'); if (!row) return;
     const family = currentFamily();
     const counts = family === 'bass' ? [4,5,6] : [6,7,8];
     const cur = currentStringCount();
@@ -20943,7 +20941,7 @@
     for (const n of counts) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'virtuoso-string-count-btn' + (n === cur ? ' active' : '');
+      b.className = 'virtuoso_lab-string-count-btn' + (n === cur ? ' active' : '');
       b.dataset.count = String(n);
       b.textContent = String(n);
       b.addEventListener('click', () => onStringCountClick(n));
@@ -20961,7 +20959,7 @@
     if (!setup) return;
     setup.value = setupName;
     // Clear any custom tuning.
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     if (hidden) hidden.value = '';
     setup.dispatchEvent(new Event('change', { bubbles: true }));
     hostSettingsWriteSoon();  // the chip click is a real player declaration
@@ -20973,7 +20971,7 @@
   let savedTunings = [];
   async function loadSavedTunings() {
     try {
-      const r = await fetch('/api/plugins/virtuoso/tunings');
+      const r = await fetch('/api/plugins/virtuoso_lab/tunings');
       if (!r.ok) return;
       const body = await r.json();
       savedTunings = Array.isArray(body.tunings) ? body.tunings : [];
@@ -20983,13 +20981,13 @@
     syncTuningOptions();
   }
   function syncTuningOptions() {
-    const sel = $('virtuoso-tuning-select'); if (!sel) return;
+    const sel = $('virtuoso_lab-tuning-select'); if (!sel) return;
     const family = currentFamily();
     const count = currentStringCount();
     const presets = TUNING_PRESETS[`${family}_${count}`] || [];
     const setup = document.querySelector('[name="stringSetup"]');
     const setupName = setup?.value || `${family}_${count}_standard`;
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     const customStr = hidden?.value || '';
     const customMidis = customStr ? customStr.split(',').map(Number).filter(Number.isFinite) : null;
     sel.innerHTML = '';
@@ -21077,7 +21075,7 @@
   // After save, refetch the saved-tunings list so the dropdown reflects the
   // new entry immediately.
   async function onSaveTuningClick() {
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     const midisStr = hidden?.value || '';
     const midis = midisStr.split(',').map(Number).filter(Number.isFinite);
     if (!midis.length) return;
@@ -21088,7 +21086,7 @@
     const name = window.prompt('Save tuning as:', defaultName);
     if (!name) return;
     try {
-      const r = await fetch('/api/plugins/virtuoso/tunings', {
+      const r = await fetch('/api/plugins/virtuoso_lab/tunings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), family, string_count: count, midis }),
@@ -21104,10 +21102,10 @@
     }
   }
   function syncCustomTuningInputs() {
-    const sel = $('virtuoso-tuning-select');
-    const wrap = $('virtuoso-custom-tuning');
-    const inputs = $('virtuoso-custom-tuning-inputs');
-    const hidden = $('virtuoso-custom-open-midis');
+    const sel = $('virtuoso_lab-tuning-select');
+    const wrap = $('virtuoso_lab-custom-tuning');
+    const inputs = $('virtuoso_lab-custom-tuning-inputs');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     if (!sel || !wrap || !inputs || !hidden) return;
     const isCustom = sel.value === 'custom';
     wrap.style.display = isCustom ? 'flex' : 'none';
@@ -21128,7 +21126,7 @@
     for (let i = 0; i < count; i++) {
       const input = document.createElement('input');
       input.type = 'text';
-      input.className = 'virtuoso-custom-tuning-input';
+      input.className = 'virtuoso_lab-custom-tuning-input';
       input.value = midiToNoteName(midis[i]);
       input.dataset.idx = String(i);
       input.spellcheck = false;
@@ -21141,7 +21139,7 @@
     commitCustomTuning(midis);
   }
   function readCustomTuningInputs() {
-    const inputs = Array.from(document.querySelectorAll('.virtuoso-custom-tuning-input'));
+    const inputs = Array.from(document.querySelectorAll('.virtuoso_lab-custom-tuning-input'));
     const midis = [];
     let allValid = true;
     for (const el of inputs) {
@@ -21152,7 +21150,7 @@
     return { midis, allValid };
   }
   function commitCustomTuning(midis) {
-    const hidden = $('virtuoso-custom-open-midis');
+    const hidden = $('virtuoso_lab-custom-open-midis');
     if (hidden) hidden.value = midis.join(',');
   }
   function onCustomTuningEdit(commit) {
@@ -21164,8 +21162,8 @@
     if (commit && activeBundle) onGenerate();
   }
   function onTuningPresetChange() {
-    const sel = $('virtuoso-tuning-select'); if (!sel) return;
-    const hidden = $('virtuoso-custom-open-midis');
+    const sel = $('virtuoso_lab-tuning-select'); if (!sel) return;
+    const hidden = $('virtuoso_lab-custom-open-midis');
     // Saved tunings come back as `saved:<id>`, host named tunings as `host:<name>`;
     // the midis live on the option's dataset.midis (set by syncTuningOptions).
     // Apply them as a custom override against the family's standard stringSetup.
@@ -21224,17 +21222,17 @@
     instrumentStoreSave();   // a preset pick = the player's L1 declaration
   }
   function syncAdvancedMode() {
-    const root = $('virtuoso-root'), toggle = $('virtuoso-advanced-toggle');
+    const root = $('virtuoso_lab-root'), toggle = $('virtuoso_lab-advanced-toggle');
     const enabled = !!toggle?.checked;
-    root?.classList.toggle('virtuoso-advanced', enabled);
-    document.querySelectorAll('.virtuoso-advanced-only input, .virtuoso-advanced-only select, .virtuoso-advanced-only textarea, .virtuoso-advanced-only button').forEach(el => { el.disabled = !enabled; });
+    root?.classList.toggle('virtuoso_lab-advanced', enabled);
+    document.querySelectorAll('.virtuoso_lab-advanced-only input, .virtuoso_lab-advanced-only select, .virtuoso_lab-advanced-only textarea, .virtuoso_lab-advanced-only button').forEach(el => { el.disabled = !enabled; });
   }
   function setFieldSilent(name, value) {
     // Fields living OUTSIDE the form element but associated via the form=""
     // attribute (e.g. the header Setup popover's hidden customOpenMidis input)
-    // aren't descendants of #virtuoso-controls — fall back to the attribute.
-    const field = document.querySelector('#virtuoso-controls [name="' + name + '"]')
-      || document.querySelector('[form="virtuoso-controls"][name="' + name + '"]');
+    // aren't descendants of #virtuoso_lab-controls — fall back to the attribute.
+    const field = document.querySelector('#virtuoso_lab-controls [name="' + name + '"]')
+      || document.querySelector('[form="virtuoso_lab-controls"][name="' + name + '"]');
     if (!field) return;
     if (field.type === 'checkbox') field.checked = !!value;
     else field.value = String(value);
@@ -21264,8 +21262,8 @@
   // explicit subdivision pick afterwards — and every regenerate, preset, and
   // share-link (which set fields silently) — is preserved.
   function meterAwareSubdivisionBump() {
-    const mEl = document.querySelector('#virtuoso-controls [name="meter"]');
-    const sEl = document.querySelector('#virtuoso-controls [name="subdivision"]');
+    const mEl = document.querySelector('#virtuoso_lab-controls [name="meter"]');
+    const sEl = document.querySelector('#virtuoso_lab-controls [name="subdivision"]');
     if (!mEl || !sEl) return;
     const den = parseMeter(mEl.value).denominator;
     const pulse = pulseSubdivisionForDenominator(den);
@@ -21279,9 +21277,9 @@
   // from the same core timing helpers the chart uses, so it can't drift from the
   // real output. BPM cancels in the ratio, so the constant here is irrelevant.
   function syncDivisionHelp() {
-    const el = $('virtuoso-division-help'); if (!el) return;
-    const mEl = document.querySelector('#virtuoso-controls [name="meter"]');
-    const sEl = document.querySelector('#virtuoso-controls [name="subdivision"]');
+    const el = $('virtuoso_lab-division-help'); if (!el) return;
+    const mEl = document.querySelector('#virtuoso_lab-controls [name="meter"]');
+    const sEl = document.querySelector('#virtuoso_lab-controls [name="subdivision"]');
     if (!mEl || !sEl) { el.textContent = ''; return; }
     const m = parseMeter(mEl.value);
     const pulseGlyph = m.denominator >= 8 ? '♪' : '♩';   // ♪ eighth-denom · ♩ quarter-denom
@@ -21321,9 +21319,9 @@
   // cagedShape input. Only meaningful when the active system is CAGED — for
   // other systems the chord-template helpers aren't called.
   function syncShapeDropdownSelectionToHidden() {
-    const sysEl = $('virtuoso-fretboard-system');
-    const shapeEl = $('virtuoso-shape');
-    const hidden = $('virtuoso-caged-shape-value');
+    const sysEl = $('virtuoso_lab-fretboard-system');
+    const shapeEl = $('virtuoso_lab-shape');
+    const hidden = $('virtuoso_lab-caged-shape-value');
     if (!shapeEl || !hidden) return;
     if (sysEl && sysEl.value === 'caged' && shapeEl.value) hidden.value = shapeEl.value;
   }
@@ -21394,7 +21392,7 @@
     // into the next pathway selected. (readConfig also length-validates the CSV
     // against the stringSetup, so a stale mismatch degrades to standard tuning.)
     // NOTE this anti-leak clears RUNG-scoped (L3) tunings only — the player's
-    // own tuning lives in the durable L1 store (virtuoso.instrument) and is
+    // own tuning lives in the durable L1 store (virtuoso_lab.instrument) and is
     // re-composed per-rung by applyTuningAdaptL1, never stored in this field.
     setFieldSilent('customOpenMidis', config.customOpenMidis || '');
     // L1 tuning-adapt metadata: anti-leak defaulted like the CSV (set only when
@@ -21441,13 +21439,13 @@
   }
 
   function setPathwayModeClass(isPathway) {
-    const root = $('virtuoso-root');
+    const root = $('virtuoso_lab-root');
     if (!root) return;
-    root.classList.toggle('virtuoso-pathway-mode', !!isPathway);
+    root.classList.toggle('virtuoso_lab-pathway-mode', !!isPathway);
     syncModeBar();
   }
 
-  // Four-mode shell metadata: data-mode token → { label, the forward-compat vir-mode-*
+  // Four-mode shell metadata: data-mode token → { label, the forward-compat virtuoso_lab_vir-mode-*
   // class suffix, and the "what is this mode" JTBD line under the switcher }.
   const MODE_META = {
     guided:  { label:'Ladder', ss:'pathways', desc:'Follow a guided curriculum — we suggest what to work on next.' },
@@ -21457,21 +21455,21 @@
   };
   // The mode bar (Pathways / Custom / Workout / Jam) is a VIEW of the root classes:
   // jam-mode wins; else session-mode ⇒ Workout; else pathway-mode ⇒ Pathways; else
-  // Custom. Also sets the single forward-compat vir-mode-* class + the mode-desc line.
+  // Custom. Also sets the single forward-compat virtuoso_lab_vir-mode-* class + the mode-desc line.
   function syncModeBar() {
-    const root = $('virtuoso-root'); if (!root) return;
-    const mode = root.classList.contains('virtuoso-jam-mode') ? 'jam'
-      : root.classList.contains('virtuoso-session-mode') ? 'session'
-      : root.classList.contains('virtuoso-pathway-mode') ? 'guided' : 'custom';
-    document.querySelectorAll('.virtuoso-mode-bar .virtuoso-mode-btn').forEach(b => {
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    const mode = root.classList.contains('virtuoso_lab-jam-mode') ? 'jam'
+      : root.classList.contains('virtuoso_lab-session-mode') ? 'session'
+      : root.classList.contains('virtuoso_lab-pathway-mode') ? 'guided' : 'custom';
+    document.querySelectorAll('.virtuoso_lab-mode-bar .virtuoso_lab-mode-btn').forEach(b => {
       const on = b.dataset.mode === mode;
       b.classList.toggle('active', on);
       b.setAttribute('aria-selected', on ? 'true' : 'false');
     });
-    const ms = $('virtuoso-mode-select'); if (ms && ms.value !== mode) ms.value = mode;   // narrow-width fallback
-    // Forward-compat single mode class (the locked vir-mode-* mechanic) for future CSS.
-    ['pathways','custom','workout','jam'].forEach(s => root.classList.toggle('vir-mode-' + s, MODE_META[mode] && MODE_META[mode].ss === s));
-    const desc = $('virtuoso-mode-desc');
+    const ms = $('virtuoso_lab-mode-select'); if (ms && ms.value !== mode) ms.value = mode;   // narrow-width fallback
+    // Forward-compat single mode class (the locked virtuoso_lab_vir-mode-* mechanic) for future CSS.
+    ['pathways','custom','workout','jam'].forEach(s => root.classList.toggle('virtuoso_lab_vir-mode-' + s, MODE_META[mode] && MODE_META[mode].ss === s));
+    const desc = $('virtuoso_lab-mode-desc');
     if (desc && MODE_META[mode]) desc.textContent = MODE_META[mode].desc;
   }
 
@@ -21507,7 +21505,7 @@
   // a note plays — and it's the contract the audio must honor). Read-only naming;
   // per-track instrument SWAP lives in the Mixer (M) for now.
   function renderBandStrip(styleId) {
-    const host = $('virtuoso-jam-bandstrip'); if (!host) return;
+    const host = $('virtuoso_lab-jam-bandstrip'); if (!host) return;
     const pal = STYLE_PALETTES[styleId];
     if (!pal) { host.innerHTML = ''; return; }
     const base = readConfig();
@@ -21529,12 +21527,12 @@
     rows.push(['🥁', 'Drums', 'drums', drumsOn ? (BAND_KIT_LABEL[prof.drums && prof.drums.kit] || 'Kit') : '— drumless', drumsOn ? 'drums' : 'none']);
     host.innerHTML = '';
     for (const [ic, role, mkey, autoLabel, kind] of rows) {
-      const row = document.createElement('div'); row.className = 'virtuoso-band-row';
-      row.innerHTML = `<span class="virtuoso-band-ic">${ic}</span><span class="virtuoso-band-role">${role}</span>`;
+      const row = document.createElement('div'); row.className = 'virtuoso_lab-band-row';
+      row.innerHTML = `<span class="virtuoso_lab-band-ic">${ic}</span><span class="virtuoso_lab-band-role">${role}</span>`;
       if (kind === 'none') {
-        const n = document.createElement('span'); n.className = 'virtuoso-band-name virtuoso-band-name-mute'; n.textContent = autoLabel; row.appendChild(n);
+        const n = document.createElement('span'); n.className = 'virtuoso_lab-band-name virtuoso_lab-band-name-mute'; n.textContent = autoLabel; row.appendChild(n);
       } else {
-        const sel = document.createElement('select'); sel.className = 'virtuoso-band-voice'; sel.setAttribute('aria-label', role + ' voice');
+        const sel = document.createElement('select'); sel.className = 'virtuoso_lab-band-voice'; sel.setAttribute('aria-label', role + ' voice');
         const opts = kind === 'drums' ? MIXER_KITS : (kind === 'bass' ? MIXER_INSTRUMENTS.bass : MIXER_INSTRUMENTS.melodic);
         const cur = (kind === 'drums' ? mixerState[mkey].kit : mixerState[mkey].instrument) || '';
         for (const [val, lab] of opts) {
@@ -21560,23 +21558,23 @@
   let _jamPickerOpenFam = '';   // expanded family ('' = the active style's family; '__none__' = all collapsed)
   let _jamPickerQuery = '';
   function currentJamStyleId() {
-    let s = null; try { s = localStorage.getItem('virtuoso.jamStyle'); } catch (_) {}
+    let s = null; try { s = localStorage.getItem('virtuoso_lab.jamStyle'); } catch (_) {}
     return (s && STYLE_PALETTES[s]) ? s : Object.keys(STYLE_PALETTES)[0];
   }
   function jamRecentStyles() {
-    try { return (JSON.parse(localStorage.getItem('virtuoso.jamRecent') || '[]') || []).filter(id => STYLE_PALETTES[id]); } catch (_) { return []; }
+    try { return (JSON.parse(localStorage.getItem('virtuoso_lab.jamRecent') || '[]') || []).filter(id => STYLE_PALETTES[id]); } catch (_) { return []; }
   }
   function setJamStyleId(id) {
     if (!STYLE_PALETTES[id]) return;
-    try { localStorage.setItem('virtuoso.jamStyle', id); } catch (_) {}
-    try { const r = jamRecentStyles().filter(x => x !== id); r.unshift(id); localStorage.setItem('virtuoso.jamRecent', JSON.stringify(r.slice(0, 4))); } catch (_) {}
+    try { localStorage.setItem('virtuoso_lab.jamStyle', id); } catch (_) {}
+    try { const r = jamRecentStyles().filter(x => x !== id); r.unshift(id); localStorage.setItem('virtuoso_lab.jamRecent', JSON.stringify(r.slice(0, 4))); } catch (_) {}
   }
   function jamFamilyOf(id) { for (const [lab, ids] of GENRE_FAMILIES) if (ids.includes(id)) return lab; return null; }
   // The Jam style picker (IA redesign, panel 2026-06-14): the 29-chip WALL collapsed to
   // a search box + a Recent row + 6 collapsible FAMILY sections (only the active style's
   // family — or the one you open — shows its chips). ~7 things visible instead of 29.
   function renderJamStyles() {
-    const host = $('virtuoso-jam-styles');
+    const host = $('virtuoso_lab-jam-styles');
     if (!host) return;
     host.innerHTML = '';
     const activeId = currentJamStyleId();
@@ -21592,27 +21590,27 @@
     const mkChip = (id) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'virtuoso-jam-style' + (id === activeId ? ' active' : '');
+      btn.className = 'virtuoso_lab-jam-style' + (id === activeId ? ' active' : '');
       btn.dataset.style = id;
       btn.textContent = STYLE_PALETTES[id].label;
       btn.addEventListener('click', () => pickStyle(id));
       return btn;
     };
-    const chipRow = (ids) => { const r = document.createElement('div'); r.className = 'virtuoso-jam-fam-row'; ids.forEach(id => r.appendChild(mkChip(id))); host.appendChild(r); };
+    const chipRow = (ids) => { const r = document.createElement('div'); r.className = 'virtuoso_lab-jam-fam-row'; ids.forEach(id => r.appendChild(mkChip(id))); host.appendChild(r); };
     const search = document.createElement('input');
-    search.type = 'search'; search.className = 'virtuoso-jam-search'; search.placeholder = 'Search styles…'; search.value = _jamPickerQuery;
+    search.type = 'search'; search.className = 'virtuoso_lab-jam-search'; search.placeholder = 'Search styles…'; search.value = _jamPickerQuery;
     search.setAttribute('aria-label', 'Search styles');
     search.addEventListener('input', () => { _jamPickerQuery = search.value; renderJamStyles(); });
     host.appendChild(search);
     if (q) {   // search mode: a flat filtered result, no families
       const hits = Object.keys(STYLE_PALETTES).filter(id => STYLE_PALETTES[id].label.toLowerCase().includes(q) || id.includes(q));
       if (hits.length) chipRow(hits);
-      else { const e = document.createElement('div'); e.className = 'virtuoso-jam-fam'; e.textContent = 'no match'; host.appendChild(e); }
-      setTimeout(() => { const s = host.querySelector('.virtuoso-jam-search'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }, 0);
+      else { const e = document.createElement('div'); e.className = 'virtuoso_lab-jam-fam'; e.textContent = 'no match'; host.appendChild(e); }
+      setTimeout(() => { const s = host.querySelector('.virtuoso_lab-jam-search'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }, 0);
       return;
     }
     const recent = jamRecentStyles().filter(id => id !== activeId).slice(0, 3);
-    if (recent.length) { const l = document.createElement('div'); l.className = 'virtuoso-jam-fam'; l.textContent = 'Recent'; host.appendChild(l); chipRow(recent); }
+    if (recent.length) { const l = document.createElement('div'); l.className = 'virtuoso_lab-jam-fam'; l.textContent = 'Recent'; host.appendChild(l); chipRow(recent); }
     const openFam = _jamPickerOpenFam || jamFamilyOf(activeId) || GENRE_FAMILIES[0][0];
     for (const [label, ids] of GENRE_FAMILIES) {
       const present = ids.filter(id => STYLE_PALETTES[id]);
@@ -21620,10 +21618,10 @@
       const isOpen = label === openFam;
       const head = document.createElement('button');
       head.type = 'button';
-      head.className = 'virtuoso-jam-fam-head' + (isOpen ? ' open' : '');
+      head.className = 'virtuoso_lab-jam-fam-head' + (isOpen ? ' open' : '');
       head.setAttribute('aria-expanded', String(isOpen));
-      const cur = (present.includes(activeId) && !isOpen) ? `<span class="virtuoso-jam-fam-cur">${STYLE_PALETTES[activeId].label}</span>` : '';
-      head.innerHTML = `<span class="virtuoso-jam-fam-chev">${isOpen ? '▾' : '▸'}</span><span class="virtuoso-jam-fam-lab">${label}</span>${cur}`;
+      const cur = (present.includes(activeId) && !isOpen) ? `<span class="virtuoso_lab-jam-fam-cur">${STYLE_PALETTES[activeId].label}</span>` : '';
+      head.innerHTML = `<span class="virtuoso_lab-jam-fam-chev">${isOpen ? '▾' : '▸'}</span><span class="virtuoso_lab-jam-fam-lab">${label}</span>${cur}`;
       head.addEventListener('click', () => { _jamPickerOpenFam = isOpen ? '__none__' : label; renderJamStyles(); });
       host.appendChild(head);
       if (isOpen) chipRow(present);
@@ -21635,7 +21633,7 @@
   // D-J5a) + the one-line "try this" intent seed (goal-card grammar, JAM_PROMPTS).
   function syncJamStyleDetails(styleId) {
     const pal = STYLE_PALETTES[styleId];
-    const sel = $('virtuoso-jam-prog');
+    const sel = $('virtuoso_lab-jam-prog');
     if (sel && pal) {
       sel.innerHTML = '';
       if (pal.progressions.length > 1) {
@@ -21650,7 +21648,7 @@
       });
       sel.disabled = pal.progressions.length < 2 && !!sel.options.length;
     }
-    const tryEl = $('virtuoso-jam-try');
+    const tryEl = $('virtuoso_lab-jam-try');
     if (tryEl) tryEl.textContent = JAM_PROMPTS[styleId] || '';
     renderJamIntents(styleId);
     renderBandStrip(styleId);   // the "Your band" lineup follows the selected style
@@ -21661,7 +21659,7 @@
   // shows on the status line while jamming; it is SELF-checked only — no judge,
   // no score, no tally (the mirror rule; the loop-end reflection is slice J-3).
   function renderJamIntents(styleId) {
-    const host = $('virtuoso-jam-intents');
+    const host = $('virtuoso_lab-jam-intents');
     if (!host) return;
     const list = isBassCfg(readConfig()) ? jamBassIntents(styleId) : (JAM_INTENTS[styleId] || []);
     const items = (_jamDeviceIntent ? [_jamDeviceIntent] : []).concat(list);
@@ -21670,12 +21668,12 @@
     items.forEach(txt => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'virtuoso-jam-intent' + (txt === jamIntent ? ' active' : '')
+      b.className = 'virtuoso_lab-jam-intent' + (txt === jamIntent ? ' active' : '')
         + (_jamDeviceIntent && txt === _jamDeviceIntent ? ' device' : '');
       b.textContent = txt;
       b.addEventListener('click', () => {
         jamIntent = (jamIntent === txt) ? '' : txt;
-        host.querySelectorAll('.virtuoso-jam-intent').forEach(x => x.classList.toggle('active', x.textContent === jamIntent));
+        host.querySelectorAll('.virtuoso_lab-jam-intent').forEach(x => x.classList.toggle('active', x.textContent === jamIntent));
         refreshStatusFromState();
       });
       host.appendChild(b);
@@ -21703,14 +21701,14 @@
     selectMode('jam');
     setJamStyleId(styleId);
     renderJamStyles();
-    const keySel = $('virtuoso-jam-key');
+    const keySel = $('virtuoso_lab-jam-key');
     if (key && keySel && [...keySel.options].some(o => o.value === key)) keySel.value = key;
     if (deviceLabel) {
       _jamDeviceIntent = 'Quote what you drilled: ' + deviceLabel;
       jamIntent = _jamDeviceIntent;
     }
     renderJamIntents(styleId);
-    $('virtuoso-jam-go')?.focus();
+    $('virtuoso_lab-jam-go')?.focus();
   }
 
   // ── J-2 wrap-boundary live changes (D-J3: the loop wrap is the change-quantum) ──
@@ -21723,12 +21721,12 @@
   // top, pulse the jam pane so the player SEES it take (closes the "I asked → the band did
   // it" loop). Visual only, reduced-motion-aware, no audio (mirror-not-judge: accent, not green).
   function flashJamApplied() {
-    const el = document.querySelector('.virtuoso-jam-inspector');
+    const el = document.querySelector('.virtuoso_lab-jam-inspector');
     if (!el || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
-    el.classList.remove('virtuoso-jam-applied');
+    el.classList.remove('virtuoso_lab-jam-applied');
     void el.offsetWidth;   // restart the animation
-    el.classList.add('virtuoso-jam-applied');
-    setTimeout(() => el.classList.remove('virtuoso-jam-applied'), 650);
+    el.classList.add('virtuoso_lab-jam-applied');
+    setTimeout(() => el.classList.remove('virtuoso_lab-jam-applied'), 650);
   }
   // ── J-3 played-note mirror + recap accumulator (Jam = MIRROR, never judge) ───
   // The detector's live pitch (ptOnPitch) lights the fretboard where YOU just
@@ -21968,10 +21966,10 @@
   function jamPanelState() {
     return {
       style: currentJamStyleId(),
-      key: (($('virtuoso-jam-key') || {}).value) || 'A',
-      tempo: Math.max(40, Math.min(220, parseInt(($('virtuoso-jam-tempo') || {}).value || '90', 10) || 90)),
+      key: (($('virtuoso_lab-jam-key') || {}).value) || 'A',
+      tempo: Math.max(40, Math.min(220, parseInt(($('virtuoso_lab-jam-tempo') || {}).value || '90', 10) || 90)),
       feel: jamFeel,
-      prog: (($('virtuoso-jam-prog') || {}).value) || '__mix',
+      prog: (($('virtuoso_lab-jam-prog') || {}).value) || '__mix',
       band: jamBandMode,
       guide: !!jamGuideLine,
       depth: jamDepth,
@@ -21988,7 +21986,7 @@
     return beatsLeft <= 1 ? 'next beat' : ('in ' + beatsLeft + ' beats');
   }
   function syncJamPendingChip() {
-    const chip = $('virtuoso-jam-pending');
+    const chip = $('virtuoso_lab-jam-pending');
     if (!chip) return;
     chip.hidden = !_jamPending;
     if (_jamPending) {
@@ -22019,7 +22017,7 @@
   function jamPendingClear() {
     _jamPending = false;
     _jamPendingParts = [];
-    const chip = $('virtuoso-jam-pending'); if (chip) chip.hidden = true;
+    const chip = $('virtuoso_lab-jam-pending'); if (chip) chip.hidden = true;
   }
 
   // Jam: loop a backing in the selected style through the contained player to play
@@ -22033,11 +22031,11 @@
   // palette (nothing to play).
   function buildJamConfig() {
     const styleId = currentJamStyleId();   // saved id is the source of truth (the picker accordion may hide the active chip)
-    const jamKey = ($('virtuoso-jam-key') || {}).value || 'A';
-    const jamTempo = Math.max(40, Math.min(220, parseInt(($('virtuoso-jam-tempo') || {}).value || '90', 10) || 90));
+    const jamKey = ($('virtuoso_lab-jam-key') || {}).value || 'A';
+    const jamTempo = Math.max(40, Math.min(220, parseInt(($('virtuoso_lab-jam-tempo') || {}).value || '90', 10) || 90));
     // Changes picker (D-J5a): '__mix' = round-robin the palette's progressions[]
     // per pass (the "switch it up" shuffle); a named pick pins one.
-    const progVal = (($('virtuoso-jam-prog') || {}).value) || '__mix';
+    const progVal = (($('virtuoso_lab-jam-prog') || {}).value) || '__mix';
     const palIdx = progVal === '__mix' ? 0 : Math.max(0, (STYLE_PALETTES[styleId] || { progressions: [] }).progressions.indexOf(progVal));
     const palette = stylePaletteConfig(styleId, { key: jamKey, progressionIdx: palIdx });
     if (!palette) return null;
@@ -22189,14 +22187,14 @@
     if (playing) stopPlayback();
     try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (_) {}   // resume-last-mode
     toggleLibrary(false); toggleStarters(false);   // the browse drawers are Workout-only — never linger over another mode
-    const root = $('virtuoso-root');
-    if (root) root.classList.remove('virtuoso-jam-mode');   // default: not jam (jam re-adds below)
+    const root = $('virtuoso_lab-root');
+    if (root) root.classList.remove('virtuoso_lab-jam-mode');   // default: not jam (jam re-adds below)
     if (mode === 'jam') {
       // Jam = the 4th mode: not session, not pathway. Skeleton — style grid + a
       // placeholder Inspector; playback/target-highlight wiring is post-checkpoint.
       syncSessionMode('single');
       setPathwayModeClass(false);          // clears pathway-mode (calls syncModeBar)
-      if (root) root.classList.add('virtuoso-jam-mode');
+      if (root) root.classList.add('virtuoso_lab-jam-mode');
       const primedMap = maybePrimeJamFretboardMap();
       syncJamHighlightUI();
       syncFretboardUI();
@@ -22211,7 +22209,7 @@
       return;
     }
     syncSessionMode('single');
-    const sel = $('virtuoso-pathway');
+    const sel = $('virtuoso_lab-pathway');
     if (!sel) { setPathwayModeClass(mode === 'guided'); return; }
     if (mode === 'custom') {
       sel.value = 'custom';
@@ -22322,15 +22320,15 @@
   }
 
   function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
-    const card = $('virtuoso-pathway-goal-card');
-    const tag = $('virtuoso-pathway-tag');
-    const title = $('virtuoso-pathway-title');
-    const goal = $('virtuoso-pathway-goal');
+    const card = $('virtuoso_lab-pathway-goal-card');
+    const tag = $('virtuoso_lab-pathway-tag');
+    const title = $('virtuoso_lab-pathway-title');
+    const goal = $('virtuoso_lab-pathway-goal');
     if (!card) return;
     if (favoritePreset) {
       if (title) title.textContent = favoritePreset.name || favoritePreset.id || 'Favorite';
       if (goal) goal.textContent = 'Saved preset.';
-      { const _more = $('virtuoso-goal-more'); if (_more) _more.style.display = 'none'; }
+      { const _more = $('virtuoso_lab-goal-more'); if (_more) _more.style.display = 'none'; }
       if (tag) tag.textContent = 'Favorite';
       card.classList.remove('modified');
       return;
@@ -22344,7 +22342,7 @@
       // backing one-liners). The disclosure's show/hide is finalized at the end.
       const _gm = _gfull.match(/^(.*?[.!?])\s+(.+)$/s);
       if (goal) goal.textContent = _gm ? _gm[1] : _gfull;
-      const _rest = $('virtuoso-pathway-goal-rest');
+      const _rest = $('virtuoso_lab-pathway-goal-rest');
       if (_rest) _rest.textContent = _gm ? _gm[2].trim() : '';
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
       card.classList.toggle('modified', !!modified);
@@ -22353,7 +22351,7 @@
     // pathway — guitar-ped's "a number to beat tomorrow," surfaced at SELECT so it
     // pulls the player back. Reads pathway_tiers.bestBpm (a clean run only); points
     // toward the next rung. Hidden until a PB exists (no clutter on a fresh drill).
-    const pbEl = $('virtuoso-pathway-pb');
+    const pbEl = $('virtuoso_lab-pathway-pb');
     if (pbEl) {
       const best = (pw && pathwayId) ? (pathwayTiersLoad()[pathwayId] || {}).bestBpm : null;
       if (pw && best) {
@@ -22368,11 +22366,11 @@
     // (the lossless uniform-offset path adapts silently except for this note —
     // it names the transposition instead of hiding it, the Division-caption
     // precedent). Reads the hidden adapt fields applyPathwayConfig just wrote.
-    const note = $('virtuoso-pathway-tuning-note');
+    const note = $('virtuoso_lab-pathway-tuning-note');
     if (note) {
-      const off = parseInt($('virtuoso-tuning-offset')?.value || '0', 10) || 0;
-      const station = $('virtuoso-anchor-station')?.value || '';
-      const concertKey = document.querySelector('#virtuoso-controls [name="key"]')?.value || '';
+      const off = parseInt($('virtuoso_lab-tuning-offset')?.value || '0', 10) || 0;
+      const station = $('virtuoso_lab-anchor-station')?.value || '';
+      const concertKey = document.querySelector('#virtuoso_lab-controls [name="key"]')?.value || '';
       if (pw && station) {
         // Anchor rung: name the anchor + the derived pitch (keyless ≠ pitch-
         // anonymous — the player should always know what note they're making).
@@ -22406,7 +22404,7 @@
     }
     // Form cue (hand-marks Slice 2; ergonomics ruling): ONE quiet pre-run
     // sentence — goal-card only, never fades, never detection-triggered.
-    const cueEl = $('virtuoso-pathway-form-cue');
+    const cueEl = $('virtuoso_lab-pathway-form-cue');
     if (cueEl) {
       let cue = null;
       if (pw && pathwayId) { try { cue = formCueForRung(pathwayId, activeTempoTierIdx, readConfig()); } catch (_) {} }
@@ -22416,7 +22414,7 @@
     // Backing primitive naming (steps 3–4, L&D): when a comp cell and/or a
     // bass figure drives the backing, name them — the player should know the
     // grammar they're hearing ("Charleston comp + walking bass").
-    const bk = $('virtuoso-pathway-backing-note');
+    const bk = $('virtuoso_lab-pathway-backing-note');
     if (bk) {
       let bkLabel = null;
       try {
@@ -22436,7 +22434,7 @@
     // Clean depth rung's first concrete mechanic): offered once the Speed climb
     // is cleared and Clean isn't credited, while hand-marks are ON. Clicking is
     // the PLAYER flipping the pill — the toggle is never auto-flipped.
-    const prove = $('virtuoso-prove-clean');
+    const prove = $('virtuoso_lab-prove-clean');
     if (prove) {
       let show = false;
       if (pw && pathwayId && handMarksOn()) {
@@ -22453,9 +22451,9 @@
     // Finalize the "About this drill" disclosure: show it iff it has content (the
     // goal's rest paragraph OR any tucked one-liner — form / tuning / backing). The
     // PB hook + Prove-it button stay outside, always visible. Never an empty toggle.
-    const moreEl = $('virtuoso-goal-more');
+    const moreEl = $('virtuoso_lab-goal-more');
     if (moreEl) {
-      const hasMore = ['virtuoso-pathway-goal-rest', 'virtuoso-pathway-tuning-note', 'virtuoso-pathway-form-cue', 'virtuoso-pathway-backing-note']
+      const hasMore = ['virtuoso_lab-pathway-goal-rest', 'virtuoso_lab-pathway-tuning-note', 'virtuoso_lab-pathway-form-cue', 'virtuoso_lab-pathway-backing-note']
         .some(id => (($(id) || {}).textContent || '').trim());
       moreEl.style.display = hasMore ? '' : 'none';
     }
@@ -22586,10 +22584,10 @@
   // never the disabled attribute (disabled fields drop out of FormData and
   // readConfig would lose the key). The hint lives on the wrapping label.
   function syncAnchorKeyLock() {
-    const keyEl = document.querySelector('#virtuoso-controls [name="key"]');
+    const keyEl = document.querySelector('#virtuoso_lab-controls [name="key"]');
     if (!keyEl) return;
-    const locked = !!($('virtuoso-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
-    keyEl.classList.toggle('virtuoso-key-locked', locked);
+    const locked = !!($('virtuoso_lab-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
+    keyEl.classList.toggle('virtuoso_lab-key-locked', locked);
     keyEl.setAttribute('aria-disabled', locked ? 'true' : 'false');
     const label = keyEl.closest('label');
     if (label) label.title = locked ? 'This lesson anchors on your lowest string — the key is derived from your tuning (change it in Setup).' : '';
@@ -22627,10 +22625,10 @@
     if (merged.anchor === 'open_lowest') {
       // Derive from the form's CURRENT effective opens (the player's declaration
       // — or the rung step's own L3 CSV, which also lives in the form).
-      const setupName = document.querySelector('#virtuoso-controls [name="stringSetup"]')?.value;
+      const setupName = document.querySelector('#virtuoso_lab-controls [name="stringSetup"]')?.value;
       const setup = STRING_SETUPS[setupName] || STRING_SETUPS.guitar_6_standard;
       let opens = setup.openMidis;
-      const csv = ($('virtuoso-custom-open-midis')?.value || '').trim();
+      const csv = ($('virtuoso_lab-custom-open-midis')?.value || '').trim();
       if (csv) {
         const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
         if (list.length === setup.openMidis.length) opens = list;
@@ -22659,7 +22657,7 @@
     } else {
       return;   // no derived pitch fields on this rung — nothing to refresh
     }
-    updatePathwayGoalCard(activePathwayId, $('virtuoso-pathway-goal-card')?.classList.contains('modified'));
+    updatePathwayGoalCard(activePathwayId, $('virtuoso_lab-pathway-goal-card')?.classList.contains('modified'));
     syncAnchorKeyLock();
   }
 
@@ -22705,7 +22703,7 @@
       // guitar-coded bands (the djent chug rungs: bass djent = lock the same cell on
       // the low fundamental — bass-pedagogy ruling, memory project_djent_ladder_design).
       if (pathwayBandId(id) === 'concept_rhythm' || pw.instAgnostic) {
-        const formSetup = document.querySelector('#virtuoso-controls [name="stringSetup"]')?.value;
+        const formSetup = document.querySelector('#virtuoso_lab-controls [name="stringSetup"]')?.value;
         const fs = formSetup && STRING_SETUPS[formSetup];
         const rungInst = (STRING_SETUPS[tieredConfig.stringSetup] || {}).instrument;
         if (fs && fs.instrument !== rungInst) {
@@ -22739,10 +22737,10 @@
       // Resolve the pathway's intended shape. New-style pathways can set
       // `fretboardSystem` + `shape` directly; legacy pathways pass `fretMin`
       // (and we pick the closest shape on the current key).
-      const shapeEl = $('virtuoso-shape');
+      const shapeEl = $('virtuoso_lab-shape');
       if (shapeEl) {
         const system = tieredConfig.fretboardSystem || 'caged';
-        const keyEl = $('virtuoso-controls')?.querySelector('[name="key"]');
+        const keyEl = $('virtuoso_lab-controls')?.querySelector('[name="key"]');
         const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
         const scale = tieredConfig.scale || 'major';
         const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
@@ -22765,7 +22763,7 @@
       syncAnchorKeyLock();   // anchor rungs: the key select is a derived readout
       return;
     }
-    const preset = window.__virtuosoFavorites && window.__virtuosoFavorites[id];
+    const preset = window.__virtuoso_labFavorites && window.__virtuoso_labFavorites[id];
     if (preset && preset.config) {
       applyPathwayConfig(preset.config);
       setPathwayModeClass(true);
@@ -22777,17 +22775,17 @@
   // ── The universal Position / variation stepper ─────────────────────────────
   // The ◄ [select/readout] ► row walks the active pathway's variation axis. For a
   // shape-aware guitar pathway the axis is the fretboard Position (CAGED/3NPS) and
-  // the #virtuoso-shape select drives it. For everything else the axis is the
+  // the #virtuoso_lab-shape select drives it. For everything else the axis is the
   // pathway's curated vary[] list, stepped through applyPathwayById(). This
   // replaces the old bottom "Next variation" button (its ► was redundant with
   // this row's ►), so non-shape pathways must be steppable HERE.
 
   // Is the active row stepping shapes (true) or vary[] entries (false)?
   function positionStepperIsShapeMode() {
-    const sysEl = $('virtuoso-fretboard-system');
-    const shapeEl = $('virtuoso-shape');
-    const root = $('virtuoso-root');
-    const isBass = root && root.classList.contains('virtuoso-bass-instrument');
+    const sysEl = $('virtuoso_lab-fretboard-system');
+    const shapeEl = $('virtuoso_lab-shape');
+    const root = $('virtuoso_lab-root');
+    const isBass = root && root.classList.contains('virtuoso_lab-bass-instrument');
     const system = sysEl ? sysEl.value : 'caged';
     // Shapes are a guitar concept and only render when the select has ≥2 options.
     return !isBass && isShapeAwareSystem(system) && shapeEl && shapeEl.options.length > 1;
@@ -22828,10 +22826,10 @@
   // Update the stepper row: label by axis, show the right control (select vs
   // readout), and hide the whole row when there is nothing to step.
   function updatePositionStepper() {
-    const row = $('virtuoso-position-row');
-    const label = $('virtuoso-position-label');
-    const select = $('virtuoso-shape');
-    const readout = $('virtuoso-position-readout');
+    const row = $('virtuoso_lab-position-row');
+    const label = $('virtuoso_lab-position-label');
+    const select = $('virtuoso_lab-shape');
+    const readout = $('virtuoso_lab-position-readout');
     if (!row || !label || !select || !readout) return;
 
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
@@ -22867,11 +22865,11 @@
   // the shape select; otherwise rotates the curated vary[] list.
   function positionStep(dir) {
     if (positionStepperIsShapeMode()) {
-      const sel = $('virtuoso-shape');
+      const sel = $('virtuoso_lab-shape');
       if (!sel || !sel.options.length) return;
       const n = sel.options.length;
       sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
-      // The delegated #virtuoso-controls change handler mirrors + regenerates.
+      // The delegated #virtuoso_lab-controls change handler mirrors + regenerates.
       sel.dispatchEvent(new Event('change', { bubbles: true }));
       updatePositionStepper();
       return;
@@ -22886,17 +22884,17 @@
     onGenerate();
   }
   function loadPathwayFavorites() {
-    const select = $('virtuoso-pathway'); if (!select) return;
+    const select = $('virtuoso_lab-pathway'); if (!select) return;
     const favoritesGroup = select.querySelector('optgroup[label="Favorites"]'); if (!favoritesGroup) return;
-    const picker = $('virtuoso-preset-picker');
-    fetch('/api/plugins/virtuoso/presets').then(r => r.ok ? r.json() : null).then(data => {
+    const picker = $('virtuoso_lab-preset-picker');
+    fetch('/api/plugins/virtuoso_lab/presets').then(r => r.ok ? r.json() : null).then(data => {
       const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
       if (!presets.length) return;
-      window.__virtuosoFavorites = window.__virtuosoFavorites || {};
+      window.__virtuoso_labFavorites = window.__virtuoso_labFavorites || {};
       presets.forEach(p => {
         if (!p || !p.id) return;
         const key = 'fav__' + p.id;
-        window.__virtuosoFavorites[key] = p;
+        window.__virtuoso_labFavorites[key] = p;
         if (!favoritesGroup.querySelector('option[value="' + key + '"]')) {
           const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
           favoritesGroup.appendChild(opt);
@@ -22908,12 +22906,12 @@
         }
       });
       if (favoritesGroup.children.length) favoritesGroup.hidden = false;
-      const wrap = $('virtuoso-preset-picker-wrap');
+      const wrap = $('virtuoso_lab-preset-picker-wrap');
       if (wrap && picker && picker.options.length > 1) wrap.hidden = false;
     }).catch(() => {});
   }
   function applyInitialPathway() {
-    const select = $('virtuoso-pathway'); if (!select) return;
+    const select = $('virtuoso_lab-pathway'); if (!select) return;
     let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
     // 'custom' means the user opted out of any pathway; treat it as a non-choice
     // on plugin open so beginners always land on a real exercise. The user can
@@ -22952,7 +22950,7 @@
   // the follow-on increments; here we only ship the smallest atom that proves the
   // invite model where the grinder currently hits a wall.
   const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);   // the practice types that consume cfg.sequence
-  function depthSequenceField() { return document.querySelector('#virtuoso-controls [name="sequence"]'); }
+  function depthSequenceField() { return document.querySelector('#virtuoso_lab-controls [name="sequence"]'); }
   function depthIsPatterned() { const f = depthSequenceField(); return !!(f && f.value && f.value !== 'none'); }
   // The pattern to OFFER at the speed summit, or null when the rung can't sequence
   // (non-scale type; advancedMode OFF → readConfig strips sequence to 'none', so
@@ -22963,10 +22961,10 @@
   function depthPatternOffer(pw) {
     const pt = pw && pw.base && pw.base.practiceType;
     if (!SEQ_SUPPORTING.has(pt)) return null;
-    const adv = document.querySelector('#virtuoso-controls [name="advancedMode"]');
+    const adv = document.querySelector('#virtuoso_lab-controls [name="advancedMode"]');
     if (!adv || !adv.checked) return null;                 // would be stripped → never offer a no-op
     if (depthIsPatterned()) return null;                   // already on a pattern — next axis is the follow-on slice
-    const scaleField = document.querySelector('#virtuoso-controls [name="scale"]');
+    const scaleField = document.querySelector('#virtuoso_lab-controls [name="scale"]');
     const scale = (scaleField && scaleField.value) || (pw.base && pw.base.scale) || 'major';
     const sevenNote = (SCALE_INTERVALS[scale] || []).length === 7;
     return sevenNote ? { seq: 'thirds', label: 'in 3rds' } : { seq: 'fours', label: 'in 4ths' };
@@ -22992,10 +22990,10 @@
     return g ? `${g} ${bpm} BPM` : `${bpm} BPM`;
   }
   function syncTempoTierButtons() {
-    const container = $('virtuoso-tier-buttons');
+    const container = $('virtuoso_lab-tier-buttons');
     if (!container) return;
     container.innerHTML = '';
-    const signpost = $('virtuoso-climb-next');
+    const signpost = $('virtuoso_lab-climb-next');
     if (signpost) { signpost.textContent = ''; signpost.classList.remove('summit'); }
     const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
@@ -23005,7 +23003,7 @@
     tiers.forEach((bpm, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
-      let cls = 'virtuoso-tier-btn';
+      let cls = 'virtuoso_lab-tier-btn';
       if (i === activeTempoTierIdx) cls += ' active';
       if (i <= highestCleared) cls += ' cleared';
       if (i === _newlyUnlockedTier) cls += ' tier-glow';
@@ -23033,7 +23031,7 @@
         if (offer) {
           // The live invite: the dead-end becomes the next depth step, armed on click.
           signpost.innerHTML = `<span class="climb-arrow">✓</span>All speeds cleared. ` +
-            `<button type="button" class="virtuoso-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
+            `<button type="button" class="virtuoso_lab-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
         } else if (SEQ_SUPPORTING.has(pw && pw.base && pw.base.practiceType) && depthIsPatterned()) {
           // Already on a pattern — forward hook (the always-visible roadmap signal),
           // naming the next axis without yet shipping its control.
@@ -23112,8 +23110,8 @@
   // + L2 bounded, ordered list for the active band. Full labels, tier-dot progress,
   // "you are here" on the active row, one "→ next" cue, a soft "Builds on …" sub-line.
   function renderPathwayList() {
-    const bandBar = $('virtuoso-band-bar');
-    const list = $('virtuoso-pathway-list');
+    const bandBar = $('virtuoso_lab-band-bar');
+    const list = $('virtuoso_lab-pathway-list');
     if (!bandBar || !list) return;
     const ptData = pathwayTiersLoad();
     // Visible bands = Core packs (pinned, fixed order) + installed Style packs in
@@ -23130,7 +23128,7 @@
       // should always have content, but a future instrument without a Core spine
       // would otherwise blank here). Points the player at the Pack manager.
       bandBar.innerHTML = '';
-      list.innerHTML = '<div class="virtuoso-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
+      list.innerHTML = '<div class="virtuoso_lab-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
       return;
     }
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
@@ -23150,13 +23148,13 @@
     bands.forEach(b => {
       if (_prevKind === 'core' && b.kind !== 'core') {
         const sep = document.createElement('span');
-        sep.className = 'virtuoso-band-sep';
+        sep.className = 'virtuoso_lab-band-sep';
         sep.setAttribute('aria-hidden', 'true');
         bandBar.appendChild(sep);
       }
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'virtuoso-band-btn virtuoso-band-' + (b.kind || 'style') + (b.id === activeBand.id ? ' active' : '');
+      btn.className = 'virtuoso_lab-band-btn virtuoso_lab-band-' + (b.kind || 'style') + (b.id === activeBand.id ? ' active' : '');
       btn.textContent = b.label;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', b.id === activeBand.id ? 'true' : 'false');
@@ -23168,9 +23166,9 @@
     // action, not a tab (no role=tab / aria-selected); right-aligned via CSS.
     const addBtn = document.createElement('button');
     addBtn.type = 'button';
-    addBtn.className = 'virtuoso-band-btn virtuoso-band-add'
-      + ($('virtuoso-root')?.classList.contains('vir-packs-open') ? ' active' : '');
-    addBtn.innerHTML = '<span class="virtuoso-band-add-plus" aria-hidden="true">+</span><span class="virtuoso-band-add-label">Add</span>';
+    addBtn.className = 'virtuoso_lab-band-btn virtuoso_lab-band-add'
+      + ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-packs-open') ? ' active' : '');
+    addBtn.innerHTML = '<span class="virtuoso_lab-band-add-plus" aria-hidden="true">+</span><span class="virtuoso_lab-band-add-label">Add</span>';
     addBtn.title = 'Add pathway packs';
     addBtn.setAttribute('aria-label', 'Add pathway packs');
     addBtn.addEventListener('click', () => togglePackManager(true));
@@ -23182,7 +23180,7 @@
     states.forEach(({ id, st }) => {
       const pw = PATHWAYS[id];
       const row = document.createElement('div');
-      row.className = 'virtuoso-segment-card virtuoso-pw-row'
+      row.className = 'virtuoso_lab-segment-card virtuoso_lab-pw-row'
         + (id === activePathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
       row.setAttribute('role', 'option');
       row.setAttribute('aria-selected', id === activePathwayId ? 'true' : 'false');
@@ -23193,14 +23191,14 @@
         const lbl = TIER_LABELS[i] || ('Tier ' + (i + 1));
         return `<span class="tree-tier-dot${done ? ' cleared' : ''}" title="${lbl} — ${done ? 'cleared' : 'not yet'}" aria-label="${lbl}, ${done ? 'cleared' : 'not cleared'}"></span>`;
       }).join('');
-      const marker = id === activePathwayId ? '<span class="virtuoso-pw-here">you are here</span>'
-        : id === nextId ? '<span class="virtuoso-pw-next">→ next</span>' : '';
+      const marker = id === activePathwayId ? '<span class="virtuoso_lab-pw-here">you are here</span>'
+        : id === nextId ? '<span class="virtuoso_lab-pw-next">→ next</span>' : '';
       // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
       // pathway pointing back to its Core foundation). Within a band the top→bottom
       // order already communicates sequence, so the hint there is just noise.
       const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
       const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[st.prereq])
-        ? `<div class="virtuoso-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
+        ? `<div class="virtuoso_lab-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
       // Depth-ladder pip (Phase 9 Slice 5): a 5-rung mastery overview from the
       // progress store — Speed → Travel → Clean → Ears-off → Master. Off mode →
       // no pip (st.depth is null; the whole layer collapses). A filled rung means
@@ -23214,13 +23212,13 @@
           ['Master',   st.depth.mastered,  'owned'],
         ];
         const pips = rungs.map(([name, done, hint]) =>
-          `<span class="virtuoso-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
-        return `<div class="virtuoso-pw-depth"><span class="virtuoso-pw-depth-lbl">Depth</span>${pips}</div>`;
+          `<span class="virtuoso_lab-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
+        return `<div class="virtuoso_lab-pw-depth"><span class="virtuoso_lab-pw-depth-lbl">Depth</span>${pips}</div>`;
       })() : '';
-      row.innerHTML = `<div class="virtuoso-pw-rowtop"><span class="virtuoso-pw-label">${pw.label}</span>${marker}</div>`
-        + `<div class="virtuoso-pw-dots">${dots}</div>${depthPip}${sub}`;
+      row.innerHTML = `<div class="virtuoso_lab-pw-rowtop"><span class="virtuoso_lab-pw-label">${pw.label}</span>${marker}</div>`
+        + `<div class="virtuoso_lab-pw-dots">${dots}</div>${depthPip}${sub}`;
       row.addEventListener('click', () => {
-        const sel = $('virtuoso-pathway');
+        const sel = $('virtuoso_lab-pathway');
         if (sel) { sel.value = id; sel.dispatchEvent(new Event('change')); }
       });
       list.appendChild(row);
@@ -23241,16 +23239,16 @@
       }
       if (cross && PATHWAYS[cross.id]) {
         const cue = document.createElement('div');
-        cue.className = 'virtuoso-pw-nextband';
+        cue.className = 'virtuoso_lab-pw-nextband';
         cue.setAttribute('role', 'button');
         cue.tabIndex = 0;
         cue.title = `Go to ${PATHWAYS[cross.id].label} in ${cross.band.label}`;
-        cue.innerHTML = `<span class="virtuoso-pw-next">→ next</span>`
-          + `<span class="virtuoso-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
-          + `<span class="virtuoso-pw-nextband-band">in ${cross.band.label}</span>`;
+        cue.innerHTML = `<span class="virtuoso_lab-pw-next">→ next</span>`
+          + `<span class="virtuoso_lab-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
+          + `<span class="virtuoso_lab-pw-nextband-band">in ${cross.band.label}</span>`;
         const go = () => {
           _activeBandId = cross.band.id; renderPathwayList();
-          const sel = $('virtuoso-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
+          const sel = $('virtuoso_lab-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
         };
         cue.addEventListener('click', go);
         cue.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } });
@@ -23258,7 +23256,7 @@
       }
     }
     // Keep the active row visible — scroll the LIST only (never the outer panel).
-    const activeRow = list.querySelector('.virtuoso-pw-row.active');
+    const activeRow = list.querySelector('.virtuoso_lab-pw-row.active');
     if (activeRow) {
       const lr = list.getBoundingClientRect(), ar = activeRow.getBoundingClientRect();
       if (ar.top < lr.top || ar.bottom > lr.bottom) list.scrollTop += (ar.top - lr.top);
@@ -23267,16 +23265,16 @@
 
   function renderSkillTree() {
     renderPathwayList();   // the live picker; the SVG tree below is shelved-but-kept
-    const container = $('virtuoso-skill-tree');
-    if (!container || container.classList.contains('virtuoso-tree-shelved')) return;
+    const container = $('virtuoso_lab-skill-tree');
+    if (!container || container.classList.contains('virtuoso_lab-tree-shelved')) return;
     const ptData = pathwayTiersLoad();
     const hiddenNode = isHiddenNode;
     // Build inner wrapper + SVG edge layer + node buttons
-    container.innerHTML = '<div class="virtuoso-tree-inner" id="virtuoso-tree-inner"></div>';
+    container.innerHTML = '<div class="virtuoso_lab-tree-inner" id="virtuoso_lab-tree-inner"></div>';
     const inner = container.firstChild;
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('class', 'virtuoso-tree-edges');
+    svg.setAttribute('class', 'virtuoso_lab-tree-edges');
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'none');
     // Draw edges first so nodes render on top
@@ -23298,7 +23296,7 @@
       const highestTier = (ptData[node.id] || {}).highest_tier ?? -1;
       const isActive = node.id === activePathwayId;
       const wrapper = document.createElement('div');
-      wrapper.className = 'virtuoso-tree-node' + (isActive ? ' active' : '');
+      wrapper.className = 'virtuoso_lab-tree-node' + (isActive ? ' active' : '');
       wrapper.style.left = node.x + '%';
       wrapper.style.top  = node.y + '%';
       const tiers = (pw.tempoTiers || []).map((_, i) =>
@@ -23306,11 +23304,11 @@
       ).join('');
       const btn = document.createElement('button');
       btn.type = 'button';
-      btn.className = 'virtuoso-tree-node-btn';
+      btn.className = 'virtuoso_lab-tree-node-btn';
       btn.title = pw.label;
       btn.innerHTML = `<span>${node.short}</span><span class="tree-node-tiers">${tiers}</span>`;
       btn.addEventListener('click', () => {
-        const sel = $('virtuoso-pathway');
+        const sel = $('virtuoso_lab-pathway');
         if (sel) { sel.value = node.id; sel.dispatchEvent(new Event('change')); }
       });
       wrapper.appendChild(btn);
@@ -23319,8 +23317,8 @@
   }
 
   function syncScaleDropdown(pathwayId) {
-    const el = $('virtuoso-pathway-scale');
-    const wrap = $('virtuoso-pathway-scale-wrap');
+    const el = $('virtuoso_lab-pathway-scale');
+    const wrap = $('virtuoso_lab-pathway-scale-wrap');
     if (!el) return;
     const pw = pathwayId && pathwayId !== 'custom' ? PATHWAYS[pathwayId] : null;
     const scales = pw && pw.scales ? pw.scales : [];
@@ -23350,13 +23348,13 @@
   function syncChromaticVisibility() {
     const practiceTypeEl = document.querySelector('[name="practiceType"]');
     const mode = practiceTypeEl ? practiceTypeEl.value : '';
-    document.querySelectorAll('.virtuoso-chromatic-only').forEach(el => {
+    document.querySelectorAll('.virtuoso_lab-chromatic-only').forEach(el => {
       el.style.display = mode === 'chromatic' ? '' : 'none';
     });
-    document.querySelectorAll('.virtuoso-guide-tones-only').forEach(el => {
+    document.querySelectorAll('.virtuoso_lab-guide-tones-only').forEach(el => {
       el.style.display = mode === 'guide_tones' ? '' : 'none';
     });
-    document.querySelectorAll('.virtuoso-bending-only').forEach(el => {
+    document.querySelectorAll('.virtuoso_lab-bending-only').forEach(el => {
       el.style.display = mode === 'bending' ? '' : 'none';
     });
   }
@@ -23625,7 +23623,7 @@
       if (prev && prev.label === label && n.t - prev.t1 <= 0.25) prev.t1 = Math.max(prev.t1, t1);
       else _ptExemptIv.push({ t0: n.t, t1, label });
     }
-    const _jn = $('virtuoso-judge-note'); if (_jn) _jn.style.display = 'none';   // the idle line yields to the live strip
+    const _jn = $('virtuoso_lab-judge-note'); if (_jn) _jn.style.display = 'none';   // the idle line yields to the live strip
 
     // Verifier-backed scoring (host note_detect timing-free verify, notedetect
     // #61): score against the PLAYER's real tuning (openMidis), polyphonic +
@@ -23834,7 +23832,7 @@
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptSpanCount = 0; _ptExempt = null;
     _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = []; _ptJamRun = false;
-    { const jc = $('virtuoso-judge-chip'); if (jc) jc.style.display = 'none'; }
+    { const jc = $('virtuoso_lab-judge-chip'); if (jc) jc.style.display = 'none'; }
     _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
     // standing affordance between runs (hidden only on detector-less hosts).
@@ -23901,7 +23899,7 @@
   // (the same etiquette we expect of them). Runs on the strip's hidden→shown
   // transition and on the debounced window resize in bind().
   function ptDodgeOverlays() {
-    const meter = $('virtuoso-pitch-meter');
+    const meter = $('virtuoso_lab-pitch-meter');
     if (!meter || meter.style.display === 'none' || !meter.offsetParent) return;
     const mr = meter.getBoundingClientRect();
     if (!mr.width) return;
@@ -23926,14 +23924,14 @@
   }
 
   function ptUpdateMeter({ show, active, cents, note, hits, total }) {
-    const meter = $('virtuoso-pitch-meter');
+    const meter = $('virtuoso_lab-pitch-meter');
     if (!meter) return;
     if (!show) { meter.style.display = 'none'; return; }
     const wasHidden = meter.style.display !== 'flex';
     meter.style.display = 'flex';
     if (wasHidden) ptDodgeOverlays();
-    const noteEl = $('virtuoso-pitch-note'), centsEl = $('virtuoso-pitch-cents');
-    const needleEl = $('virtuoso-cents-needle'), accEl = $('virtuoso-pitch-accuracy');
+    const noteEl = $('virtuoso_lab-pitch-note'), centsEl = $('virtuoso_lab-pitch-cents');
+    const needleEl = $('virtuoso_lab-cents-needle'), accEl = $('virtuoso_lab-pitch-accuracy');
     if (noteEl) noteEl.textContent = active ? note : '--';
     const cc = Math.max(-100, Math.min(100, cents || 0));
     const color = !active ? '#475569' : Math.abs(cents) <= 25 ? '#22c55e' : Math.abs(cents) <= 50 ? '#eab308' : '#ef4444';
@@ -24008,7 +24006,7 @@
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
     // The pre-run denominator line ("Judging 20 of 24 notes — …") — disclosure
     // BEFORE play, so the player never discovers an exemption from the score.
-    const jn = $('virtuoso-judge-note');
+    const jn = $('virtuoso_lab-judge-note');
     if (jn) {
       const p = activeBundle ? ptPreviewJudgeCounts(activeBundle) : null;
       if (p && p.judged < p.total) {
@@ -24025,7 +24023,7 @@
         jn.style.display = '';
       } else { jn.style.display = 'none'; }
     }
-    const jc = $('virtuoso-judge-chip'); if (jc) jc.style.display = 'none';
+    const jc = $('virtuoso_lab-judge-chip'); if (jc) jc.style.display = 'none';
     syncStripTuneBtn();
   }
   // Dwell chip (Slice-2 disclosure): while the playhead sits on a MERGED run of
@@ -24033,7 +24031,7 @@
   // per run by startPitchTracker; advanced by tick.
   let _ptExemptIv = [], _ptChipIdx = 0, _ptChipLastT = -Infinity;
   function ptUpdateJudgeChip(now) {
-    const el = $('virtuoso-judge-chip'); if (!el) return;
+    const el = $('virtuoso_lab-judge-chip'); if (!el) return;
     if (now < _ptChipLastT - 0.25) _ptChipIdx = 0;   // loop wrap / seek-back
     _ptChipLastT = now;
     while (_ptChipIdx < _ptExemptIv.length && _ptExemptIv[_ptChipIdx].t1 < now) _ptChipIdx++;
@@ -24051,7 +24049,7 @@
   // exists (the tuner needs the mic detector specifically — the verifier can't
   // drive per-string cents).
   function syncStripTuneBtn() {
-    const btn = $('virtuoso-strip-tune');
+    const btn = $('virtuoso_lab-strip-tune');
     if (btn) btn.style.display = (!playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
   }
   // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
@@ -24083,15 +24081,15 @@
     _tunerHandle.on('pitch', tunerOnPitch);
     _tunerHandle.on('end', () => { _tunerHandle = null; });
     syncStripTuneBtn();   // the tuner owns the strip — Done replaces the idle Tune…
-    const meter = $('virtuoso-pitch-meter');
-    if (meter) { meter.classList.add('virtuoso-pm-tuner'); meter.style.display = 'flex'; }
-    const chips = $('virtuoso-tuner-chips'), done = $('virtuoso-tuner-done');
+    const meter = $('virtuoso_lab-pitch-meter');
+    if (meter) { meter.classList.add('virtuoso_lab-pm-tuner'); meter.style.display = 'flex'; }
+    const chips = $('virtuoso_lab-tuner-chips'), done = $('virtuoso_lab-tuner-done');
     if (chips) {
       chips.style.display = 'inline-flex';
       chips.innerHTML = '';
       _tunerTargets.forEach((t, i) => {
         const c = document.createElement('span');
-        c.className = 'virtuoso-tuner-chip';
+        c.className = 'virtuoso_lab-tuner-chip';
         c.dataset.idx = String(i);
         c.textContent = t.name;
         c.title = `String ${i + 1} (low → high): tune to ${t.name}`;
@@ -24105,7 +24103,7 @@
 
   function tunerOnPitch({ freqHz, confidence }) {
     // Self-heal: Virtuoso backgrounded or playback started → the tuner ends.
-    if (!$('virtuoso-root')?.offsetParent || playing) { stopTuner(); return; }
+    if (!$('virtuoso_lab-root')?.offsetParent || playing) { stopTuner(); return; }
     if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
     const midiF = 69 + 12 * Math.log2(freqHz / 440);
     // Nearest target — with an OCTAVE FOLD for sub-floor strings (70 Hz plan):
@@ -24129,16 +24127,16 @@
   }
 
   function tunerPaint(idx, cents, active) {
-    const noteEl = $('virtuoso-pitch-note'), centsEl = $('virtuoso-pitch-cents'), needleEl = $('virtuoso-cents-needle');
+    const noteEl = $('virtuoso_lab-pitch-note'), centsEl = $('virtuoso_lab-pitch-cents'), needleEl = $('virtuoso_lab-cents-needle');
     const t = (idx != null && _tunerTargets[idx]) || null;
     if (noteEl) noteEl.textContent = t ? t.name : '--';
     const cc = Math.max(-100, Math.min(100, cents || 0));
     const color = !active ? '#475569'
-      : Math.abs(cents) <= TUNER_LOCK_CENTS ? 'var(--vir-meter, #22c55e)'
+      : Math.abs(cents) <= TUNER_LOCK_CENTS ? 'var(--virtuoso_lab_vir-meter, #22c55e)'
       : Math.abs(cents) <= 25 ? '#eab308' : '#ef4444';
     if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
     if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
-    const chips = $('virtuoso-tuner-chips');
+    const chips = $('virtuoso_lab-tuner-chips');
     if (chips) {
       for (const c of chips.children) {
         const i = Number(c.dataset.idx);
@@ -24150,11 +24148,11 @@
 
   function stopTuner() {
     if (_tunerHandle) { try { _tunerHandle.stop(); } catch (_) {} _tunerHandle = null; }
-    const meter = $('virtuoso-pitch-meter');
-    if (meter && meter.classList.contains('virtuoso-pm-tuner')) {
-      meter.classList.remove('virtuoso-pm-tuner');
+    const meter = $('virtuoso_lab-pitch-meter');
+    if (meter && meter.classList.contains('virtuoso_lab-pm-tuner')) {
+      meter.classList.remove('virtuoso_lab-pm-tuner');
     }
-    const chips = $('virtuoso-tuner-chips'), done = $('virtuoso-tuner-done');
+    const chips = $('virtuoso_lab-tuner-chips'), done = $('virtuoso_lab-tuner-done');
     if (chips) { chips.style.display = 'none'; chips.innerHTML = ''; }
     if (done) done.style.display = 'none';
     _tunerTargets = []; _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
@@ -24171,12 +24169,12 @@
   //           practice_type, duration_ms, hit_count, miss_count }
 
   function sessionsLoad() {
-    try { return JSON.parse(localStorage.getItem('virtuoso.sessions') || '[]'); }
+    try { return JSON.parse(localStorage.getItem('virtuoso_lab.sessions') || '[]'); }
     catch { return []; }
   }
 
   function sessionsSave(arr) {
-    try { localStorage.setItem('virtuoso.sessions', JSON.stringify(arr.slice(0, 500))); }
+    try { localStorage.setItem('virtuoso_lab.sessions', JSON.stringify(arr.slice(0, 500))); }
     catch (e) { console.warn('[Virtuoso] session save failed', e); }
   }
 
@@ -24186,13 +24184,13 @@
   // Accuracy gate: if pitch tracker ran (hit+miss > 0) and accuracy < 65%, skip.
   // Passive attribution: custom sessions within ±5 BPM of a pathway tier BPM
   // count toward that pathway.
-  // SDK: emits a 'virtuoso:tier:unlocked' bus event when a new high is set.
+  // SDK: emits a 'virtuoso_lab:tier:unlocked' bus event when a new high is set.
   function pathwayTiersLoad() {
-    try { return JSON.parse(localStorage.getItem('virtuoso.pathway_tiers') || '{}'); }
+    try { return JSON.parse(localStorage.getItem('virtuoso_lab.pathway_tiers') || '{}'); }
     catch { return {}; }
   }
   function pathwayTiersSave(obj) {
-    try { localStorage.setItem('virtuoso.pathway_tiers', JSON.stringify(obj)); }
+    try { localStorage.setItem('virtuoso_lab.pathway_tiers', JSON.stringify(obj)); }
     catch (e) { console.warn('[Virtuoso] pathway tier save failed', e); }
   }
   function _updatePathwayTier(pathwayId, tier) {
@@ -24202,7 +24200,7 @@
     all[pathwayId] = Object.assign({}, cur, { highest_tier: tier });   // MERGE — never drop bestBpm/feltBpm
     pathwayTiersSave(all);
     if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso:tier:unlocked', {
+      hostBus().emit('virtuoso_lab:tier:unlocked', {
         pathway: pathwayId, tier, label: TIER_LABELS[tier] || `T${tier + 1}`
       });
     }
@@ -24304,7 +24302,7 @@
   // tones across the changes (the Connect engine, the same landing smoke-connect
   // asserts). The card / claim / share-text branch on the kind. Add a pilot by id.
   const PROOF_PILOTS = new Map([['blues_foundation', 'tempo'], ['vl_connect', 'guide_tones']]);
-  function proofLoopOn() { try { return localStorage.getItem('virtuoso.proofloop') === 'on'; } catch { return false; } }
+  function proofLoopOn() { try { return localStorage.getItem('virtuoso_lab.proofloop') === 'on'; } catch { return false; } }
   function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
   function proofKind(id) { return PROOF_PILOTS.get(id) || 'tempo'; }
   // The settling-tax window: the run must have HELD the standard — ≥ max(20s, 85% of
@@ -24475,16 +24473,16 @@
   }
   // Ensure the ACTIVE card theme's display face is resident before the canvas rasterizes
   // (the DOM card gets it via CSS font-display; the canvas needs it loaded, or it falls
-  // back to a system font). Signature/Neon use VirtuosoDisplay (Orbitron); Esports adds
+  // back to a system font). Signature/Neon use VirtuosoLabDisplay (Orbitron); Esports adds
   // Rajdhani; Metal adds Russo One (both lazy-served from /font — first render fetches them).
   async function loadCardFonts() {
     if (!(document.fonts && document.fonts.load)) return;
-    let skin = 'signature'; try { skin = $('virtuoso-root')?.getAttribute('data-vir-cardskin') || 'signature'; } catch (_) {}
-    const faces = ["700 64px 'VirtuosoDisplay'", "700 18px 'VirtuosoDisplay'"];
+    let skin = 'signature'; try { skin = $('virtuoso_lab-root')?.getAttribute('data-virtuoso_lab_vir-cardskin') || 'signature'; } catch (_) {}
+    const faces = ["700 64px 'VirtuosoLabDisplay'", "700 18px 'VirtuosoLabDisplay'"];
     // Load the exact weights the canvas draws (800 wordmark, 700 hero/labels) so the strict
-    // canvas font-match resolves to the skin face instead of dropping to VirtuosoDisplay.
-    if (skin === 'esports') faces.push("800 64px 'VirtuosoEsports'", "700 64px 'VirtuosoEsports'", "700 18px 'VirtuosoEsports'");
-    else if (skin === 'metal') faces.push("800 64px 'VirtuosoMetal'", "700 64px 'VirtuosoMetal'", "700 18px 'VirtuosoMetal'");
+    // canvas font-match resolves to the skin face instead of dropping to VirtuosoLabDisplay.
+    if (skin === 'esports') faces.push("800 64px 'VirtuosoLabEsports'", "700 64px 'VirtuosoLabEsports'", "700 18px 'VirtuosoLabEsports'");
+    else if (skin === 'metal') faces.push("800 64px 'VirtuosoLabMetal'", "700 64px 'VirtuosoLabMetal'", "700 18px 'VirtuosoLabMetal'");
     try { await Promise.all(faces.map(f => document.fonts.load(f))); } catch (_) {}
     // Await full readiness — canvas font-matching drops a not-yet-ready face to the next
     // family in the stack, so the skin font can otherwise lose the first paint after load.
@@ -24498,7 +24496,7 @@
     } catch (_) {}
   }
   // The card IMAGE — a canvas render of the SAME model (ux spec: 1200×630, verdict-led,
-  // green ✓ only on a true clear, theme palette/font read live off --vir-card-*; same-origin
+  // green ✓ only on a true clear, theme palette/font read live off --virtuoso_lab_vir-card-*; same-origin
   // → toBlob won't taint). Returns the canvas, or null.
   // LOCAL FALLBACK ONLY: shareCardAction prefers note_detect's canonical card
   // (window.noteDetect.renderResultsCard) and uses this when it's absent.
@@ -24508,7 +24506,7 @@
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d'); if (!ctx) return null;
     // Card THEME (settings → Card theme). Signature = today's look (the original path,
-    // reading --vir-accent-*); neon/esports/metal read the SAME --vir-card-* contract the
+    // reading --virtuoso_lab_vir-accent-*); neon/esports/metal read the SAME --virtuoso_lab_vir-card-* contract the
     // DOM card uses, so the copy card matches the on-screen card. Green stays cleared-only.
     const GREEN = '#22c55e';
     let accent = '#60a5fa', accentSoft = 'rgba(96,165,250,0.18)', cardBg = null;
@@ -24516,39 +24514,39 @@
     let TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8', FAINT = '#64748b';
     const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
     const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-    let DISP = `'VirtuosoDisplay', 'Orbitron', ${SANS}`;
+    let DISP = `'VirtuosoLabDisplay', 'Orbitron', ${SANS}`;
     try {
-      const root = $('virtuoso-root');
+      const root = $('virtuoso_lab-root');
       if (root) {
         const cs = getComputedStyle(root);
-        skin = root.getAttribute('data-vir-cardskin') || 'signature';
+        skin = root.getAttribute('data-virtuoso_lab_vir-cardskin') || 'signature';
         const gv = (n, f) => { const v = cs.getPropertyValue(n).trim(); return v || f; };
         if (skin === 'signature') {
-          accent = gv('--vir-accent-edge', accent);
-          accentSoft = gv('--vir-accent-soft', accentSoft);
+          accent = gv('--virtuoso_lab_vir-accent-edge', accent);
+          accentSoft = gv('--virtuoso_lab_vir-accent-soft', accentSoft);
         } else {
-          accent = gv('--vir-card-accent', accent);
-          accentSoft = gv('--vir-card-accent-soft', accentSoft);
-          cardBg = gv('--vir-card-bg', null);
-          TXT = gv('--vir-card-text', TXT);
-          DIM = gv('--vir-card-dim', DIM);
-          MUT = gv('--vir-card-faint', MUT); FAINT = MUT;
-          glow = gv('--vir-card-glow', '1') !== '0';
-          radius = parseInt(gv('--vir-card-radius', '18'), 10); if (!isFinite(radius)) radius = 18;
+          accent = gv('--virtuoso_lab_vir-card-accent', accent);
+          accentSoft = gv('--virtuoso_lab_vir-card-accent-soft', accentSoft);
+          cardBg = gv('--virtuoso_lab_vir-card-bg', null);
+          TXT = gv('--virtuoso_lab_vir-card-text', TXT);
+          DIM = gv('--virtuoso_lab_vir-card-dim', DIM);
+          MUT = gv('--virtuoso_lab_vir-card-faint', MUT); FAINT = MUT;
+          glow = gv('--virtuoso_lab_vir-card-glow', '1') !== '0';
+          radius = parseInt(gv('--virtuoso_lab_vir-card-radius', '18'), 10); if (!isFinite(radius)) radius = 18;
           // Plain, NAMESPACED family names — the DOM font token nests a var() the canvas
           // can't parse, and the namespaced names avoid colliding with note_detect's faces.
-          // NB: do NOT list VirtuosoDisplay as the fallback — canvas prefers the always-ready
+          // NB: do NOT list VirtuosoLabDisplay as the fallback — canvas prefers the always-ready
           // base64-inline face over a URL-loaded first font, so the skin face would lose.
           // A plain sans fallback lets the (warmed) skin face win; it only shows if the
           // skin font genuinely failed to load.
-          const CF = { neon: "'VirtuosoDisplay'", esports: "'VirtuosoEsports'", metal: "'VirtuosoMetal'", warm: "'Rockwell','Roboto Slab','Zilla Slab',Georgia,serif" };
+          const CF = { neon: "'VirtuosoLabDisplay'", esports: "'VirtuosoLabEsports'", metal: "'VirtuosoLabMetal'", warm: "'Rockwell','Roboto Slab','Zilla Slab',Georgia,serif" };
           DISP = CF[skin] ? `${CF[skin]}, ${SANS}` : SANS;   // focus has no display face → base sans
         }
       }
     } catch (_) {}
     // A skin forces its display face on the whole card (identity); Signature keeps the
     // toggle-back rule (display face in Lit only, system face in Calm).
-    let lit = false; try { lit = !!$('virtuoso-root')?.classList.contains('vir-lit'); } catch (_) {}
+    let lit = false; try { lit = !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-lit'); } catch (_) {}
     const HEAD = (skin !== 'signature' || lit) ? 'disp' : false;
     const font = (px, w, m) => ctx.font = `${w} ${px}px ${m === 'disp' ? DISP : m ? MONO : SANS}`;
     const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
@@ -24638,7 +24636,7 @@
     if (!blob) return null;
     const q = `dir=${encodeURIComponent(dir)}&name=${encodeURIComponent(shareCardFilename(s))}${auto ? '&auto=1' : ''}`;
     try {
-      const resp = await fetch(`/api/plugins/virtuoso/save-card?${q}`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: blob });
+      const resp = await fetch(`/api/plugins/virtuoso_lab/save-card?${q}`, { method: 'POST', headers: { 'Content-Type': 'image/png' }, body: blob });
       if (!resp.ok) return null;
       const j = await resp.json().catch(() => null);
       return (j && j.ok) ? j : null;
@@ -24668,15 +24666,15 @@
       artist: m.sub || undefined,        // descriptive line → the card's sub
       instrument: m.lane,                // LADDER / CUSTOM / JAM / WORKOUT
       stats: (m.stats || []).slice(0, 4),
-      brand: 'virtuoso · practice studio for guitar & bass',
+      brand: 'virtuoso_lab · practice studio for guitar & bass',
     };
   }
   // A detached element carrying Virtuoso's palette as the --nd-* vars the shared
-  // renderer reads off opts.overlayEl. Attached under #virtuoso-root so
+  // renderer reads off opts.overlayEl. Attached under #virtuoso_lab-root so
   // getComputedStyle resolves; the caller removes it after the render.
   function _virCardOverlay() {
     let accent = '#60a5fa';
-    try { const root = $('virtuoso-root'); if (root) { const v = getComputedStyle(root).getPropertyValue('--vir-accent-edge').trim(); if (v) accent = v; } } catch (_) {}
+    try { const root = $('virtuoso_lab-root'); if (root) { const v = getComputedStyle(root).getPropertyValue('--virtuoso_lab_vir-accent-edge').trim(); if (v) accent = v; } } catch (_) {}
     const el = document.createElement('div');
     el.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:0;height:0;pointer-events:none;';
     const set = (k, v) => el.style.setProperty(k, v);
@@ -24685,7 +24683,7 @@
     set('--nd-text', '#f8fafc'); set('--nd-dim', '#94a3b8'); set('--nd-warn', '#fbbf24');
     set('--nd-bg', 'rgba(8,8,18,0.96)');
     set('--nd-font-display', 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif');
-    ($('virtuoso-root') || document.body).appendChild(el);
+    ($('virtuoso_lab-root') || document.body).appendChild(el);
     return el;
   }
   // Copy/download. PREFER note_detect's canonical card+ladder; else the local
@@ -24727,9 +24725,9 @@
   }
   // The share-button row (Copy card + Download) — on every results surface, every run.
   function shareRowHtml() {
-    return `<div class="virtuoso-share-row">` +
-      `<button type="button" class="virtuoso-vir-copy" data-act="copy-card" title="Copy a shareable card image to the clipboard">Copy card</button>` +
-      `<button type="button" class="virtuoso-vir-copy" data-act="download-card" title="Save the card as a PNG to share">⤓ Save</button>` +
+    return `<div class="virtuoso_lab-share-row">` +
+      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-copy" data-act="copy-card" title="Copy a shareable card image to the clipboard">Copy card</button>` +
+      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-copy" data-act="download-card" title="Save the card as a PNG to share">⤓ Save</button>` +
       `</div>`;
   }
   // Shared click logic for a Copy card / Save button (called from the modal + the
@@ -24838,7 +24836,7 @@
     }
   })();
 
-  // ── Depth Ladder + XP (virtuoso.progress) — Phase 8 ───────────────────────
+  // ── Depth Ladder + XP (virtuoso_lab.progress) — Phase 8 ───────────────────────
   // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
   // design: gamification-architect project_replay_depth_ladder_xp_verdict +
   // project_refresh_variety_loop_verdict. A reward is a gained-only false→true flip
@@ -24850,7 +24848,7 @@
   //     it never gates.
   //   • Nothing is ever shown LOST; reps stay a silent stat; no scores/ranks/combos.
   // Speed stays in pathway_tiers (NOT duplicated); nodeProgressState reads both.
-  const PROGRESS_KEY = 'virtuoso.progress';
+  const PROGRESS_KEY = 'virtuoso_lab.progress';
   function progressLoad() {
     try {
       const o = JSON.parse(localStorage.getItem(PROGRESS_KEY) || '{}');
@@ -24872,13 +24870,13 @@
     if (mode !== 'off' && mode !== 'casual' && mode !== 'hardcore') return;
     const o = progressLoad(); o.mode = mode; progressSave(o);
   }
-  // Outbound host-XP seam — mirrors the shipped virtuoso:tier:unlocked emit. No-op
+  // Outbound host-XP seam — mirrors the shipped virtuoso_lab:tier:unlocked emit. No-op
   // until the host subscribes; the internal store NEVER depends on it. (The host's
   // actual XP-intake surface is for feedback-compatibility to verify when the live
   // hook lands; this only defines the outbound shape.)
   function emitProgress(kind, nodeId, extra) {
     if (hostBus() && typeof hostBus().emit === 'function') {
-      try { hostBus().emit('virtuoso:progress', Object.assign({ source:'virtuoso', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
+      try { hostBus().emit('virtuoso_lab:progress', Object.assign({ source:'virtuoso_lab', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
     }
   }
   // A run is "clean" by the same signal the Speed climb uses (≥65% of judged notes
@@ -25082,7 +25080,7 @@
     return { rank, rose: false };
   }
   // The emblem — an aegis/laurel that elaborates by rank (accent-family via currentColor;
-  // NEVER --vir-meter). Rank 1 hollow aegis + spark · 2 filled + laurel sprigs · 3 full wreath.
+  // NEVER --virtuoso_lab_vir-meter). Rank 1 hollow aegis + spark · 2 filled + laurel sprigs · 3 full wreath.
   const CREST_STAR = '<path d="M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z" fill="currentColor"/>';
   const CREST_SHIELD = 'M12 2.4l7 2.5v5.3c0 4.6-2.9 8.1-7 10.4-4.1-2.3-7-5.8-7-10.4V4.9z';
   function crestSvg(rank) {
@@ -25125,21 +25123,21 @@
     ctx.fill(new Path2D('M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z'));
     ctx.restore();
   }
-  // Paint the header-chip crest (leading child of #virtuoso-progress-strip). rose=true adds
+  // Paint the header-chip crest (leading child of #virtuoso_lab-progress-strip). rose=true adds
   // the one-shot earn-bloom (Lit only; RM/Calm just show the new rank). Hidden at rank 0.
   function syncCrest(rose) {
-    const el = $('virtuoso-crest'); if (!el) return;
+    const el = $('virtuoso_lab-crest'); if (!el) return;
     const st = crestState();
-    if (!st.rank) { el.hidden = true; el.innerHTML = ''; el.className = 'virtuoso-crest'; el.removeAttribute('title'); return; }
+    if (!st.rank) { el.hidden = true; el.innerHTML = ''; el.className = 'virtuoso_lab-crest'; el.removeAttribute('title'); return; }
     el.innerHTML = crestSvg(st.rank);
-    el.className = 'virtuoso-crest cr-rank-' + st.rank + (rose ? ' cr-earned' : '');
+    el.className = 'virtuoso_lab-crest cr-rank-' + st.rank + (rose ? ' cr-earned' : '');
     el.title = st.label + ' — ' + st.desc;
     el.hidden = false;
     if (rose) { try { el.addEventListener('animationend', () => el.classList.remove('cr-earned'), { once: true }); } catch (_) {} }
   }
 
   function sessionBegin() {
-    const isSessionMode = $('virtuoso-root')?.classList.contains('virtuoso-session-mode');
+    const isSessionMode = $('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode');
     let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
     // Tuning-adapt credit fields (panel 2026-06-05): `key` stays CONCERT (what
     // sounded — display honesty); key_credit = the rung's nominal key (what
@@ -25187,7 +25185,7 @@
       ts: now, mode, pathway_id, bpm, bpm_tier, scale, key, key_credit, tuning_offset, practice_type,
       // Share-card fields (additive): the progression (Jam "form") + the Jam style label.
       progression: (activeBundle && activeBundle.config && activeBundle.config.progression) || null,
-      style: (() => { try { return isJamMode() ? ((document.querySelector('#virtuoso-jam-styles .virtuoso-jam-style.active') || {}).textContent || '').trim() : null; } catch (_) { return null; } })(),
+      style: (() => { try { return isJamMode() ? ((document.querySelector('#virtuoso_lab-jam-styles .virtuoso_lab-jam-style.active') || {}).textContent || '').trim() : null; } catch (_) { return null; } })(),
       // Hand-marks state at run start (Clean depth rung: a supports-off proving
       // run needs the marks OFF for the whole run — checked again at credit).
       hand_marks_on: handMarksOn(),
@@ -25419,13 +25417,13 @@
             : (_activeSession.mode + ':' + (_activeSession.practice_type || '')),
           _activeSession.bpm ?? '', _activeSession.key_credit || _activeSession.key || ''
         ].join('|');
-        let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso.spec_best') || '{}'); } catch (_) {}
+        let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso_lab.spec_best') || '{}'); } catch (_) {}
         const cur = store[specKey] || { best: 0, runs: 0 };
         cur.runs += 1;
         const isNew = pctNow > cur.best, prevBestPct = cur.best;
         if (isNew) cur.best = pctNow;
         store[specKey] = cur;
-        try { localStorage.setItem('virtuoso.spec_best', JSON.stringify(store)); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.spec_best', JSON.stringify(store)); } catch (_) {}
         specBest = { best: cur.best, runs: cur.runs, isNew, prev: prevBestPct };
         // New-best recognizer — below first_clear/fastest in precedence; upward
         // past-printing is the established gained-only grammar.
@@ -25602,17 +25600,17 @@
     try { syncCrest(); } catch (_) {}
     const sessions = sessionsLoad();
     const streak = streakCount(sessions);
-    const numEl = $('virtuoso-streak-num');
+    const numEl = $('virtuoso_lab-streak-num');
     if (numEl) {
       numEl.textContent = streak;
       numEl.classList.toggle('active', streak > 0);
     }
-    const calEl = $('virtuoso-cal-dots');
+    const calEl = $('virtuoso_lab-cal-dots');
     if (!calEl) return;
     calEl.innerHTML = last7Days(sessions).map(d =>
-      `<div class="virtuoso-cal-day${d.isToday ? ' today' : ''}">` +
-      `<div class="virtuoso-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
-      `<span class="virtuoso-cal-lbl">${d.letter}</span>` +
+      `<div class="virtuoso_lab-cal-day${d.isToday ? ' today' : ''}">` +
+      `<div class="virtuoso_lab-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
+      `<span class="virtuoso_lab-cal-lbl">${d.letter}</span>` +
       `</div>`
     ).join('');
   }
@@ -25668,15 +25666,15 @@
     const tmpl = seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
     const canReroll = !!(tmpl && tmpl.vary && tmpl.vary.length > 1);
     const canRemove = ((_workoutDraft && _workoutDraft.segments) || []).length > 1;
-    return `<div class="virtuoso-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
-      <div class="virtuoso-segment-header">
-        <span class="virtuoso-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-        <span class="virtuoso-segment-badge" style="color:${color}">${esc(label)}</span>
-        <span class="virtuoso-segment-name">${esc(seg.name || '')}</span>
-        <button type="button" class="virtuoso-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
+    return `<div class="virtuoso_lab-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
+      <div class="virtuoso_lab-segment-header">
+        <span class="virtuoso_lab-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
+        <span class="virtuoso_lab-segment-badge" style="color:${color}">${esc(label)}</span>
+        <span class="virtuoso_lab-segment-name">${esc(seg.name || '')}</span>
+        <button type="button" class="virtuoso_lab-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
       </div>
-      <div class="virtuoso-segment-meta">${esc(parts.join(' · '))}</div>
-      <div class="virtuoso-segment-actions" hidden>
+      <div class="virtuoso_lab-segment-meta">${esc(parts.join(' · '))}</div>
+      <div class="virtuoso_lab-segment-actions" hidden>
         <button type="button" data-act="dup" title="Add a copy of this block below">Duplicate</button>
         <button type="button" data-act="reroll"${canReroll ? '' : ' disabled'} title="${canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}">↻ Re-roll</button>
         <button type="button" data-act="remove"${canRemove ? '' : ' disabled'} title="${canRemove ? 'Remove this block' : 'A workout needs at least one block'}">Remove</button>
@@ -25689,10 +25687,10 @@
   // design-your-own editing) operate on this, NEVER on the shipped BUILT_IN_SESSIONS
   // (loading a starter = a fork/copy). Template-ref slots are materialized for DISPLAY
   // (cards show the rolled key/scale/shape) while the draft keeps the refs so Refresh
-  // can re-roll their vary[] cursor. UX spec: virtuoso-ux-designer
+  // can re-roll their vary[] cursor. UX spec: virtuoso_lab-ux-designer
   // project_workout_browse_design_refresh.
   // The selected starter id — the single source of truth for which Workout is
-  // loaded (replaces the old #virtuoso-session-select value; the dropdown was
+  // loaded (replaces the old #virtuoso_lab-session-select value; the dropdown was
   // dropped in Phase 9 Slice 4, BUILT_IN_SESSIONS is the option source).
   let _selectedStarterId = Object.keys(BUILT_IN_SESSIONS)[0];
   let _workoutDraft = null, _workoutDraftId = null;
@@ -25708,7 +25706,7 @@
   }
   function renderWorkoutDraft() {
     const session = _workoutDraft;
-    const info = $('virtuoso-session-info'), list = $('virtuoso-segment-list');
+    const info = $('virtuoso_lab-session-info'), list = $('virtuoso_lab-segment-list');
     if (!info || !list) return;
     if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
     // Materialise per RAW index (template-ref → concrete), keeping nulls in place so
@@ -25726,27 +25724,27 @@
     const presetSec = lengthPresetSec(session.lengthPreset);
     const durStr = presetSec ? `≈ ${Math.round(presetSec / 60)} min`
       : (totalDur < 60 ? `${Math.round(totalDur)}s` : `${Math.floor(totalDur / 60)}m ${Math.round(totalDur % 60)}s`);
-    const lenSel = $('virtuoso-length-preset');
+    const lenSel = $('virtuoso_lab-length-preset');
     if (lenSel) lenSel.value = session.lengthPreset || '';
     const tags = (session.tags || []).join(', ');
     // No hard cap on blocks (charette) — just a calm, non-blocking note past a long
     // set, so a sprawling workout informs without policing. Informational, not green.
     const longNote = displaySegs.length >= 10
-      ? `<div class="virtuoso-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
+      ? `<div class="virtuoso_lab-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
       : '';
     info.innerHTML = `
-      <div class="virtuoso-session-info-name">${session.name}</div>
-      <div class="virtuoso-session-info-desc">${session.description || ''}</div>
-      <div class="virtuoso-session-info-stats">
-        <span class="virtuoso-session-info-stat">${displaySegs.length} segments</span>
-        <span class="virtuoso-session-info-stat">${durStr}</span>
-        ${bpmStr ? `<span class="virtuoso-session-info-stat">${bpmStr}</span>` : ''}
-        ${tags ? `<span class="virtuoso-session-info-stat">${tags}</span>` : ''}
+      <div class="virtuoso_lab-session-info-name">${session.name}</div>
+      <div class="virtuoso_lab-session-info-desc">${session.description || ''}</div>
+      <div class="virtuoso_lab-session-info-stats">
+        <span class="virtuoso_lab-session-info-stat">${displaySegs.length} segments</span>
+        <span class="virtuoso_lab-session-info-stat">${durStr}</span>
+        ${bpmStr ? `<span class="virtuoso_lab-session-info-stat">${bpmStr}</span>` : ''}
+        ${tags ? `<span class="virtuoso_lab-session-info-stat">${tags}</span>` : ''}
       </div>${longNote}`;
     list.innerHTML = materialized.map((m, i) => m ? buildSegmentCard(m, i) : '').join('');
-    const breathe = $('virtuoso-breathe-toggle');
+    const breathe = $('virtuoso_lab-breathe-toggle');
     if (breathe) breathe.checked = (session.interBlockBreak || 'auto') !== 'off';   // default on (auto)
-    const btn = $('virtuoso-workout-refresh');
+    const btn = $('virtuoso_lab-workout-refresh');
     if (btn) {
       const can = workoutHasRefs(session);
       btn.disabled = !can;
@@ -25790,15 +25788,15 @@
     return lines;
   }
   function clearRefreshSummary() {
-    const el = $('virtuoso-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
+    const el = $('virtuoso_lab-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
   }
   function showRefreshSummary(lines) {
-    const el = $('virtuoso-refresh-summary'); if (!el) return;
+    const el = $('virtuoso_lab-refresh-summary'); if (!el) return;
     if (!lines.length) {
-      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="virtuoso-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="virtuoso_lab-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
     } else {
       const shown = lines.slice(0, 2), more = lines.length - shown.length;
-      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="virtuoso-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
+      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="virtuoso_lab-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
     }
     el.hidden = false;
   }
@@ -25809,9 +25807,9 @@
     _workoutDirty = true;
     showRefreshSummary(describeRefreshDiff(before, _workoutDraft));
     renderWorkoutDraft();
-    const btn = $('virtuoso-workout-refresh');
+    const btn = $('virtuoso_lab-workout-refresh');
     if (btn && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      btn.classList.remove('vir-refresh-tick'); void btn.offsetWidth; btn.classList.add('vir-refresh-tick');
+      btn.classList.remove('virtuoso_lab_vir-refresh-tick'); void btn.offsetWidth; btn.classList.add('virtuoso_lab_vir-refresh-tick');
     }
     // Mid-playback: the refreshed variation applies on the NEXT Launch (never yanks the
     // playhead). No audio cue (§13).
@@ -25826,7 +25824,7 @@
   function _draftSegs() { return (_workoutDraft && _workoutDraft.segments) || null; }
   // The card a drag at clientY should drop BEFORE (its raw index), or null = append.
   function _segCardUnder(container, clientY) {
-    const cards = [...container.querySelectorAll('.virtuoso-segment-card')];
+    const cards = [...container.querySelectorAll('.virtuoso_lab-segment-card')];
     for (const c of cards) {
       const box = c.getBoundingClientRect();
       if (clientY < box.top + box.height / 2) return parseInt(c.dataset.segIndex, 10);
@@ -25879,18 +25877,18 @@
   }
   // Toggle a card's inline action row (the `⋯` menu), closing any other open one.
   function toggleSegMenu(card) {
-    const list = $('virtuoso-segment-list'); if (!list) return;
-    const menu = card.querySelector('.virtuoso-segment-actions'); if (!menu) return;
+    const list = $('virtuoso_lab-segment-list'); if (!list) return;
+    const menu = card.querySelector('.virtuoso_lab-segment-actions'); if (!menu) return;
     const willOpen = menu.hidden;
-    list.querySelectorAll('.virtuoso-segment-actions').forEach(m => { if (m !== menu) m.hidden = true; });
-    list.querySelectorAll('.virtuoso-segment-card.menu-open').forEach(c => { if (c !== card) c.classList.remove('menu-open'); });
+    list.querySelectorAll('.virtuoso_lab-segment-actions').forEach(m => { if (m !== menu) m.hidden = true; });
+    list.querySelectorAll('.virtuoso_lab-segment-card.menu-open').forEach(c => { if (c !== card) c.classList.remove('menu-open'); });
     menu.hidden = !willOpen;
     card.classList.toggle('menu-open', willOpen);
   }
 
   function syncSessionMode(mode) {
-    const root = $('virtuoso-root'); if (!root) return;
-    root.classList.toggle('virtuoso-session-mode', mode === 'session');
+    const root = $('virtuoso_lab-root'); if (!root) return;
+    root.classList.toggle('virtuoso_lab-session-mode', mode === 'session');
     syncModeBar();
   }
 
@@ -25898,12 +25896,12 @@
     const sessionId = _selectedStarterId || Object.keys(BUILT_IN_SESSIONS)[0];
     const baseSession = BUILT_IN_SESSIONS[sessionId];
     if (!baseSession) return;
-    const btn = $('virtuoso-launch-session');
-    const summary = $('virtuoso-summary');
+    const btn = $('virtuoso_lab-launch-session');
+    const summary = $('virtuoso_lab-summary');
     const audio = {
-      notes:      !!document.getElementById('virtuoso-session-audio-notes')?.checked,
-      metronome:  !!document.getElementById('virtuoso-session-audio-metronome')?.checked,
-      harmony:    !!document.getElementById('virtuoso-session-audio-harmony')?.checked,
+      notes:      !!document.getElementById('virtuoso_lab-session-audio-notes')?.checked,
+      metronome:  !!document.getElementById('virtuoso_lab-session-audio-metronome')?.checked,
+      harmony:    !!document.getElementById('virtuoso_lab-session-audio-harmony')?.checked,
     };
     // Pre-warm the AudioContext while still in the button-click user-gesture context
     // (before any await). Without this, new AudioContext() created inside the
@@ -25926,7 +25924,7 @@
     // played standard even in drop-D/DADGAD/5-string). Only when the family matches
     // (a bass tuning must never land on a guitar session); the form value is already
     // applyTuningAdaptL1-resolved, buildSegmentConfig length-guards it per-segment.
-    const formCustomOpenMidis = inheritForm ? (document.querySelector('#virtuoso-controls [name="customOpenMidis"]')?.value || '').trim() : '';
+    const formCustomOpenMidis = inheritForm ? (document.querySelector('#virtuoso_lab-controls [name="customOpenMidis"]')?.value || '').trim() : '';
     // Launch the editable working DRAFT (refreshed/edited) — materialize any template-ref
     // slots, then patch audio + (family-compatible) string setup into each concrete config.
     // Falls back to a fresh clone if the draft is missing/stale for the selected session.
@@ -25967,42 +25965,42 @@
     // The view dropdown mirrors what's ACTUALLY rendered (saved-pref restore,
     // the >8-string force in attachRenderer) — value-set only, no change event,
     // so syncing never re-triggers onViewSwitch.
-    const viewSel = $('virtuoso-view-select');
+    const viewSel = $('virtuoso_lab-view-select');
     if (viewSel && viewSel.value !== kind) viewSel.value = kind;
     // Theme toggle is only meaningful for the themed renderers (Tab,
     // Notation); the highway renderers have their own visual identity.
-    const root = $('virtuoso-root');
+    const root = $('virtuoso_lab-root');
     if (root) {
-      root.classList.toggle('virtuoso-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
+      root.classList.toggle('virtuoso_lab-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
       // Fretboard strip is offered on every stringed-instrument view — 3D
       // Highway, 2D Highway, Jumping Tab, Tab, and Notation; the user can
       // toggle it off. (Always hidden for the Piano instrument via CSS.)
-      root.classList.toggle('virtuoso-fb-capable',
+      root.classList.toggle('virtuoso_lab-fb-capable',
         kind === 'highway_3d' || kind === 'highway_2d' || kind === 'builtin_2d' || kind === 'tab_2d' || kind === 'notation_2d');
       // The HUD title only shows for 3D Highway — every other renderer draws
       // the exercise name in-canvas itself, so showing it here too would double.
-      root.classList.toggle('virtuoso-hud-title-on', kind === 'highway_3d');
+      root.classList.toggle('virtuoso_lab-hud-title-on', kind === 'highway_3d');
     }
     // Hand-marks can't ride the 3D Highway's gems (host-closed render). On that view
     // the pill dims and points to where the marks DO live (the fretboard strip below +
     // the Tab/Notation views) — an honest "off-view" affordance, not a dead control.
-    $('virtuoso-handmarks-toggle-wrap')?.classList.toggle('vir-offview', kind === 'highway_3d');
+    $('virtuoso_lab-handmarks-toggle-wrap')?.classList.toggle('virtuoso_lab_vir-offview', kind === 'highway_3d');
   }
   function syncThemeButtons() {
-    document.querySelectorAll('.virtuoso-theme-btn').forEach(btn => {
+    document.querySelectorAll('.virtuoso_lab-theme-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.theme === currentRenderTheme);
     });
   }
 
   async function onViewSwitch(kind) {
     syncViewSwitcher(kind);
-    localStorage.setItem('virtuoso.renderer', kind);
+    localStorage.setItem('virtuoso_lab.renderer', kind);
     // Keep the Advanced renderer dropdown in sync (if visible / accessible)
     const rendererSel = document.querySelector('[name="renderer"]');
     if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
-    const summary = $('virtuoso-summary');
+    const summary = $('virtuoso_lab-summary');
     // Switching views stops playback by design — the user explicitly chose a
     // new view, so we treat that as a transport break. stopPlayback() resets
     // the playhead, kills audio, AND updates the Play button label back to
@@ -26039,11 +26037,11 @@
   // ── Deep-link / shareable URL ──────────────────────────────────────────
   // Serialises the active form state to a URL hash so a user can copy a link
   // that restores the exact exercise on another machine. We snapshot the
-  // entire #virtuoso-controls FormData — small enough to fit comfortably in
+  // entire #virtuoso_lab-controls FormData — small enough to fit comfortably in
   // a hash, and stays in sync with whatever fields the form happens to expose.
   const SHARE_HASH_KEY = 's';
   function snapshotFormState() {
-    const form = $('virtuoso-controls'); if (!form) return null;
+    const form = $('virtuoso_lab-controls'); if (!form) return null;
     const data = new FormData(form);
     const out = {};
     for (const [k, v] of data.entries()) out[k] = v;
@@ -26057,7 +26055,7 @@
     return out;
   }
   function applyFormState(state) {
-    const form = $('virtuoso-controls'); if (!form || !state || typeof state !== 'object') return;
+    const form = $('virtuoso_lab-controls'); if (!form || !state || typeof state !== 'object') return;
     for (const [name, value] of Object.entries(state)) {
       // form.elements[name] reaches form-associated controls regardless of DOM
       // position (the relocated audio mute pills), and never throws on a crafted
@@ -26098,7 +26096,7 @@
   }
   async function onCopyShareLink() {
     writeShareHash();
-    const btn = $('virtuoso-share');
+    const btn = $('virtuoso_lab-share');
     try {
       await navigator.clipboard.writeText(location.href);
       if (btn) {
@@ -26115,7 +26113,7 @@
   // #s=<base64> param, or just the raw base64 string. Restores form state,
   // refreshes every dependent control, and triggers a regenerate.
   function onPasteShareLink(raw) {
-    const el = $('virtuoso-paste-share');
+    const el = $('virtuoso_lab-paste-share');
     if (!raw || !raw.trim()) { if (el) el.classList.remove('flash-ok', 'flash-bad'); return; }
     let encoded = raw.trim();
     // Try to extract #s=... from a URL; fall back to treating the input as
@@ -26153,32 +26151,32 @@
   }
 
   // ===========================================================================
-  // §15 · DOM WIRING (bind) + PUBLIC SURFACE (window.Virtuoso)
+  // §15 · DOM WIRING (bind) + PUBLIC SURFACE (window.VirtuosoLab)
   // bind() wires all DOM events once on DOMContentLoaded.
   // ===========================================================================
   function bind() {
-    const root = $('virtuoso-root'); if (!root || root.dataset.virtuosoInit === '1') return false; root.dataset.virtuosoInit = '1';
-    { const verEl = $('virtuoso-version'); if (verEl) verEl.textContent = 'v' + VIRTUOSO_VERSION; }   // header version badge (mirrors plugin.json)
-    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('virtuoso-advanced-toggle');
+    const root = $('virtuoso_lab-root'); if (!root || root.dataset.virtuoso_labInit === '1') return false; root.dataset.virtuoso_labInit = '1';
+    { const verEl = $('virtuoso_lab-version'); if (verEl) verEl.textContent = 'v' + VIRTUOSO_VERSION; }   // header version badge (mirrors plugin.json)
+    const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('virtuoso_lab-advanced-toggle');
     // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
     // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
     // every generate); commit on change (Enter/blur): clamp to the form's
     // 30–260 bounds, write the form field (dispatching change so dependent
     // logic runs), regenerate — the same path a tier-button click takes.
-    const lcdHost = $('virtuoso-summary');
-    const formBpm = document.querySelector('#virtuoso-controls [name="bpm"]');
+    const lcdHost = $('virtuoso_lab-summary');
+    const formBpm = document.querySelector('#virtuoso_lab-controls [name="bpm"]');
     if (lcdHost) {
       lcdHost.addEventListener('keydown', (e) => {
-        if (e.target && e.target.id === 'virtuoso-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        if (e.target && e.target.id === 'virtuoso_lab-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
       });
       // LCD select cells (Key · Meter · Count-in) commit the same way the Tempo
       // input does: write the (possibly Custom-only-hidden) Inspector field,
       // dispatch change so dependent logic runs, regenerate — a live override in
       // any mode. Map the LCD id → form field name.
-      const LCD_SELECT_FIELD = { 'virtuoso-lcd-key': 'key', 'virtuoso-lcd-meter': 'meter', 'virtuoso-lcd-countin': 'countIn' };
+      const LCD_SELECT_FIELD = { 'virtuoso_lab-lcd-key': 'key', 'virtuoso_lab-lcd-meter': 'meter', 'virtuoso_lab-lcd-countin': 'countIn' };
       lcdHost.addEventListener('change', (e) => {
         const id = e.target && e.target.id;
-        if (id === 'virtuoso-lcd-bpm') {
+        if (id === 'virtuoso_lab-lcd-bpm') {
           const v = Math.max(30, Math.min(260, parseInt(e.target.value, 10) || 0));
           if (!v || !formBpm) { if (formBpm) e.target.value = formBpm.value; return; }
           e.target.value = String(v);
@@ -26190,7 +26188,7 @@
           return;
         }
         const name = LCD_SELECT_FIELD[id]; if (!name) return;
-        const field = document.querySelector('#virtuoso-controls [name="' + name + '"]');
+        const field = document.querySelector('#virtuoso_lab-controls [name="' + name + '"]');
         if (!field || String(field.value) === String(e.target.value)) return;
         field.value = e.target.value;
         field.dispatchEvent(new Event('change', { bubbles: true }));
@@ -26198,7 +26196,7 @@
       });
       // Mirror Inspector→LCD live, so the two boxes always agree between generates.
       formBpm?.addEventListener('input', () => {
-        const lcd = $('virtuoso-lcd-bpm'); if (lcd) lcd.value = formBpm.value;
+        const lcd = $('virtuoso_lab-lcd-bpm'); if (lcd) lcd.value = formBpm.value;
       });
     }
     instrument?.addEventListener('change', (e) => {
@@ -26207,7 +26205,7 @@
       // A per-string custom tuning from the old family has the wrong string count /
       // ranges for the new one — clear it so the saved L1 store reflects the family
       // standard (mirrors onInstrumentFamilyClick).
-      const hidden = $('virtuoso-custom-open-midis'); if (hidden) hidden.value = '';
+      const hidden = $('virtuoso_lab-custom-open-midis'); if (hidden) hidden.value = '';
       syncInstrumentClass();
       syncStringCountChips();   // a direct instrument-select change (not via the chips) must refresh these too
       syncTuningOptions();
@@ -26245,20 +26243,20 @@
       if (activeBundle) onGenerate();
     });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
-    document.querySelectorAll('.virtuoso-instr-btn').forEach(btn => {
+    document.querySelectorAll('.virtuoso_lab-instr-btn').forEach(btn => {
       btn.addEventListener('click', () => onInstrumentFamilyClick(btn.dataset.instrument));
     });
     // Tuning preset dropdown — wired here since the chip row populates its
     // contents dynamically and we still want a single change handler.
-    $('virtuoso-tuning-select')?.addEventListener('change', () => {
+    $('virtuoso_lab-tuning-select')?.addEventListener('change', () => {
       onTuningPresetChange();
       if (activeBundle) onGenerate();
     });
-    $('virtuoso-save-tuning')?.addEventListener('click', onSaveTuningClick);
+    $('virtuoso_lab-save-tuning')?.addEventListener('click', onSaveTuningClick);
     // The Climb signpost's summit invite (depth slice — the summit-invite atom):
     // arm the offered next-depth pattern on the live form, then regenerate. The
     // signpost re-renders its innerHTML each sync, so delegate from the container.
-    $('virtuoso-climb-next')?.addEventListener('click', (e) => {
+    $('virtuoso_lab-climb-next')?.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-act="depth-pattern"]');
       if (!btn) return;
       setFieldSilent('sequence', btn.dataset.seq || 'thirds');
@@ -26278,10 +26276,10 @@
       if (inst) {
         if (setup) setup.value = inst.stringSetup;
         if (instrument) instrument.value = STRING_SETUPS[inst.stringSetup].instrument;
-        const hidden = $('virtuoso-custom-open-midis');
+        const hidden = $('virtuoso_lab-custom-open-midis');
         if (hidden) hidden.value = inst.customOpenMidis || '';
       } else {
-        const saved = localStorage.getItem('virtuoso.instrumentFamily');
+        const saved = localStorage.getItem('virtuoso_lab.instrumentFamily');
         if (saved === 'bass' || saved === 'guitar') {
           if (instrument && instrument.value !== saved) {
             instrument.value = saved;
@@ -26295,10 +26293,10 @@
     syncStringCountChips();
     syncTuningOptions();
     advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
-    $('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
-    $('virtuoso-play').addEventListener('click', onPlayToggle);
-    $('virtuoso-stop')?.addEventListener('click', onStop);
-    $('virtuoso-listen')?.addEventListener('click', previewListen);   // PR 2.1 · audition the phrase
+    $('virtuoso_lab-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
+    $('virtuoso_lab-play').addEventListener('click', onPlayToggle);
+    $('virtuoso_lab-stop')?.addEventListener('click', onStop);
+    $('virtuoso_lab-listen')?.addEventListener('click', previewListen);   // PR 2.1 · audition the phrase
     // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.
     //   • Lower track → scrub/seek (drag the playhead through the chart).
     //   • Top strip (loop zone) → loop/cycle: drag empty = paint a new loop,
@@ -26306,7 +26304,7 @@
     //   • Loop edges are grabbable from anywhere in the ruler height (±6px).
     // Loop drags snap to bar lines (Alt = free) and feed the same tpA/tpB +
     // commitLoop() the A/B buttons use — one loop system. Seek is continuous.
-    const rulerCanvas = $('virtuoso-ruler-canvas');
+    const rulerCanvas = $('virtuoso_lab-ruler-canvas');
     if (rulerCanvas) {
       let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
       const dur = () => activeBundle?.songInfo?.duration || 0;
@@ -26381,9 +26379,9 @@
     }
     // Overview/marker strip (lane 2): fit-to-width — click = seek anywhere, drag =
     // author the A–B loop (the off-screen-safe authoring surface), edge-drag = resize.
-    const ovCanvas = $('virtuoso-overview-canvas');
+    const ovCanvas = $('virtuoso_lab-overview-canvas');
     if (ovCanvas) {
-      const ovGeom = () => { const c = $('virtuoso-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
+      const ovGeom = () => { const c = $('virtuoso_lab-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
       const ovT = (cx) => { const g = ovGeom(); if (!g || g.dur <= 0) return 0; return Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)); };
       const ovEdge = (cx) => { if (tpA == null || tpB == null) return null; const g = ovGeom(); if (!g || g.dur <= 0) return null; const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / g.dur * g.usableW; const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / g.dur * g.usableW; if (Math.abs(cx - xa) <= 6) return 'resizeA'; if (Math.abs(cx - xb) <= 6) return 'resizeB'; return null; };
       let ovMode = null, ovAnchor = 0, ovDownX = 0, ovPrevA = null, ovPrevB = null, ovMoved = false;
@@ -26414,14 +26412,14 @@
       ovCanvas.addEventListener('pointerup', ovEnd);
       ovCanvas.addEventListener('pointercancel', ovEnd);
     }
-    $('virtuoso-to-start')?.addEventListener('click', () => seekTo(0));
-    $('virtuoso-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
-    $('virtuoso-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
-    if (!window.__virtuosoKeysBound) { window.__virtuosoKeysBound = true; document.addEventListener('keydown', onTransportKey); }
-    $('virtuoso-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
-    $('virtuoso-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
-    $('virtuoso-loop-clear')?.addEventListener('click', resetTransportLoop);
-    document.querySelectorAll('.virtuoso-tp-seg').forEach(btn => {
+    $('virtuoso_lab-to-start')?.addEventListener('click', () => seekTo(0));
+    $('virtuoso_lab-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
+    $('virtuoso_lab-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
+    if (!window.__virtuoso_labKeysBound) { window.__virtuoso_labKeysBound = true; document.addEventListener('keydown', onTransportKey); }
+    $('virtuoso_lab-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
+    $('virtuoso_lab-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
+    $('virtuoso_lab-loop-clear')?.addEventListener('click', resetTransportLoop);
+    document.querySelectorAll('.virtuoso_lab-tp-seg').forEach(btn => {
       // Count-in is baked into the chart as lead-in rest bars (applyCountIn in
       // makeBundle), so changing it rebuilds the bundle — a re-attach, not just
       // a playback tweak. Stop playback and re-attach the current exercise so
@@ -26435,19 +26433,19 @@
         try { await attachRenderer(lastExercise); } catch (e) { console.error('[Virtuoso] count-in re-attach failed', e); }
       });
     });
-    document.querySelector('#virtuoso-controls [name="countIn"]')?.addEventListener('change', syncTransport);
+    document.querySelector('#virtuoso_lab-controls [name="countIn"]')?.addEventListener('change', syncTransport);
     // Session transport: segment nav, per-segment loop, and click-to-jump on
     // both the progress bar and the left-panel segment cards.
-    $('virtuoso-prev-seg')?.addEventListener('click', prevSegment);
-    $('virtuoso-next-seg')?.addEventListener('click', nextSegment);
-    $('virtuoso-loop-seg')?.addEventListener('click', loopCurrentSegment);
-    $('virtuoso-session-progress')?.addEventListener('click', (e) => {
-      const seg = e.target.closest('.virtuoso-progress-seg');
+    $('virtuoso_lab-prev-seg')?.addEventListener('click', prevSegment);
+    $('virtuoso_lab-next-seg')?.addEventListener('click', nextSegment);
+    $('virtuoso_lab-loop-seg')?.addEventListener('click', loopCurrentSegment);
+    $('virtuoso_lab-session-progress')?.addEventListener('click', (e) => {
+      const seg = e.target.closest('.virtuoso_lab-progress-seg');
       if (seg) jumpToSegment(parseInt(seg.dataset.segIndex, 10));
     });
-    const _segList = $('virtuoso-segment-list');
+    const _segList = $('virtuoso_lab-segment-list');
     _segList?.addEventListener('click', async (e) => {
-      const card = e.target.closest('.virtuoso-segment-card');
+      const card = e.target.closest('.virtuoso_lab-segment-card');
       if (!card) return;
       const i = parseInt(card.dataset.segIndex, 10);
       const ctl = e.target.closest('[data-act]');
@@ -26468,7 +26466,7 @@
     if (_segList) {
       let _segDragFrom = -1;
       _segList.addEventListener('dragstart', (e) => {
-        const card = e.target.closest('.virtuoso-segment-card'); if (!card) return;
+        const card = e.target.closest('.virtuoso_lab-segment-card'); if (!card) return;
         _segDragFrom = parseInt(card.dataset.segIndex, 10);
         e.dataTransfer.effectAllowed = 'move';
         try { e.dataTransfer.setData('text/plain', String(_segDragFrom)); } catch (_) {}
@@ -26483,7 +26481,7 @@
         e.preventDefault(); e.dataTransfer.dropEffect = 'move';
         const under = _segCardUnder(_segList, e.clientY);
         _segList.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
-        if (under != null) { const t = _segList.querySelector(`.virtuoso-segment-card[data-seg-index="${under}"]`); if (t) t.classList.add('drop-target'); }
+        if (under != null) { const t = _segList.querySelector(`.virtuoso_lab-segment-card[data-seg-index="${under}"]`); if (t) t.classList.add('drop-target'); }
       });
       _segList.addEventListener('drop', (e) => {
         if (_segDragFrom < 0) return;
@@ -26492,17 +26490,17 @@
         _segDragFrom = -1;
       });
     }
-    // #virtuoso-regenerate is now a HIDDEN refresh bridge (no longer a visible
+    // #virtuoso_lab-regenerate is now a HIDDEN refresh bridge (no longer a visible
     // UI button) — the bootstrap settings-watcher .click()s it to silently
     // re-render on host look-setting changes. The handler stays.
-    $('virtuoso-regenerate')?.addEventListener('click', onGenerate);
+    $('virtuoso_lab-regenerate')?.addEventListener('click', onGenerate);
     // Save-preset was cut from Custom (the share link covers single-config
     // portability; "Save as Workout block" will be the future save bridge).
     // savePreset() is kept (dormant) for that future reuse.
-    $('virtuoso-share')?.addEventListener('click', onCopyShareLink);
+    $('virtuoso_lab-share')?.addEventListener('click', onCopyShareLink);
     // Paste-share-link: fire on actual paste events AND on plain typing
     // (some users will type a base64 payload in directly).
-    const pasteEl = $('virtuoso-paste-share');
+    const pasteEl = $('virtuoso_lab-paste-share');
     if (pasteEl) {
       pasteEl.addEventListener('paste', (ev) => {
         // Read the clipboard data directly so we don't depend on the input
@@ -26512,18 +26510,18 @@
       });
       pasteEl.addEventListener('change', () => onPasteShareLink(pasteEl.value));
     }
-    $('virtuoso-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
-    $('virtuoso-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
-    $('virtuoso-controls').addEventListener('change', (ev) => {
+    $('virtuoso_lab-go-library')?.addEventListener('click', () => { stopRenderer(); goScreen('home'); });
+    $('virtuoso_lab-go-plugins')?.addEventListener('click', () => { stopRenderer(); goScreen('plugins'); });
+    $('virtuoso_lab-controls').addEventListener('change', (ev) => {
       // The Jam inspector's controls live inside this form but are NOT form
       // fields: they have their own live-change path (wrap-quantized, J-2 D-J3).
       // Without this bail, any jam select change regenerated the FORM's exercise
       // and killed a running jam (latent since J-1; exposed by J-2's live edits).
-      if (ev && ev.target && ev.target.closest && ev.target.closest('.virtuoso-jam-inspector')) return;
+      if (ev && ev.target && ev.target.closest && ev.target.closest('.virtuoso_lab-jam-inspector')) return;
       const name = ev && ev.target ? ev.target.name : '';
       if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
-      if (name === 'keyCycle') { const h = $('virtuoso-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
+      if (name === 'keyCycle') { const h = $('virtuoso_lab-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
       if (name === 'renderer') syncViewSwitcher(ev.target.value);
       // Meter-aware Division default: a user meter change bumps a too-coarse pick
       // up to the pulse (quarter→eighth under an /8) BEFORE the share-hash + the
@@ -26538,40 +26536,40 @@
     });
     syncDivisionHelp();   // paint the Division pulse caption on first load
     // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
-    // are form-associated (form="virtuoso-controls"), so their change events do
-    // NOT bubble to the #virtuoso-controls listener above — wire them directly to
+    // are form-associated (form="virtuoso_lab-controls"), so their change events do
+    // NOT bubble to the #virtuoso_lab-controls listener above — wire them directly to
     // the same effect (audio flags are pure playback mutes, so a regenerate picks
     // them up cleanly on the next scheduled pass). All default checked = un-muted.
-    document.querySelectorAll('.virtuoso-practice-pill input').forEach(inp => {
+    document.querySelectorAll('.virtuoso_lab-practice-pill input').forEach(inp => {
       inp.addEventListener('change', () => { writeShareHash(); if (activeBundle) onGenerate(); });
     });
     // View dropdown in the render stage — independent of exercise mode
-    $('virtuoso-view-select')?.addEventListener('change', (e) => onViewSwitch(e.target.value));
+    $('virtuoso_lab-view-select')?.addEventListener('change', (e) => onViewSwitch(e.target.value));
     // Hand-marks pill (hand-marks Slice 1): default ON, persisted, never
     // auto-flipped. Renderers + the strip read handMarksOn() per frame, so a
     // flip shows on the next draw with no re-attach.
-    const hmToggle = $('virtuoso-handmarks-toggle');
+    const hmToggle = $('virtuoso_lab-handmarks-toggle');
     if (hmToggle) {
       hmToggle.setAttribute('aria-checked', String(handMarksOn()));
       hmToggle.addEventListener('click', () => {
         const next = !handMarksOn();
-        try { localStorage.setItem('virtuoso.showHandMarks', next ? 'on' : 'off'); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.showHandMarks', next ? 'on' : 'off'); } catch (_) {}
         hmToggle.setAttribute('aria-checked', String(next));
       });
     }
     // Clean-rung proving affordance: the click IS the player opting into the
     // supports-off run (never auto-flipped). Flips the pill OFF and hides
     // itself; the player turns the pill back on themselves.
-    const proveBtn = $('virtuoso-prove-clean');
+    const proveBtn = $('virtuoso_lab-prove-clean');
     if (proveBtn) proveBtn.addEventListener('click', () => {
-      try { localStorage.setItem('virtuoso.showHandMarks', 'off'); } catch (_) {}
+      try { localStorage.setItem('virtuoso_lab.showHandMarks', 'off'); } catch (_) {}
       hmToggle?.setAttribute('aria-checked', 'false');
       proveBtn.style.display = 'none';
     });
-    const fbToggle = $('virtuoso-fretboard-toggle');
+    const fbToggle = $('virtuoso_lab-fretboard-toggle');
     if (fbToggle) fbToggle.addEventListener('click', () => {
       fretboardOn = !fretboardOn;
-      try { localStorage.setItem('virtuoso.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
+      try { localStorage.setItem('virtuoso_lab.fretboard', fretboardOn ? '1' : '0'); } catch (_) {}
       syncFretboardUI();
       // The strip SLIDES (max-height, ~0.26s) → re-fit + redraw ACROSS the slide, not
       // once before it settles (the regression: a synchronous re-fit used the pre-slide
@@ -26582,25 +26580,25 @@
     // Keep-looping toggle: off (default) = a drill plays its right-sized run once then
     // ends; on = loop it forever for open practice. Read live by finiteRunActive() each
     // frame, so toggling mid-run takes effect at the next loop seam (no restart needed).
-    const klToggle = $('virtuoso-keeploop-toggle');
+    const klToggle = $('virtuoso_lab-keeploop-toggle');
     if (klToggle) klToggle.addEventListener('click', () => {
       keepLooping = !keepLooping;
-      try { localStorage.setItem('virtuoso.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
+      try { localStorage.setItem('virtuoso_lab.keepLooping', keepLooping ? '1' : '0'); } catch (_) {}
       syncKeepLoopUI();
     });
-    $('virtuoso-pane-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(true));
-    $('virtuoso-pane-expand-btn')?.addEventListener('click', () => setPanelCollapsed(false));
-    $('virtuoso-focus-btn')?.addEventListener('click', toggleFocus);
+    $('virtuoso_lab-pane-collapse-btn')?.addEventListener('click', () => setPanelCollapsed(true));
+    $('virtuoso_lab-pane-expand-btn')?.addEventListener('click', () => setPanelCollapsed(false));
+    $('virtuoso_lab-focus-btn')?.addEventListener('click', toggleFocus);
     document.addEventListener('fullscreenchange', onFullscreenChange);
     // Feel control: write the hidden swing field + bubble a change so the
-    // delegated #virtuoso-controls handler regenerates with the new feel.
-    document.querySelectorAll('.virtuoso-feel-btn').forEach(b => b.addEventListener('click', () => {
-      const sw = $('virtuoso-swing'); if (!sw) return;
+    // delegated #virtuoso_lab-controls handler regenerates with the new feel.
+    document.querySelectorAll('.virtuoso_lab-feel-btn').forEach(b => b.addEventListener('click', () => {
+      const sw = $('virtuoso_lab-swing'); if (!sw) return;
       sw.value = b.dataset.feel; syncFeelControl();
       sw.dispatchEvent(new Event('change', { bubbles: true }));
     }));
     // Theme toggle (Light / Dark) for Tab + Notation.
-    document.querySelectorAll('.virtuoso-theme-btn').forEach(btn => {
+    document.querySelectorAll('.virtuoso_lab-theme-btn').forEach(btn => {
       btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
     });
     syncThemeButtons();
@@ -26610,23 +26608,23 @@
     // default returns; explicit view choices made afterward still persist
     // (bass no longer writes the preference).
     try {
-      if (!localStorage.getItem('virtuoso.rendererMigratedV1')) {
-        if (localStorage.getItem('virtuoso.renderer') === 'builtin_2d') localStorage.removeItem('virtuoso.renderer');
-        localStorage.setItem('virtuoso.rendererMigratedV1', '1');
+      if (!localStorage.getItem('virtuoso_lab.rendererMigratedV1')) {
+        if (localStorage.getItem('virtuoso_lab.renderer') === 'builtin_2d') localStorage.removeItem('virtuoso_lab.renderer');
+        localStorage.setItem('virtuoso_lab.rendererMigratedV1', '1');
       }
     } catch (_) {}
     // Restore last-used renderer from localStorage
-    const savedRenderer = localStorage.getItem('virtuoso.renderer');
+    const savedRenderer = localStorage.getItem('virtuoso_lab.renderer');
     if (savedRenderer) {
       syncViewSwitcher(savedRenderer);
       const rendererSel = document.querySelector('[name="renderer"]');
       if (rendererSel) rendererSel.value = savedRenderer;
     }
     // Restore the fretboard-strip toggle (defaults on).
-    try { const fb = localStorage.getItem('virtuoso.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
+    try { const fb = localStorage.getItem('virtuoso_lab.fretboard'); if (fb != null) fretboardOn = fb === '1'; } catch (_) {}
     syncFretboardUI();
     // Restore the keep-looping toggle (defaults OFF = finite, right-sized runs).
-    try { const kl = localStorage.getItem('virtuoso.keepLooping'); if (kl != null) keepLooping = kl === '1'; } catch (_) {}
+    try { const kl = localStorage.getItem('virtuoso_lab.keepLooping'); if (kl != null) keepLooping = kl === '1'; } catch (_) {}
     syncKeepLoopUI();
     // The sidebar always starts expanded on plugin startup/selection (it's a
     // transient view affordance, not a saved pref) — also reset on screen:changed.
@@ -26637,13 +26635,13 @@
     // Position / variation stepper: ◄ / ► walk the pathway's variation axis
     // (shapes when shape-aware; otherwise the curated vary[] list). See
     // positionStep() / updatePositionStepper().
-    $('virtuoso-shape-prev')?.addEventListener('click', () => positionStep(-1));
-    $('virtuoso-shape-next')?.addEventListener('click', () => positionStep(1));
-    $('virtuoso-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('virtuoso-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('virtuoso-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('virtuoso-controls')?.querySelector('[name="stringSetup"]')?.addEventListener('change', () => { syncJamHighlightUI(); syncFretboardUI(); });
-    const pathwaySelect = $('virtuoso-pathway');
+    $('virtuoso_lab-shape-prev')?.addEventListener('click', () => positionStep(-1));
+    $('virtuoso_lab-shape-next')?.addEventListener('click', () => positionStep(1));
+    $('virtuoso_lab-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('virtuoso_lab-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('virtuoso_lab-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    $('virtuoso_lab-controls')?.querySelector('[name="stringSetup"]')?.addEventListener('change', () => { syncJamHighlightUI(); syncFretboardUI(); });
+    const pathwaySelect = $('virtuoso_lab-pathway');
     pathwaySelect?.addEventListener('change', () => {
       applyPathwayById(pathwaySelect.value);
       try { localStorage.setItem(PATHWAY_STORAGE_KEY, pathwaySelect.value); } catch (_) {}
@@ -26655,122 +26653,122 @@
     // Four-mode shell switcher: Pathways / Custom / Workout / Jam (data-mode tokens
     // stay guided/custom/session/jam).
     ['guided', 'custom', 'session', 'jam'].forEach(m => {
-      $('virtuoso-mode-' + m)?.addEventListener('click', () => selectMode(m));
+      $('virtuoso_lab-mode-' + m)?.addEventListener('click', () => selectMode(m));
     });
-    $('virtuoso-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
+    $('virtuoso_lab-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
     renderJamStyles();
     // Jam controls: feel toggle + the Jam action.
-    document.querySelectorAll('#virtuoso-jam-feel .virtuoso-jam-feel-btn').forEach(b => {
+    document.querySelectorAll('#virtuoso_lab-jam-feel .virtuoso_lab-jam-feel-btn').forEach(b => {
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-feel .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-feel .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamFeel = b.dataset.feel || 'straight';
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
-    $('virtuoso-jam-go')?.addEventListener('click', jamPlay);
+    $('virtuoso_lab-jam-go')?.addEventListener('click', jamPlay);
     // J-2 wrap-boundary live changes: key/tempo/changes edits mid-jam queue the
     // pending chip and land at the next loop wrap (no restart, no glitch).
-    ['virtuoso-jam-key', 'virtuoso-jam-tempo', 'virtuoso-jam-prog'].forEach(id =>
+    ['virtuoso_lab-jam-key', 'virtuoso_lab-jam-tempo', 'virtuoso_lab-jam-prog'].forEach(id =>
       $(id)?.addEventListener('change', jamQueueChange));
     // Jam slice J-1: guide-line audio opt-in + bass band-mode (both persisted).
-    try { jamGuideLine = localStorage.getItem('virtuoso.jamGuide') === 'on'; } catch (_) {}
-    try { const b = localStorage.getItem('virtuoso.jamBand'); if (b === 'no_bass' || b === 'drums_only' || b === 'full') jamBandMode = b; } catch (_) {}
-    document.querySelectorAll('#virtuoso-jam-guide .virtuoso-jam-feel-btn').forEach(b => {
-      if ((b.dataset.guide === 'on') === jamGuideLine) { document.querySelectorAll('#virtuoso-jam-guide .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
+    try { jamGuideLine = localStorage.getItem('virtuoso_lab.jamGuide') === 'on'; } catch (_) {}
+    try { const b = localStorage.getItem('virtuoso_lab.jamBand'); if (b === 'no_bass' || b === 'drums_only' || b === 'full') jamBandMode = b; } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-jam-guide .virtuoso_lab-jam-feel-btn').forEach(b => {
+      if ((b.dataset.guide === 'on') === jamGuideLine) { document.querySelectorAll('#virtuoso_lab-jam-guide .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-guide .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-guide .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamGuideLine = b.dataset.guide === 'on';
-        try { localStorage.setItem('virtuoso.jamGuide', jamGuideLine ? 'on' : 'off'); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamGuide', jamGuideLine ? 'on' : 'off'); } catch (_) {}
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
-    document.querySelectorAll('#virtuoso-jam-band .virtuoso-jam-feel-btn').forEach(b => {
-      if (b.dataset.band === jamBandMode) { document.querySelectorAll('#virtuoso-jam-band .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
+    document.querySelectorAll('#virtuoso_lab-jam-band .virtuoso_lab-jam-feel-btn').forEach(b => {
+      if (b.dataset.band === jamBandMode) { document.querySelectorAll('#virtuoso_lab-jam-band .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-band .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-band .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamBandMode = b.dataset.band || 'no_bass';
-        try { localStorage.setItem('virtuoso.jamBand', jamBandMode); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamBand', jamBandMode); } catch (_) {}
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     // J-2 Harmonic-Depth dial (D-J5b) — persisted; mid-jam edits wrap-quantize.
-    try { const d = localStorage.getItem('virtuoso.jamDepth'); if (d === 'simple' || d === 'core' || d === 'rich') jamDepth = d; } catch (_) {}
-    document.querySelectorAll('#virtuoso-jam-depth .virtuoso-jam-feel-btn').forEach(b => {
+    try { const d = localStorage.getItem('virtuoso_lab.jamDepth'); if (d === 'simple' || d === 'core' || d === 'rich') jamDepth = d; } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-jam-depth .virtuoso_lab-jam-feel-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.depth === jamDepth);
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-depth .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-depth .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamDepth = b.dataset.depth || 'core';
-        try { localStorage.setItem('virtuoso.jamDepth', jamDepth); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamDepth', jamDepth); } catch (_) {}
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     // J-3 Energy macro: Chill/Groove/Drive PIN the band's density; Auto arcs it
     // (build→peak→breakdown). Persisted; mid-jam edits wrap-quantize like Depth.
-    try { const e = localStorage.getItem('virtuoso.jamEnergy'); if (e === 'chill' || e === 'groove' || e === 'drive' || e === 'auto') jamEnergy = e; } catch (_) {}
-    document.querySelectorAll('#virtuoso-jam-energy .virtuoso-jam-feel-btn').forEach(b => {
+    try { const e = localStorage.getItem('virtuoso_lab.jamEnergy'); if (e === 'chill' || e === 'groove' || e === 'drive' || e === 'auto') jamEnergy = e; } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-jam-energy .virtuoso_lab-jam-feel-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.energy === jamEnergy);
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-energy .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-energy .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamEnergy = b.dataset.energy || 'auto';
-        try { localStorage.setItem('virtuoso.jamEnergy', jamEnergy); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamEnergy', jamEnergy); } catch (_) {}
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     // J-3 Spotlight (trade-solos form): you ↔ band take turns. Persisted; a mid-jam
     // toggle wrap-quantizes (it re-tags the chart, so it lands at the next wrap).
-    try { jamSpotlight = localStorage.getItem('virtuoso.jamSpotlight') === 'on'; } catch (_) {}
-    document.querySelectorAll('#virtuoso-jam-spotlight .virtuoso-jam-feel-btn').forEach(b => {
-      if ((b.dataset.spotlight === 'on') === jamSpotlight) { document.querySelectorAll('#virtuoso-jam-spotlight .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
+    try { jamSpotlight = localStorage.getItem('virtuoso_lab.jamSpotlight') === 'on'; } catch (_) {}
+    document.querySelectorAll('#virtuoso_lab-jam-spotlight .virtuoso_lab-jam-feel-btn').forEach(b => {
+      if ((b.dataset.spotlight === 'on') === jamSpotlight) { document.querySelectorAll('#virtuoso_lab-jam-spotlight .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active')); b.classList.add('active'); }
       b.addEventListener('click', () => {
-        document.querySelectorAll('#virtuoso-jam-spotlight .virtuoso-jam-feel-btn').forEach(x => x.classList.remove('active'));
+        document.querySelectorAll('#virtuoso_lab-jam-spotlight .virtuoso_lab-jam-feel-btn').forEach(x => x.classList.remove('active'));
         b.classList.add('active');
         jamSpotlight = b.dataset.spotlight === 'on';
-        try { localStorage.setItem('virtuoso.jamSpotlight', jamSpotlight ? 'on' : 'off'); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamSpotlight', jamSpotlight ? 'on' : 'off'); } catch (_) {}
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
     // Jam target-highlight selector (chord / guide / scale / off). Reflects the
     // persisted mode, repaints the strip live on change.
-    document.querySelectorAll('#virtuoso-jam-hl .virtuoso-jam-hl-btn').forEach(b => {
+    document.querySelectorAll('#virtuoso_lab-jam-hl .virtuoso_lab-jam-hl-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.hl === jamHighlightMode);
       b.addEventListener('click', () => {
         jamHighlightMode = b.dataset.hl || 'chord';
-        try { localStorage.setItem('virtuoso.jamHighlight', jamHighlightMode); } catch (_) {}
+        try { localStorage.setItem('virtuoso_lab.jamHighlight', jamHighlightMode); } catch (_) {}
         syncJamHighlightUI();
         drawOnce();
       });
     });
     // First-run primed START CTA — starts the selected pathway (the one lit primary).
-    $('virtuoso-start-cta')?.addEventListener('click', () => onPlayToggle());
+    $('virtuoso_lab-start-cta')?.addEventListener('click', () => onPlayToggle());
     // Shell panels (M / P / [ / ?): visible buttons + the mixer's own controls.
     mixerLoad();
-    $('virtuoso-mixer-btn')?.addEventListener('click', () => toggleMixer());
+    $('virtuoso_lab-mixer-btn')?.addEventListener('click', () => toggleMixer());
     // The header progress chip opens P (de-dups the old view-bar Progress button).
-    const progChip = $('virtuoso-progress-strip');
+    const progChip = $('virtuoso_lab-progress-strip');
     progChip?.addEventListener('click', () => toggleProgressSheet());
     progChip?.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProgressSheet(); } });
     // Collapse is the labelled Setup/Play pill + the [ hotkey; the duplicate
     // ⟨ ⟩ icon button was removed (GUI audit B1). The [ binding lives in the
     // keydown handler; setPanelCollapsed is unchanged.
-    $('virtuoso-help-btn')?.addEventListener('click', () => toggleCheatSheet());
-    $('virtuoso-mixer-close')?.addEventListener('click', () => toggleMixer(false));
-    $('virtuoso-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
+    $('virtuoso_lab-help-btn')?.addEventListener('click', () => toggleCheatSheet());
+    $('virtuoso_lab-mixer-close')?.addEventListener('click', () => toggleMixer(false));
+    $('virtuoso_lab-progress-close')?.addEventListener('click', () => toggleProgressSheet(false));
     // Library browse drawer (Phase 9 Slice 3): open from the timeline "+ Browse",
     // close via ▾, chip-filter, and [+ Add] a template-ref to the draft (multi-add).
-    $('virtuoso-library-open')?.addEventListener('click', () => toggleLibrary());
-    $('virtuoso-library-close')?.addEventListener('click', () => toggleLibrary(false));
-    $('virtuoso-library-filters')?.addEventListener('click', (e) => {
+    $('virtuoso_lab-library-open')?.addEventListener('click', () => toggleLibrary());
+    $('virtuoso_lab-library-close')?.addEventListener('click', () => toggleLibrary(false));
+    $('virtuoso_lab-library-filters')?.addEventListener('click', (e) => {
       const chip = e.target.closest('[data-filter]'); if (!chip) return;
       _libFilters[chip.dataset.filter] = chip.dataset.value;
       renderLibrary();
     });
-    $('virtuoso-library-body')?.addEventListener('click', (e) => {
-      const add = e.target.closest('.virtuoso-lib-add'); if (!add) return;
+    $('virtuoso_lab-library-body')?.addEventListener('click', (e) => {
+      const add = e.target.closest('.virtuoso_lab-lib-add'); if (!add) return;
       addSegmentToDraft(add.dataset.templateId);
       const orig = add.textContent;                          // "Added ✓" flash — visual only (§5/§13), drawer stays open
       add.classList.add('added'); add.textContent = 'Added ✓';
@@ -26778,66 +26776,66 @@
     });
     // Starter browse drawer (Phase 9 Slice 4): the primary starter picker (the
     // dropdown is hidden). Open / close / chip-filter / Load (with replace-guard).
-    $('virtuoso-starters-open')?.addEventListener('click', () => toggleStarters());
-    $('virtuoso-starters-close')?.addEventListener('click', () => toggleStarters(false));
-    $('virtuoso-starters-filters')?.addEventListener('click', (e) => {
+    $('virtuoso_lab-starters-open')?.addEventListener('click', () => toggleStarters());
+    $('virtuoso_lab-starters-close')?.addEventListener('click', () => toggleStarters(false));
+    $('virtuoso_lab-starters-filters')?.addEventListener('click', (e) => {
       const chip = e.target.closest('[data-sfilter]'); if (!chip) return;
       _starterFilters[chip.dataset.sfilter] = chip.dataset.value;
       renderStarters();
     });
-    $('virtuoso-starters-body')?.addEventListener('click', (e) => {
-      const rload = e.target.closest('.virtuoso-routine-load');
+    $('virtuoso_lab-starters-body')?.addEventListener('click', (e) => {
+      const rload = e.target.closest('.virtuoso_lab-routine-load');
       if (rload) { loadRoutine(rload.dataset.routineId); return; }
-      const rdel = e.target.closest('.virtuoso-routine-del');
+      const rdel = e.target.closest('.virtuoso_lab-routine-del');
       if (rdel) { deleteRoutine(rdel.dataset.routineId); return; }
-      const load = e.target.closest('.virtuoso-starter-load'); if (!load) return;
+      const load = e.target.closest('.virtuoso_lab-starter-load'); if (!load) return;
       loadStarter(load.dataset.starterId);
     });
     // "Save routine" — reveal the inline name affordance; save on go/Enter.
-    $('virtuoso-save-routine')?.addEventListener('click', () => {
-      const row = $('virtuoso-routine-save-row'), input = $('virtuoso-routine-name');
+    $('virtuoso_lab-save-routine')?.addEventListener('click', () => {
+      const row = $('virtuoso_lab-routine-save-row'), input = $('virtuoso_lab-routine-name');
       const draft = _workoutDraft;
       if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return; }
       if (row) row.hidden = false;
       if (input) { input.value = (draft.name && draft.name !== 'Session practice') ? draft.name : ''; input.focus(); input.select(); }
     });
-    $('virtuoso-routine-save-cancel')?.addEventListener('click', () => { const r = $('virtuoso-routine-save-row'); if (r) r.hidden = true; });
-    $('virtuoso-routine-save-go')?.addEventListener('click', async () => {
-      const input = $('virtuoso-routine-name'), row = $('virtuoso-routine-save-row');
+    $('virtuoso_lab-routine-save-cancel')?.addEventListener('click', () => { const r = $('virtuoso_lab-routine-save-row'); if (r) r.hidden = true; });
+    $('virtuoso_lab-routine-save-go')?.addEventListener('click', async () => {
+      const input = $('virtuoso_lab-routine-name'), row = $('virtuoso_lab-routine-save-row');
       const ok = await saveRoutine(input ? input.value : '');
       if (ok && row) row.hidden = true;
     });
-    $('virtuoso-routine-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('virtuoso-routine-save-go')?.click(); } });
-    $('virtuoso-starters-confirm')?.addEventListener('click', (e) => {
-      if (e.target.closest('.virtuoso-starter-confirm-yes')) loadStarter(e.target.closest('.virtuoso-starter-confirm-yes').dataset.starterId, true);
-      else if (e.target.closest('.virtuoso-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
+    $('virtuoso_lab-routine-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('virtuoso_lab-routine-save-go')?.click(); } });
+    $('virtuoso_lab-starters-confirm')?.addEventListener('click', (e) => {
+      if (e.target.closest('.virtuoso_lab-starter-confirm-yes')) loadStarter(e.target.closest('.virtuoso_lab-starter-confirm-yes').dataset.starterId, true);
+      else if (e.target.closest('.virtuoso_lab-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
     });
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
-    $('virtuoso-progress-sheet-body')?.addEventListener('click', (e) => {
+    $('virtuoso_lab-progress-sheet-body')?.addEventListener('click', (e) => {
       if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
       else {
         const sbtn = e.target.closest('[data-act="copy-card"], [data-act="download-card"]');
         if (sbtn) shareCardClick(sbtn, _lastEndedSession);   // image card → clipboard / PNG, silent
       }
     });
-    $('virtuoso-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
+    $('virtuoso_lab-cheat-close')?.addEventListener('click', () => toggleCheatSheet(false));
     // Pack manager (the band-bar "+"). Open is wired on the "+" chip in
     // renderPathwayList. Close/Cancel discard the draft; Save commits + re-renders.
-    $('virtuoso-packs-close')?.addEventListener('click', () => togglePackManager(false));
-    $('virtuoso-packs-cancel')?.addEventListener('click', () => togglePackManager(false));
-    $('virtuoso-packs-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) togglePackManager(false); });  // scrim → cancel
-    $('virtuoso-packs-save')?.addEventListener('click', () => {
+    $('virtuoso_lab-packs-close')?.addEventListener('click', () => togglePackManager(false));
+    $('virtuoso_lab-packs-cancel')?.addEventListener('click', () => togglePackManager(false));
+    $('virtuoso_lab-packs-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) togglePackManager(false); });  // scrim → cancel
+    $('virtuoso_lab-packs-save')?.addEventListener('click', () => {
       if (_packsDraft) packsSave(_packsDraft);
       togglePackManager(false);
       renderPathwayList();
     });
-    $('virtuoso-packs-to-installed')?.addEventListener('click', () => {
+    $('virtuoso_lab-packs-to-installed')?.addEventListener('click', () => {
       if (_packsSel && _packsSel.col === 'available') { _packInstall(_packsSel.id); _packsSel = { col: 'installed', id: _packsSel.id }; renderPackManager(); }
     });
-    $('virtuoso-packs-to-available')?.addEventListener('click', () => {
+    $('virtuoso_lab-packs-to-available')?.addEventListener('click', () => {
       if (_packsSel && _packsSel.col === 'installed') { _packUninstall(_packsSel.id); _packsSel = null; renderPackManager(); }
     });
-    const _instCol = $('virtuoso-packs-installed'), _availCol = $('virtuoso-packs-available');
+    const _instCol = $('virtuoso_lab-packs-installed'), _availCol = $('virtuoso_lab-packs-available');
     _instCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
     _instCol?.addEventListener('drop', (e) => {
       e.preventDefault();
@@ -26855,52 +26853,52 @@
     });
     // Mixer view tabs (Console | Rig) + the Rig view actions (per-amp cab IR +
     // output trim). The Rig manages the 3 amps' cabs (per-amp, not per-strip).
-    const mixEl = $('virtuoso-mixer'), rigHost = $('virtuoso-mixer-rig');
+    const mixEl = $('virtuoso_lab-mixer'), rigHost = $('virtuoso_lab-mixer-rig');
     mixEl?.addEventListener('click', (ev) => {
-      const tab = ev.target.closest && ev.target.closest('.virtuoso-mixer-viewtab');
+      const tab = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-viewtab');
       if (!tab) return;
       const rig = tab.dataset.view === 'rig';
-      mixEl.classList.toggle('vir-rig-view', rig);
-      mixEl.querySelectorAll('.virtuoso-mixer-viewtab').forEach(b => { const on = b.dataset.view === tab.dataset.view; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
+      mixEl.classList.toggle('virtuoso_lab_vir-rig-view', rig);
+      mixEl.querySelectorAll('.virtuoso_lab-mixer-viewtab').forEach(b => { const on = b.dataset.view === tab.dataset.view; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
       if (rig) renderRig();
     });
     let _rigPendingAmp = null;
     rigHost?.addEventListener('click', (ev) => {
-      const load = ev.target.closest && ev.target.closest('.virtuoso-rig-load');
-      if (load) { _rigPendingAmp = load.dataset.amp; const fi = $('virtuoso-rig-file'); if (fi) { fi.value = ''; fi.click(); } return; }
-      const rst = ev.target.closest && ev.target.closest('.virtuoso-rig-reset');
+      const load = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-load');
+      if (load) { _rigPendingAmp = load.dataset.amp; const fi = $('virtuoso_lab-rig-file'); if (fi) { fi.value = ''; fi.click(); } return; }
+      const rst = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-reset');
       if (rst) { const amp = rst.dataset.amp; if (rst.dataset.what === 'out') rigResetOutput(amp); else rigResetIr(amp); }
     });
     rigHost?.addEventListener('change', (ev) => {
-      const fi = ev.target.closest && ev.target.closest('#virtuoso-rig-file');
+      const fi = ev.target.closest && ev.target.closest('#virtuoso_lab-rig-file');
       if (fi && _rigPendingAmp && fi.files && fi.files[0]) { rigLoadIr(_rigPendingAmp, fi.files[0]); _rigPendingAmp = null; }
     });
     rigHost?.addEventListener('input', (ev) => {
-      const out = ev.target.closest && ev.target.closest('.virtuoso-rig-out');
+      const out = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-out');
       if (!out) return;
       const amp = out.dataset.amp, v = Math.max(0, Math.min(1.2, parseFloat(out.value) || 0));
       rigSetOutput(amp, v);
-      const db = rigHost.querySelector(`.virtuoso-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = rigOutputDb(amp) + ' dB';
+      const db = rigHost.querySelector(`.virtuoso_lab-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = rigOutputDb(amp) + ' dB';
     });
-    const mixCh = $('virtuoso-mixer-channels');
+    const mixCh = $('virtuoso_lab-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
       // Fader (vertical, cube-law dB taper): the slider speaks positions, the
       // engine consumes linear gain; 'master' rides the master bus over MASTER_TRIM.
-      const f = ev.target.closest && ev.target.closest('.virtuoso-mixer-fader');
+      const f = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-fader');
       if (f) {
         const k = f.dataset.k, g = faderGainFromPos(Math.max(0, Math.min(1, parseFloat(f.value) || 0)));
         if (k === 'master') mixerMasterLevel = g; else mixerState[k].level = g;
-        const val = mixCh.querySelector(`.virtuoso-mixer-val[data-k="${k}"]`); if (val) val.textContent = faderDb(g);
+        const val = mixCh.querySelector(`.virtuoso_lab-mixer-val[data-k="${k}"]`); if (val) val.textContent = faderDb(g);
         applyMixer(); mixerSave();
         return;
       }
-      const pn = ev.target.closest && ev.target.closest('.virtuoso-mixer-pan'); if (!pn) return;
+      const pn = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-pan'); if (!pn) return;
       mixerState[pn.dataset.k].pan = Math.max(-1, Math.min(1, parseFloat(pn.value) || 0));
       applyMixer(); mixerSave();
     });
     // Pan pot reset: double-click returns the channel to its stage default.
     mixCh?.addEventListener('dblclick', (ev) => {
-      const pn = ev.target.closest && ev.target.closest('.virtuoso-mixer-pan'); if (!pn) return;
+      const pn = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-pan'); if (!pn) return;
       const k = pn.dataset.k, ch = channelFor(k);
       mixerState[k].pan = (ch && ch.pan) || 0;
       pn.value = String(mixerState[k].pan);
@@ -26908,9 +26906,9 @@
     });
     mixCh?.addEventListener('click', (ev) => {
       // INPUT-strip shortcuts: host settings (audio interface) / nam_tone screen.
-      const go = ev.target.closest && ev.target.closest('.virtuoso-mixer-inbtn');
+      const go = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-inbtn');
       if (go) { toggleMixer(false); goScreen(go.dataset.go); return; }
-      const t = ev.target.closest && ev.target.closest('.virtuoso-mixer-tog'); if (!t) return;
+      const t = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-tog'); if (!t) return;
       // Dim lives on the master strip now (a toggle button, not the old head checkbox).
       if (t.dataset.act === 'dim') {
         mixerBackingDim = !mixerBackingDim;
@@ -26932,7 +26930,7 @@
       // needed (sounding voices flow through the new chain). Auto resolution
       // happens in the scheduler per pass; here we wire the explicit picks and
       // let the next chunk settle an Auto.
-      const ampSel = ev.target.closest && ev.target.closest('.virtuoso-mixer-amp');
+      const ampSel = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-amp');
       if (ampSel) {
         const k = ampSel.dataset.k;
         mixerState[k].amp = ampSel.value || null;
@@ -26944,8 +26942,8 @@
         }
         return;
       }
-      const kitSel = ev.target.closest && ev.target.closest('.virtuoso-mixer-kit');
-      const sel = kitSel || (ev.target.closest && ev.target.closest('.virtuoso-mixer-instr')); if (!sel) return;
+      const kitSel = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-kit');
+      const sel = kitSel || (ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-instr')); if (!sel) return;
       if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
       else mixerState[sel.dataset.k].instrument = sel.value || null;
       mixerSave();
@@ -26954,8 +26952,8 @@
     // Mid-run downshift chip (beginner rungs): accept = close-and-arm the kinder
     // tier (load it, focus Play, start nothing); dismiss = quiet for the session
     // (the show path already recorded the rung in _downshiftSeen).
-    $('virtuoso-downshift-go')?.addEventListener('click', () => {
-      const idx = parseInt($('virtuoso-downshift-go')?.dataset.idx ?? '-1', 10);
+    $('virtuoso_lab-downshift-go')?.addEventListener('click', () => {
+      const idx = parseInt($('virtuoso_lab-downshift-go')?.dataset.idx ?? '-1', 10);
       hideDownshiftChip();
       const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
       if (!pw || !(idx >= 0)) return;
@@ -26964,31 +26962,31 @@
       applyTierFields(pw, idx);
       syncTempoTierButtons();
       onGenerate();
-      $('virtuoso-play')?.focus();
+      $('virtuoso_lab-play')?.focus();
     });
-    $('virtuoso-downshift-x')?.addEventListener('click', () => hideDownshiftChip());
+    $('virtuoso_lab-downshift-x')?.addEventListener('click', () => hideDownshiftChip());
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
-    $('virtuoso-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
+    $('virtuoso_lab-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
     // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
-    $('virtuoso-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
-    $('virtuoso-strip-tune')?.addEventListener('click', () => startTuner());
+    $('virtuoso_lab-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
+    $('virtuoso_lab-strip-tune')?.addEventListener('click', () => startTuner());
     // Results modal: close on ✕ or an overlay click (never Escape — host-owned).
-    $('virtuoso-results-close')?.addEventListener('click', closeResultsModal);
-    $('virtuoso-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
+    $('virtuoso_lab-results-close')?.addEventListener('click', closeResultsModal);
+    $('virtuoso_lab-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
     // Show the resting-state strip on load; the delayed retry covers plugin
     // load order (the minigames / note_detect surfaces may register after us).
     ptShowIdleStrip();
     setTimeout(ptShowIdleStrip, 2000);
-    $('virtuoso-tuner-done')?.addEventListener('click', () => stopTuner());
+    $('virtuoso_lab-tuner-done')?.addEventListener('click', () => stopTuner());
     // Header tuner badge (topbar parity) — the host topbar card's exact action.
     // Feature-detected by initHostTopbar/syncTunerBadge; never touches the tuner's
     // DOM, its own public API only.
-    $('virtuoso-tuner-badge')?.addEventListener('click', () => {
+    $('virtuoso_lab-tuner-badge')?.addEventListener('click', () => {
       try { window.tuner?.toggle?.(); } catch (_) {}
     });
     // Header profile badge → the host profile screen (LINK, never a second
     // profile implementation).
-    $('virtuoso-profile-badge')?.addEventListener('click', () => goScreen('v3-profile'));
+    $('virtuoso_lab-profile-badge')?.addEventListener('click', () => goScreen('v3-profile'));
     // Host topbar parity init: badges + /api/tunings + host-settings read (host
     // wins over the L1 restore above for the player's guitar/bass identity) +
     // bus subscriptions. Delayed retry covers plugin load order — the tuner
@@ -26996,56 +26994,56 @@
     loadHostTunings().then(() => hostSettingsRead());
     initHostTopbar();
     setTimeout(initHostTopbar, 2000);
-    $('virtuoso-tuning-select')?.addEventListener('change', updateSetupButton);
+    $('virtuoso_lab-tuning-select')?.addEventListener('change', updateSetupButton);
     document.addEventListener('click', (e) => {
-      const pop = $('virtuoso-setup-popover'); if (!pop || pop.hidden) return;
-      const btn = $('virtuoso-setup-btn');
+      const pop = $('virtuoso_lab-setup-popover'); if (!pop || pop.hidden) return;
+      const btn = $('virtuoso_lab-setup-btn');
       if (!pop.contains(e.target) && btn && !btn.contains(e.target)) toggleSetupPopover(false);
     });
     updateSetupButton();
     // Header settings menu (⚙): toggle, items, close-on-outside-click.
-    $('virtuoso-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettingsMenu(); });
+    $('virtuoso_lab-settings-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSettingsMenu(); });
     // P-sheet affordance (the header progress chip is hidden pending the
     // profile-merge design; P hotkey + session-end auto-present stay primary).
-    $('virtuoso-settings-progress')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleProgressSheet(true); });
-    $('virtuoso-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
-    $('virtuoso-settings-host')?.addEventListener('click', () => {
+    $('virtuoso_lab-settings-progress')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleProgressSheet(true); });
+    $('virtuoso_lab-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
+    $('virtuoso_lab-settings-host')?.addEventListener('click', () => {
       toggleSettingsMenu(false);
       try { if (hostBus() && typeof hostBus().navigate === 'function') hostBus().navigate('settings'); } catch (_) {}
     });
     // Settings prefs: accent theme · default XP mode · default count-in.
-    document.querySelectorAll('#virtuoso-theme-pick .virtuoso-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
-    document.querySelectorAll('#virtuoso-xp-mode .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
-    $('virtuoso-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
-    document.querySelectorAll('#virtuoso-countin-grid .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
-    document.querySelectorAll('#virtuoso-energy-pick .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
+    document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
+    document.querySelectorAll('#virtuoso_lab-xp-mode .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
+    $('virtuoso_lab-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso_lab.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso_lab.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
+    document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
     renderCardSkinPicker('signature');
-    document.querySelectorAll('#virtuoso-skinscope-pick .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => applySkinScope(b.dataset.skinscope)));
+    document.querySelectorAll('#virtuoso_lab-skinscope-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applySkinScope(b.dataset.skinscope)));
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
-      const menu = $('virtuoso-settings-menu'); if (!menu || !menu.classList.contains('vir-open')) return;
-      const btn = $('virtuoso-settings-btn');
+      const menu = $('virtuoso_lab-settings-menu'); if (!menu || !menu.classList.contains('virtuoso_lab_vir-open')) return;
+      const btn = $('virtuoso_lab-settings-btn');
       if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
     });
     // Preset picker (Custom): load a saved preset's config into the form.
-    $('virtuoso-preset-picker')?.addEventListener('change', (ev) => {
+    $('virtuoso_lab-preset-picker')?.addEventListener('change', (ev) => {
       const key = ev.target.value; if (!key) return;
-      const preset = window.__virtuosoFavorites && window.__virtuosoFavorites[key];
+      const preset = window.__virtuoso_labFavorites && window.__virtuoso_labFavorites[key];
       if (preset && preset.config) { applyPathwayConfig(preset.config); if (activeBundle) onGenerate(); }
     });
-    $('virtuoso-launch-session')?.addEventListener('click', onLaunchSession);
-    $('virtuoso-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
-    $('virtuoso-breathe-toggle')?.addEventListener('change', (e) => {             // inter-block break on/off
+    $('virtuoso_lab-launch-session')?.addEventListener('click', onLaunchSession);
+    $('virtuoso_lab-workout-refresh')?.addEventListener('click', onRefreshWorkout);   // Phase 9: re-roll blocks
+    $('virtuoso_lab-breathe-toggle')?.addEventListener('change', (e) => {             // inter-block break on/off
       if (_workoutDraft) _workoutDraft.interBlockBreak = e.target.checked ? 'auto' : 'off';
     });
-    $('virtuoso-length-preset')?.addEventListener('change', (e) => {              // opt-in session length
+    $('virtuoso_lab-length-preset')?.addEventListener('change', (e) => {              // opt-in session length
       if (_workoutDraft) { _workoutDraft.lengthPreset = e.target.value || null; renderWorkoutDraft(); }
     });
-    $('virtuoso-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.virtuoso-refresh-summary-close')) clearRefreshSummary(); });
+    $('virtuoso_lab-refresh-summary')?.addEventListener('click', e => { if (e.target.closest('.virtuoso_lab-refresh-summary-close')) clearRefreshSummary(); });
     syncSessionSummary(Object.keys(BUILT_IN_SESSIONS)[0]);
 
     loadPathwayFavorites();
-    loadSavedRoutines().then(() => { if ($('virtuoso-root')?.classList.contains('virtuoso-session-mode')) renderStarters(); });   // surface the user's saved routines in the starter picker
+    loadSavedRoutines().then(() => { if ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode')) renderStarters(); });   // surface the user's saved routines in the starter picker
     // Populate the Shape dropdown for the initial (key, system) before any
     // pathway runs — applyInitialPathway may set the shape value, but it
     // can't select an option that doesn't exist yet.
@@ -27104,7 +27102,7 @@
     let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     if (hostBus() && typeof hostBus().on === 'function') {
       hostBus().on('screen:changed', (ev) => {
-        if (ev?.detail?.id !== 'plugin-virtuoso') return;
+        if (ev?.detail?.id !== 'plugin-virtuoso_lab') return;
         // Sidebar always shows when the plugin is (re)selected.
         panelCollapsed = false; syncPanelToggle();
         if (lastExercise) {
@@ -27122,7 +27120,7 @@
     // still being laid out; if attachRenderer runs against a 0x0 canvas,
     // nothing visible draws. A double-rAF wasn't enough on its own.
     (function fireInitialGenerateWhenLaidOut() {
-      const host = $('virtuoso-render-host');
+      const host = $('virtuoso_lab-render-host');
       if (!host || typeof ResizeObserver === 'undefined') { onGenerate(); return; }
       let fired = false;
       const fire = () => { if (fired) return; fired = true; try { ro.disconnect(); } catch (_) {} onGenerate(); };
@@ -27179,7 +27177,7 @@
       drawOnce();
     }
     if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso:loop:set', { a: aNum, b: bNum });
+      hostBus().emit('virtuoso_lab:loop:set', { a: aNum, b: bNum });
     }
   }
   function clearSegmentLoop() {
@@ -27187,12 +27185,12 @@
     segmentLoopA = null;
     segmentLoopB = null;
     if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso:loop:clear', {});
+      hostBus().emit('virtuoso_lab:loop:clear', {});
     }
   }
   function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
 
-  window.Virtuoso = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy,
+  window.VirtuosoLab = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy,
     // J-2 + sampled-guitar probe surface (feature entry points / readouts, not new behavior)
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     // Gold rung harness surface (smoke-gold.mjs): pure gate math + store.
@@ -27208,7 +27206,7 @@
     },
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
     sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) globalThis.__ss_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, DRUMKIT_BANKS, KIT_REGISTRY, resolveDrumKit, recipeTracks, resolveHumanSeed, buildCompCellHits, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, activeBundleTimeline: () => activeBundle ? (activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline)) : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, sgHarmWanted, sgPadWanted, applyStyleMixerDefaults, sgFilesFor, bankDesc, bankLayerTag, SAMPLE_BANKS, compTargetMidis, COMP_GROOVES, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState, jamMirrorCapture, jamMirrorReset, jamMirrorDebugAdd, jamRecapAnalysisLines, jamBassIntents, jamSpotlightPhraseNotes, jamMirror: () => _jamMirror ? { noteCount: _jamMirror.noteCount, pcs: [..._jamMirror.pcs] } : null, jamPlayedLen: () => _jamPlayed.length, jamSpotlightTurn, activeBundleNotes: () => activeBundle ? activeBundle.notes : null,
+  if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) globalThis.__virtuoso_lab_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, DRUMKIT_BANKS, KIT_REGISTRY, resolveDrumKit, recipeTracks, resolveHumanSeed, buildCompCellHits, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, activeBundleTimeline: () => activeBundle ? (activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline)) : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, sgHarmWanted, sgPadWanted, applyStyleMixerDefaults, sgFilesFor, bankDesc, bankLayerTag, SAMPLE_BANKS, compTargetMidis, COMP_GROOVES, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState, jamMirrorCapture, jamMirrorReset, jamMirrorDebugAdd, jamRecapAnalysisLines, jamBassIntents, jamSpotlightPhraseNotes, jamMirror: () => _jamMirror ? { noteCount: _jamMirror.noteCount, pcs: [..._jamMirror.pcs] } : null, jamPlayedLen: () => _jamPlayed.length, jamSpotlightTurn, activeBundleNotes: () => activeBundle ? activeBundle.notes : null,
     busRms: () => { const out = {}; if (audioBus && audioBus.analysers) { for (const k in audioBus.analysers) { const an = audioBus.analysers[k]; const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; out[k] = Math.sqrt(s / buf.length); } } return out; },
     busGains: () => { const out = {}; if (audioBus && audioBus.tracks) { for (const k in audioBus.tracks) out[k] = audioBus.tracks[k].gain.value; } return out; }, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();

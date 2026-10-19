@@ -1,5 +1,5 @@
-console.log('load _drum_44_0_FluidR3_GM_sf2_file');
-var _drum_44_0_FluidR3_GM_sf2_file={
+console.log('load _virtuoso_lab_drum_44_0_FluidR3_GM_sf2_file');
+var _virtuoso_lab_drum_44_0_FluidR3_GM_sf2_file={
 	zones:[
 		{
 			midi:128
