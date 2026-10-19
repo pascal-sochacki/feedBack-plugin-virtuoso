@@ -2,9 +2,17 @@
 
 > On-demand companion to `CLAUDE.md` Part 1 "Development workflow". The workflow summary, the `npm test` command, and the **per-system growth rule** stay in `CLAUDE.md` (always-loaded); this file holds the bulky per-suite reference so it isn't in the session context budget every time. **Read this before adding or changing a suite.**
 
-There is **no unit-test or lint suite**. Verification is behavioural, via **nineteen** Playwright smoke suites in the `run-virtuoso` skill, run against a live host — start it with `launch.ps1` first.
+Source-only native-module tests run with `node --test tests/*.mjs` (currently the pitch leaf's five contract tests). Narrow JSDoc/checkJs is developer-only `noEmit`; commands and migration validation are in `docs/native-modules.md`. Existing Python backend tests remain under `tests/`. Runtime verification is behavioural, via the Playwright smoke suites in the `run-virtuoso` skill, run against a live host — start it with `launch.ps1` first. Node tests do not certify host loading, DOM, renderer, audio or navigation behavior.
 
 ## Running them
+
+`node --test tests/*.mjs` also runs Lab packaging checks (manifest/ZIP/module
+graph, namespace ownership, private audio globals, Python AST/SQLite schema,
+real entry import with deferred DOM boot and committed-baseline session
+equivalence, repeatable generation). These are source-only packaging-system
+tests, not a replacement for any live-host smoke suite. Generate the manual
+test artifact with `node scripts/cut-lab.mjs`; installation/limitations are in
+`docs/virtuoso-lab.md`.
 
 - `npm test` (from `.claude/skills/run-virtuoso/`) runs **all nineteen** suites **in parallel via `run-all.mjs`** (~20s wall; dev-ops audit 2026-06-05: suites are independent chromium processes, host-read-only, so concurrency 4 is safe; suites are *discovered* by the `smoke-*.mjs` glob so a new one can't be silently missed; a failing suite's full output is replayed at the end).
 - `npm run test:seq` keeps the old sequential chain for debugging suspected cross-suite interference.

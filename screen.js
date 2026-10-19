@@ -1,12 +1,14 @@
 // Virtuoso — FeedBack practice chart generator + renderer adapter.
+import { NOTE_NAMES, NOTE_ALIASES, pcName, midiToFreq } from './src/core/pitch.js';
+
 (function () {
   'use strict';
 
   // ===========================================================================
   // TABLE OF CONTENTS
-  // One IIFE, loaded by the host as a classic <script> (no type="module", so no
-  // import/export — see CLAUDE.md "screen.js structure"). Major sections are
-  // marked with a "§N" banner below; grep "§" to jump between them.
+  // The IIFE remains during bottom-up native-module extraction so startup and
+  // closure state keep their original order. See docs/native-modules.md.
+  // Major sections are marked with a "§N" banner below.
   //
   //   §1  Constants & music-theory data
   //   §2  Curated pathways (PATHWAYS)
@@ -48,15 +50,13 @@
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.6';
+  const VIRTUOSO_VERSION = '0.2.7';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
   // note names, string setups, scale intervals, chord formulas, diatonic
   // qualities, common progressions, sequence + chromatic patterns.
   // ===========================================================================
-  const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const NOTE_ALIASES = { C:0, 'B#':0, 'C#':1, Db:1, D:2, 'D#':3, Eb:3, E:4, Fb:4, F:5, 'E#':5, 'F#':6, Gb:6, G:7, 'G#':8, Ab:8, A:9, 'A#':10, Bb:10, B:11, Cb:11 };
   const STRING_COLORS = ['#ef4444', '#eab308', '#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899', '#14b8a6'];
   const AUDIO_LOOKAHEAD_SECONDS = 0.20;
   // Rolling-window scheduling (backing-engine step 0, 2026-06-05). Audio is
@@ -4344,8 +4344,6 @@
   let _spotlightCueTurn = null;   // last-shown spotlight turn — DOM-thrash guard for the cue banner
 
   function $(id) { return document.getElementById(id); }
-  function pcName(pc) { return NOTE_NAMES[((pc % 12) + 12) % 12]; }
-  function midiToFreq(midi) { return 440 * Math.pow(2, (midi - 69) / 12); }
   function storage(key, fallback) { try { const value = localStorage.getItem(key); return value === null ? fallback : value; } catch { return fallback; } }
   function readHighwayInverted() { return storage('invertHighway', 'false') === 'true'; }
   function readLefty() { return storage('lefty', '0') === '1'; }
