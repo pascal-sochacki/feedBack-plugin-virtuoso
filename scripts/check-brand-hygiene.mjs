@@ -4,7 +4,7 @@
 // (gitignored) `.claude/` market-analyst files, never in the published repo
 // (the "market lane" rule — only the market-analyst agent names real comps, and
 // only in `.claude/`). This is the guardrail that would have caught commit
-// `9ddf62a` (Rocksmith / Yousician in docs/host-achievements-review.md).
+// `9ddf62a` (Rocksmith / Yousician in docs/plugin/design/host-achievements-review.md).
 //
 // Wiring: the `.githooks/pre-commit` hook runs it on every commit (enable once
 // per clone: `git config core.hooksPath .githooks`); it's also in the CLAUDE.md

@@ -5,11 +5,15 @@ Real guitar-cab impulse responses for the amp inserts (`AMP_PRESETS[*].ir` in
 `/api/plugins/virtuoso/ir/<name>` route; if a file is absent, the chain falls
 back to the **procedural** cab (`cabIrBuffer`) — so a missing IR is never silent.
 
-## Shipped (committed)
+## No shipped capture files (2026-10-20)
 
-| file | preset | speaker / cab | provenance · license |
-|------|--------|---------------|----------------------|
-| `v30_4x12.wav` | **Metal** | Celestion **Vintage 30** 4×12 (Audix i5, P2) | Deer Ink Studios capture, bundled in **[AIDA-X](https://github.com/AidaDSP/AIDA-X)** (`files/V30-P2-audix-i5-deerinkstudios.wav`) under **GPL-3.0-or-later** — compatible with this repo's AGPL-3.0-only. A V30 4×12 close-mic is the canonical 6505 cab voice. |
+The former `v30_4x12.wav` (Deer Ink Studios V30 / Audix i5 P2 from
+[AIDA-X](https://github.com/AidaDSP/AIDA-X)) was removed: the project's GPL
+statement did not independently establish permission for this third-party
+capture. Its old license description was not clearance. Historical evidence:
+[SOURCE.md](../../SOURCE.md). Metal keeps its preset settings and now uses the
+existing procedural cab directly, with no fetch for the removed WAV. User IR
+uploads still override the cab. No new captured/generated audio asset is shipped.
 
 ## Local-only (gitignored — NOT shipped)
 
@@ -25,7 +29,7 @@ for these two presets. To audition them, drop a cab IR WAV at these names:
 Replacing a local file is a hot-swap — no code change (the preset references the
 stable role-name `cab_clean` / `cab_drive`). When a genuinely redistributable
 (CC0/CC-BY/GPL) clean and Marshall/Greenback IR is found, drop it in + un-gitignore
-it here (mirror the V30 row) to ship it.
+it here only after recording-specific license/source review.
 
 > Format: short mono cab IR WAV (44.1/48 kHz, a few hundred–~2k samples). The
 > double-tracking supplies the stereo, so mono is correct.

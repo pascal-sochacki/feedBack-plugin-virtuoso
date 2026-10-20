@@ -12,7 +12,7 @@ process.on('uncaughtException', error => { console.error(error.message); process
 // between the baseline, source and renamed Lab namespaces.
 const [root, baseline, controlsJson = '{}'] = process.argv.slice(2);
 const controls = JSON.parse(controlsJson);
-assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'mutateRawNote'].includes(key)), 'unknown harness control');
+assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'mutateRawNote', 'audioRemoval'].includes(key)), 'unknown harness control');
 let startupAssertions = 0;
 // Node only logs console.assert failures; source startup guards must gate CI.
 console.assert = (condition, ...args) => {
@@ -59,6 +59,53 @@ assert.equal(window[lab ? 'Virtuoso' : 'VirtuosoLab'], undefined);
 assert.equal(listeners.length, 1);
 assert.equal(listeners[0][0], 'DOMContentLoaded');
 assert.deepEqual(listeners[0][2], { once: true });
+if (controls.audioRemoval) {
+  const audio = debug.audioRemoval;
+  const channels = ['notes', 'harmony', 'pad', 'comp2'];
+  const saved = { ch: Object.fromEntries(channels.map(k => [k, { instrument: '8ridge', level: 0.73, amp: 'metal' }])) };
+  globalThis.localStorage.getItem = key => key.endsWith('.mixer') ? JSON.stringify(saved) : null;
+  audio.mixerLoad();
+  for (const key of channels) {
+    assert.equal(debug.mixerStateRef()[key].instrument, 'shiny');
+    assert.equal(debug.mixerStateRef()[key].level, 0.73);
+    assert.equal(audio.sgToneFor(key), 'shiny');
+    assert.equal(debug.liveInstrumentReady(key), true);
+    assert.equal(debug.resolveAmpId(key, 'shiny', {}), 'metal');
+  }
+  for (const resolveBank of [debug.sgNotesWanted, debug.sgHarmWanted, debug.sgPadWanted]) assert.equal(resolveBank({}), 'shiny');
+  assert.equal(debug.SAMPLE_BANKS['8ridge'], undefined);
+  assert.ok(!audio.MIXER_INSTRUMENTS.melodic.some(([id]) => id === '8ridge'));
+  assert.deepEqual(debug.sgFilesFor(28, 1, '8ridge'), debug.sgFilesFor(28, 1, 'shiny'));
+  assert.ok(debug.sgFilesFor(28, 1, '8ridge').every(f => f.startsWith('sg_')));
+  for (const key of channels) {
+    debug.mixerStateRef()[key].instrument = null;
+    debug.mixerStateRef()[key].amp = null;
+  }
+  assert.equal(debug.sgNotesWanted({ notes: { sg: true } }), 'shiny');
+  assert.equal(debug.sgHarmWanted({ harmony: { sg: true } }), 'shiny');
+  assert.equal(debug.sgPadWanted({ pad: { bank: 'salamander' } }), 'salamander');
+  assert.equal(debug.resolveAmpId('pad', 'salamander', {}), null);
+  delete debug.mixerStateRef().notes.amp;
+  assert.equal(debug.resolveAmpId('notes', 'shiny', {}), 'clean');
+  const node = () => ({ frequency: {}, Q: {}, gain: {}, threshold: {}, ratio: {}, attack: {}, release: {}, knee: {}, connect() {} });
+  const ctx = {
+    sampleRate: 48000, createBiquadFilter: node, createWaveShaper: node,
+    createGain: node, createConvolver: node, createDynamicsCompressor: node,
+    createBuffer: (channels, length, sampleRate) => ({ length, sampleRate, getChannelData: () => new Float32Array(length) })
+  };
+  globalThis.fetch = () => { throw new Error('metal must not fetch a removed cab'); };
+  const preset = audio.AMP_PRESETS.metal;
+  assert.equal(preset.ir, undefined);
+  assert.deepEqual([preset.preHp, preset.drive, preset.curve, preset.makeup, preset.comp], [110, 16, 'hard', 0.38, [-16, 3, 0.008, 0.12]]);
+  const chain = audio.buildAmpChain(ctx, preset, 'metal');
+  const cab = chain.nodes.find(n => n.buffer);
+  assert.ok(cab);
+  assert.equal(cab.buffer, audio.cabIrBuffer(ctx));
+  assert.equal(cab.buffer.length, 2400);
+  assert.deepEqual(debug.irState(), {});
+  process.stdout.write(JSON.stringify({ audioRemoval: true }));
+  process.exit(0);
+}
 const publicKeys = Object.keys(api).sort();
 const debugKeys = Object.keys(debug).sort();
 for (const name of ['window', 'document', 'localStorage', 'fetch', 'feedBack', 'slopsmith', 'noteDetect', 'sessionStorage']) {

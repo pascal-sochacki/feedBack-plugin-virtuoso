@@ -28,10 +28,13 @@ def test_wafont_rejects_traversal_and_wrong_ext(client):
         assert client.get(f"/api/plugins/virtuoso/wafont/{name}").status_code == 404
 
 
-def test_ir_serves_bundled_cab(client):
+def test_removed_ir_is_not_served(client):
     r = client.get("/api/plugins/virtuoso/ir/v30_4x12.wav")
-    assert r.status_code == 200
-    assert r.headers["content-type"].startswith("audio/wav")
+    assert r.status_code == 404
+
+
+def test_removed_di_is_not_served(client):
+    assert client.get("/api/plugins/virtuoso/sample/8r_27.ogg").status_code == 404
 
 
 def test_ir_missing_404(client):

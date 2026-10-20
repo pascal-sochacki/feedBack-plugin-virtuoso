@@ -393,7 +393,7 @@ async function run() {
           if (!walk) fatal.push(`bass lower-voice walkdown broken (${midis.join("→")})`);
           return { ok: fatal.length === 0, fatal, warn: [] };
         }));
-      // Jam multi-pass assembly (slice J-1, docs/jam-mode-roundtable.md): the
+      // Jam multi-pass assembly (slice J-1, docs/plugin/design/jam-mode-roundtable.md): the
       // varied band is BAKED into the chart — N passes, switch-it-up alternates
       // the style's progressions per pass, the band-mode filter drops the bass.
       rows.push(run("jam multi-pass: 4 varied passes, switch-up alternates, no_bass filters", "4/4",
@@ -473,7 +473,7 @@ async function run() {
 
     // ── Phase 6: hand-marks data layer (fg/pkd) ────────────────────────────
     // Durable rows promoted from probe-hand-marks (per-system rule): the
-    // Slice-1 emission semantics from docs/hand-marks-roundtable.md. Display
+    // Slice-1 emission semantics from docs/plugin/design/hand-marks-roundtable.md. Display
     // only — nothing ever scores on fg/pkd/rh — but the DATA must stay honest:
     // fg only from a validated source (honesty by omission), pkd strict
     // alternation by note order with legato pick-transparency, sweeps

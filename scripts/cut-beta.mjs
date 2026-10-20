@@ -10,7 +10,7 @@
  *   (own routes, own presets/tunings tables, own DOM ids). That side-by-side is
  *   only possible with a distinct id: the host keys plugins by `id` and inlines
  *   every plugin screen into one shared page, so two `virtuoso` installs would
- *   collide (registration + duplicate DOM ids). See docs/beta-testing.md.
+ *   collide (registration + duplicate DOM ids). See docs/plugin/beta-testing.md.
  *
  * WHY A SCRIPT (not a hand-maintained fork)
  *   screen.html/screen.js carry ~1600 literal `virtuoso` references (element

@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import vm from 'node:vm';
+import { createHash } from 'node:crypto';
 import { after, test } from 'node:test';
 import { buildLab, REPO, transformRuntime } from '../scripts/cut-lab.mjs';
 import { characterize, compareCorpus } from './helpers/characterization.mjs';
+import { checkMarkdownLinks } from '../scripts/check-doc-links.mjs';
 
 const approvedTemp = join(tmpdir(), 'opencode');
 const temp = existsSync(approvedTemp) ? approvedTemp : tmpdir();
@@ -23,6 +25,8 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
   assert.equal(manifest.nav.label, 'Virtuoso (Lab)');
   assert.equal(manifest.nav.screen, 'virtuoso_lab');
   assert.equal(manifest.scriptType, 'module');
+  assert.deepEqual(checkMarkdownLinks(join(artifact.root, 'README.md'), read('README.md'), artifact.root), []);
+  assert.match(read('README.md'), /Experimental, not a stable update/);
   assert.deepEqual(manifest.settings.server_files, ['plugin_data/virtuoso_lab/presets.json', 'plugin_data/virtuoso_lab/tunings.json']);
   assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/pitch\.js['"]/);
   assert.match(read('screen.js'), new RegExp(`VIRTUOSO_VERSION = '${manifest.version.replaceAll('.', '\\.')}'`));
@@ -47,7 +51,8 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
 
 test('runtime namespace rewrites do not rename host APIs or music tokens', () => {
   for (const file of ['screen.js', 'screen.html', 'settings.html', 'routes.py']) {
-    const text = read(file);
+    // Repository citations deliberately retain the real fork name, not its runtime ID.
+    const text = read(file).replaceAll('https://github.com/pascal-sochacki/feedBack-plugin-virtuoso', 'SOURCE_REPOSITORY');
     assert.doesNotMatch(text, /virtuoso(?!_lab)|\.Virtuoso\b|__ss_|__SS_|(?<![\w])(?:ss-|vir-)|\bVirtuoso(?:Display|Esports|Metal)/);
   }
   assert.match(read('routes.py'), /virtuoso_lab_presets/);
@@ -63,6 +68,50 @@ test('runtime namespace rewrites do not rename host APIs or music tokens', () =>
   assert.deepEqual(hostKeys(read('screen.js')), hostKeys(readFileSync(join(REPO, 'screen.js'), 'utf8')));
 });
 
+test('Lab carries verbatim legal texts, upstream preferred source and copyright notices', () => {
+  const digest = file => createHash('sha256').update(readFileSync(join(artifact.root, file))).digest('hex');
+  assert.equal(digest('LICENSES/GPL-3.0.txt'), '3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986');
+  assert.equal(digest('LICENSES/CC-BY-3.0.txt'), 'e6bc9e9c474700b708f568bac9e5a8a9bcb2b1dad53442f5ba449fcb848b8e76');
+  assert.equal(digest('LICENSES/FluidR3-provenance.md'), '0fa7d85b3114adb91cebd42fe955e22df6b19917e9c8e19c401080c075975636');
+  assert.equal(digest('vendor/webaudiofont-src/npm/dist/WebAudioFontPlayer.js'), 'f3f3bae5fa47140eecc0c72834d3b4eaed16ca108f891456aa2625b86d3fb07f');
+  for (const file of artifact.files.filter(p => /^(LICENSES|vendor)\//.test(p) || ['SOURCE.md', 'THIRD_PARTY_NOTICES.md'].includes(p))) {
+    assert.deepEqual(readFileSync(join(artifact.root, file)), readFileSync(join(REPO, file)), file);
+    if (file.endsWith('.md') && !file.startsWith('LICENSES/')) {
+      assert.deepEqual(checkMarkdownLinks(join(artifact.root, file), read(file), artifact.root), [], file);
+    }
+  }
+  for (const file of ['README.md', 'SOURCE.md', 'settings.html']) {
+    assert.match(read(file), /2026 Christian Cowan/);
+    assert.match(read(file), /Pascal Sochacki/);
+    assert.match(read(file), /AGPL-3\.0-only/);
+  }
+  assert.match(read('LICENSES/MIT-FluidR3.txt'), /2000-2002, 2008 Frank Wen/);
+  assert.match(read('LICENSES/MIT-FluidR3.txt'), /Permission is hereby granted/);
+  const presetHashes = read('static/wafonts/SHA256SUMS.txt').trim().split('\n');
+  assert.equal(presetHashes.length, 28);
+  for (const line of presetHashes) {
+    const [hash, file] = line.split(/\s+/);
+    assert.equal(createHash('sha256').update(readFileSync(join(REPO, 'static/wafonts', file))).digest('hex'), hash, file);
+  }
+  assert.match(read('THIRD_PARTY_NOTICES.md'), /removed.*2026-10-20/);
+  assert.match(read('static/wafonts/README.md'), /GPL-3\.0-or-later \(not MIT\)/);
+  const originalPlayer = join(artifact.root, 'vendor/webaudiofont-src/npm/dist/WebAudioFontPlayer.js');
+  const rebuiltPlayer = join(dist, 'LabPlayer.js');
+  execFileSync(process.execPath, [join(artifact.root, 'vendor/webaudiofont-src/rebuild-lab.mjs'), originalPlayer, rebuiltPlayer]);
+  assert.deepEqual(readFileSync(rebuiltPlayer), readFileSync(join(artifact.root, 'static/wafonts/WebAudioFontPlayer.js')));
+  const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
+  assert.match(entries, /virtuoso_lab\/THIRD_PARTY_NOTICES.md/);
+  assert.match(entries, /virtuoso_lab\/vendor\/webaudiofont-src\/npm\/src\/player.ts/);
+  assert.doesNotMatch(entries, /cab_clean\.wav|cab_drive\.wav|static\/nam\/|wafonts\/alt\//);
+  const links = [...read('settings.html').matchAll(/<a [^>]*href="([^"]+)"[^>]*>/g)];
+  assert.equal(links.length, 3);
+  for (const link of links) {
+    assert.ok(link[1].startsWith('https://github.com/pascal-sochacki/feedBack-plugin-virtuoso/'));
+    assert.match(link[0], /target="_blank"/);
+    assert.match(link[0], /rel="noopener noreferrer"/);
+  }
+});
+
 test('Lab audio scripts publish private player and mutable preset globals', () => {
   const file = artifact.files.find(p => p.startsWith('static/wafonts/') && /\/0\d.*\.js$/.test(p));
   assert.ok(file);
@@ -73,6 +122,20 @@ test('Lab audio scripts publish private player and mutable preset globals', () =
   vm.runInNewContext(read('static/wafonts/WebAudioFontPlayer.js'), sandbox);
   assert.equal(typeof sandbox.VirtuosoLabWebAudioFontPlayer, 'function');
   assert.equal(sandbox.WebAudioFontPlayer, undefined);
+});
+
+test('withdrawn recordings are absent from source, Lab inventory, folder and ZIP', () => {
+  for (const root of [REPO, artifact.root]) assert.ok(!readdirSync(join(root, 'static/samples')).some(f => /^8r_.*\.ogg$/.test(f)));
+  const files = execFileSync('git', ['ls-files', 'static/samples/8r_*.ogg'], { cwd: REPO, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  for (const file of [...files, 'static/irs/v30_4x12.wav']) assert.equal(existsSync(join(REPO, file)), false, file);
+  assert.doesNotMatch(artifact.files.join('\n'), /static\/samples\/8r_.*\.ogg|static\/irs\/v30_4x12\.wav/);
+  const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
+  assert.doesNotMatch(entries, /\/8r_.*\.ogg|\/v30_4x12\.wav|vendor\/.*(?:8ridge|AIDA)/i);
+  assert.equal(existsSync(join(artifact.root, 'static/irs/v30_4x12.wav')), false);
+});
+
+test('real source and Lab audio functions migrate old DI pins and use the procedural metal cab', () => {
+  for (const root of [REPO, artifact.root]) assert.deepEqual(characterize(root, undefined, { audioRemoval: true }), { audioRemoval: true });
 });
 
 test('generated Python routes and SQL own only Lab persistence and endpoints', () => {

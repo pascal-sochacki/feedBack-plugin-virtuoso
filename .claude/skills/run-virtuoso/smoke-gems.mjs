@@ -193,7 +193,7 @@ try {
   ok(c6.exemptFast === 0, "(6d) the acceptance run stays FULLY per-note judged (legato-ish sus never self-exempts)", `exemptFast=${c6.exemptFast}`);
   await p.click("#virtuoso-play").catch(() => {});
 
-  // (7) SLICE-2 HONESTY LAYER (2026-06-06; docs/timing-judging-roundtable.md):
+  // (7) SLICE-2 HONESTY LAYER (2026-06-06; docs/archive/timing-judging-roundtable.md):
   // the per-ear tooFast floor (written-staccato rings sus; YIN floor 85ms),
   // the ho/po legato exemption, tremolo SPAN credit (one unit, members light
   // together, ≥60% presence), speakBudget physics, and the pre-run preview's
