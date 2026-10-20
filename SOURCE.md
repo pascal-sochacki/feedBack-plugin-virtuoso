@@ -1,7 +1,7 @@
 # Source availability and pinned provenance
 
 Audit update: 2026-10-20. Reviewed for the authorized experimental
-**0.2.9-lab.1** publication, not a stable release or legal certification.
+**0.2.11-lab.1** update, not a stable release or legal certification.
 The files below were fetched read-only
 from official GitHub API/raw endpoints. A matching historical commit's license
 is used for the player, not an unsupported retroactive current-license claim.
@@ -12,7 +12,8 @@ Copyright (C) 2026 Christian Cowan (original Virtuoso).
 Copyright (C) 2026 Pascal Sochacki (personal-fork modifications).
 Fork modification notice: native-module extraction and Lab identity isolation;
 2026-10-20 attribution/source-availability update and uncertain-recording
-withdrawal, source 0.2.9 / Lab 0.2.9-lab.1.
+withdrawal, followed by chord-theory/timing extraction, validated Markdown
+practices and lifecycle safety fixes, source 0.2.11 / Lab 0.2.11-lab.1.
 AGPL-3.0-only; supplied WITHOUT ANY WARRANTY. See [LICENSE](LICENSE).
 
 The installation consists of editable native JS, HTML, Python and assets.
@@ -119,3 +120,10 @@ remain. Other CC0 subsets retain their harvest provenance; this audit has not
 independently rebuilt every sample. No new uncertain material is added to the
 package. Publication review and authorization do not establish legal
 certification or installed-host/desktop/DI acceptance; those remain separate gates.
+
+## Generated runtime source map
+
+Original-identity local source revision: `1a6a1ecfbeb913b72c46625045c02335b6a149e5` on
+`dev/modular-source`. This is provenance, not a promise of a remote source
+branch. The matching editable runtime and complete vendor preferred sources
+are the publication revision containing this file and its manifest.

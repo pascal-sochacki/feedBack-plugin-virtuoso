@@ -2712,6 +2712,18 @@
       </div>
 
       <div class="virtuoso_lab-help virtuoso_lab-custom-only">Custom mode — every control below is yours to set. Load a saved preset to recall a routine, or build one from scratch.</div>
+      <details class="virtuoso_lab-custom-only" id="virtuoso_lab-file-practices">
+        <summary>File practices</summary>
+        <label for="virtuoso_lab-file-select">Practice file
+          <select id="virtuoso_lab-file-select" aria-label="Practice file"></select>
+        </label>
+        <div class="flex gap-2">
+          <button type="button" id="virtuoso_lab-file-load">Load practice</button>
+          <button type="button" id="virtuoso_lab-file-unload" hidden>Return to generated practice</button>
+        </div>
+        <p class="virtuoso_lab-help">Prototype: standard six-string guitar only. Exact frets and rhythm; tempo scales source seconds. No backing or refingering. Use the existing Play transport. Choose a normal practice type or Return to leave the file.</p>
+        <pre id="virtuoso_lab-file-prose" class="virtuoso_lab-help whitespace-pre-wrap" aria-live="polite"></pre>
+      </details>
 
       <label class="virtuoso_lab-custom-only" id="virtuoso_lab-preset-picker-wrap" hidden>Load preset
         <select id="virtuoso_lab-preset-picker">
