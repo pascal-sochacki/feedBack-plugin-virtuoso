@@ -16,6 +16,7 @@
 ## Data, UI and audio
 
 - [Exercise schema](exercise-schema.md) and [session schema](session-schema.md)
+- [File practices: Markdown prototype](practice-files.md)
 - [Design system](design-system.md)
 - [Tuning model](tuning-model.md) — absolute MIDI plus name resolution and host
   integration; musical context belongs in [theory](../theory/index.md).

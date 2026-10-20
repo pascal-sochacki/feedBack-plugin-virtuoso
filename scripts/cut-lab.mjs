@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PRACTICE_FILES, validatePracticeIndex, parsePracticeMarkdown } from '../src/core/practice-files.js';
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const LAB_ID = 'virtuoso_lab';
@@ -56,10 +57,21 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
   // ls-files still lists unstaged deletions. Never resurrect withdrawn recordings,
   // even if ignored local copies reappear before the reviewed removal is committed.
   const withdrawnAsset = p => /^static\/samples\/8r_.*\.ogg$/.test(p) || p === 'static/irs/v30_4x12.wav';
-  const assets = tracked.filter(p => /^(assets|static)\//.test(p) && !withdrawnAsset(p) && existsSync(join(REPO, p)));
-  // Only source modules may be untracked. Assets must have passed the repository's licensing review.
+  const assets = tracked.filter(p => /^(assets|static)\//.test(p) && !p.startsWith('assets/practices/') && !withdrawnAsset(p) && existsSync(join(REPO, p)));
+  // Only the explicitly reviewed original lesson inventory may bypass tracked assets.
+  const practices = ['assets/practices/index.json', ...PRACTICE_FILES.map(item => 'assets/practices/' + item.path)];
+  for (const file of practices) {
+    const source = join(REPO, file);
+    if (realpathSync(source) !== source || !lstatSync(source).isFile()) throw new Error('Unsafe practice asset: ' + file);
+  }
+  const index = validatePracticeIndex(JSON.parse(readFileSync(join(REPO, practices[0]), 'utf8')));
+  for (const item of index) {
+    const practice = parsePracticeMarkdown(readFileSync(join(REPO, 'assets/practices', item.path), 'utf8'));
+    if (practice.id !== item.id || practice.title !== item.title) throw new Error('Practice index mismatch');
+  }
+  // No broad ignored/untracked runtime asset scan: other assets still require review.
   const modules = gitFiles(['--cached', '--others', '--exclude-standard', '--', 'src']);
-  const files = [...new Set([...ROOT_FILES, ...LEGAL_SOURCE_FILES, ...assets, ...modules.filter(p => /^src\/.+\.(js|json)$/.test(p))])].sort();
+  const files = [...new Set([...ROOT_FILES, ...LEGAL_SOURCE_FILES, ...assets, ...practices, ...modules.filter(p => /^src\/.+\.(js|json)$/.test(p))])].sort();
   for (const file of files) {
     if (file.split('/').some(p => ['node_modules', '.git', '__pycache__'].includes(p))) throw new Error('Unsafe runtime path: ' + file);
     const source = join(REPO, file);
@@ -74,6 +86,9 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
       manifest.nav.screen = LAB_ID;
       manifest.version = String(manifest.version).replace(/[-+].*$/, '') + '-lab.1';
       write(file, JSON.stringify(manifest, null, 2) + '\n');
+    } else if (file === 'SOURCE.md') {
+      const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
+      write(file, bytes.toString() + `\n## Generated runtime source map\n\nOriginal-identity local source revision: \`${revision}\` on\n\`dev/modular-source\`. This is provenance, not a promise of a remote source\nbranch. The matching editable runtime and complete vendor preferred sources\nare the publication revision containing this file and its manifest.\n`);
     } else if (/\.(js|html|py)$/.test(file) && !/^(assets|vendor)\//.test(file)) {
       // Source URLs are provenance, not runtime identity tokens: rewrite the declared UI link separately.
       let text = bytes.toString();
@@ -89,7 +104,7 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
       write(file, text);
     } else write(file, bytes);
   }
-  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js', 'src/core/scale-intervals.js']) {
+  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js', 'src/core/scale-intervals.js', 'src/core/chord-theory.js', 'src/core/timing.js']) {
     if (!existsSync(join(root, file))) throw new Error('Missing module runtime: ' + file);
   }
   write('README.md', readFileSync(join(REPO, 'docs/plugin/virtuoso-lab.md')));

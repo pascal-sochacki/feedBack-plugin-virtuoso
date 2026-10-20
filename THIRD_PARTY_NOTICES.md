@@ -5,7 +5,7 @@ blanket relicensing of the following assets. Preserve their separate notices,
 permissions and preferred sources when distributing either edition.
 
 **Both blocked recording groups were removed on 2026-10-20; experimental
-0.2.9-lab.1 publication is authorized after review fixes.** See [SOURCE.md](SOURCE.md).
+0.2.11-lab.1 update is authorized after review fixes.** See [SOURCE.md](SOURCE.md).
 Bundling a license text does not establish that a
 third-party recording was granted under that license. These notices do not
 certify legal clearance, installed-host operation or Windows DI acceptance.

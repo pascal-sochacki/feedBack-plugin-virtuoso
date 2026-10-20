@@ -6,31 +6,60 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Current source state
 
+- Approved first [Markdown file practice](docs/plugin/practice-files.md) is a
+  local combined **0.2.11** candidate on the existing extraction branch;
+  prior 0.2.10 chord/timing work is preserved. Custom → File practices loads one
+  standard-six-string chromatic lesson into the existing contained player.
+  Explicit duration, exact JSON notes, tempo scaling, no backing/refingering;
+  unsupported techniques/tuning fail. HOST CHECK: BORROW generic static assets
+  (`feedBack` eef58c8, `plugins/__init__.py:2492–2520`, 2026-10-20) and current
+  player/judge; BUILD strict parser/adapter, no Markdown API/editor/player.
+  Flip if a documented reusable host parser/editor adapter appears.
+  **2026-10-20: user authorized publication of reviewed 0.2.11-lab.1** to
+  personal-fork `main` only, replacing `5ca4f45` after verification. Commit source
+  locally, regenerate the complete runtime, verify and push via nonforce SSH.
+  Dirty modules sibling, source `main` and upstream remain untouched.
+  Host/UI/audio/DI acceptance is still owed; publication does not install.
+  Review fixes: retain the authoritative file through incompatible Setup and
+  auto-rebuild on compatible edits; generation/renderer ownership guards both
+  resolver and ready awaits, stale cleanup and final UI/transport changes.
+  Return recomputes current Advanced eligibility. Normal renderer attachment
+  shares these race fixes; no scoring or version change.
+  Follow-up fixes cover per-string tuning recovery and normal-type exit after
+  mismatch. Jam/Workout honor canceled attachment and retain ownership through
+  voice warming; Stop cancels pending starts, including ordinary Play.
+  Verification: **72/72 follow-up baseline → 172/172 Node tests**, unchanged 71-case source/
+  Lab corpus and 40/91 API keys; cached narrow checkJs, syntax, links, brand and
+  whitespace pass. Local Lab folder/ZIP rebuilt only. Browser npm test exits 2
+  (no host :8765); no host start/install. Source and actual publication checks
+  must pass again before the authorized push.
+
 - Local development branch: **`dev/modular-source`**, source ID **`virtuoso`**,
-  manifest/header **0.2.9** (unpublished license-fix candidate). Starting snapshot:
-  `853dc161`. No stable promotion is implied.
+  manifest/header **0.2.11** (local combined candidate; extraction was 0.2.10), based on
+  `0927091`. No stable promotion is implied.
 - Native module entry retains the strict IIFE and synchronous API/debug/boot
-  order. Pure mutable pitch and scale-interval leaves are extracted into `src/`;
+  order. Pure mutable pitch, scale-interval, chord-theory and timing leaves are extracted into `src/`;
   no runtime build, loader or generation redesign.
 - Established functionality: Ladder, Custom, Workout and Jam; one contained
   transport/audio lifecycle; four rendering choices; procedural backing;
   presets/tunings, progression and host-consumed note_detect verdicts.
 - Generated personal-fork `main` is **Virtuoso (Lab)** / `virtuoso_lab` /
-  **0.2.9-lab.1**, not this complete development checkout or upstream `main`.
+   authorized update **0.2.11-lab.1**, not this complete development checkout or upstream `main`.
   Installation and isolation limits: [Lab guide](docs/plugin/virtuoso-lab.md).
   Candidate **0.2.9-lab.1** adds attribution/legal notices and preferred vendor
   source. **2026-10-20:** removed all 61 8ridgelite OGG recordings and the Deer Ink
   Studios V30 WAV; unverified scope/mapping is not claimed resolved by licensing.
   Stored DI pins migrate to Shinyguitar; Metal uses the existing procedural cab.
-   **2026-10-20: review fixes and experimental publication authorized**;
-   publish only generated runtime to the personal fork's `main` via nonforce SSH.
+   **2026-10-20: review fixes were experimentally published** at `5ca4f45`.
+   Reviewed **0.2.11-lab.1** combines the extraction and Markdown practice update;
+   publication is now authorized, with installed Windows acceptance outstanding.
   See [third-party notices](THIRD_PARTY_NOTICES.md) / [pinned evidence](SOURCE.md).
    Source commits stay local on `dev/modular-source`; source `main`, upstream
    and the dirty modules sibling remain untouched. Publication does not install.
 
 ## Verification and release gates
 
-- Reviewed 2026-10-20: **23/23 source Node tests** passed;
+- Refactor 2026-10-20: **23/23 baseline → 33/33 source Node tests** passed;
   deterministic 71-case committed-baseline corpus, module/namespace/ZIP checks,
   fatal startup-assert and raw note-time mutation controls. See
   [testing authority](docs/plugin/testing.md); discover tests dynamically.
@@ -47,13 +76,14 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Next work
 
-1. Recheck raw `main/plugin.json` after GitHub cache expiry: immediately after
-   publication it still returned 0.2.8-lab.1 while commit-pinned source and all
-   other checked `main` files were current. Do not claim DI acceptance.
+1. Publish the reviewed 0.2.11-lab.1 candidate and verify remote SHA plus
+   commit-pinned manifest/practice/source/legal bytes. Moving raw `main` may be
+   cached; do not mistake that for commit-pinned evidence or DI acceptance.
 2. Complete installed Lab runtime acceptance and record host/detector versions
    and evidence before selecting a supported release floor.
-3. Continue move-only core extraction: chord formulas, then timing helpers;
-   broader tuning/shapes later; globals/main last. Preserve ordinary mutability,
+3. Continue move-only core extraction: seeded random utilities or tuning data;
+   broader shapes later; globals/main last. Chord/diatonic and meter/rhythm leaves
+   are extracted, with startup guards still in entry. Preserve ordinary mutability,
    core purity, no-unison, dependency direction and baseline behavior.
 4. Reconcile integration with current upstream and the separate Learn work only
    with authorization; do not touch dirty sibling branches as part of docs work.

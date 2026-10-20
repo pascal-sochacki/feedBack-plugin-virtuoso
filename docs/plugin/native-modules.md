@@ -1,6 +1,6 @@
 # Native modules — dependency map and staged extraction
 
-**WIP / NOT RELEASE-READY (2026-10-19).** This branch opts into native modules.
+**WIP / NOT RELEASE-READY (2026-10-20).** This branch opts into native modules.
 The user reports the installed Windows Lab “seems to work”: preliminary
 user-reported functional smoke ONLY, not renderer/audio/detection regression
 certification or a verified supported-host floor. Do not
@@ -11,7 +11,39 @@ host certification or upstream/stable promotion; full source stays committed loc
 
 ## Baseline and scope
 
-### Separately installable Lab (2026-10-19)
+### Current working tree (2026-10-20)
+
+Combined next WIP is now **0.2.11 / 0.2.11-lab.1**: preserves the entire
+uncommitted 0.2.10 chord/timing extraction and adds the separately approved
+[Markdown file-practice prototype](practice-files.md). The new core imports
+timing only; shell imports core; entry imports both. Plain native JS, no runtime
+build or new public/debug keys. The move-only 33-test evidence below belongs to
+the preserved prior slice, not a claim the combined change is move-only.
+
+Source **0.2.10** reserves an unpublished move-only slice; generated local Lab
+is **0.2.10-lab.1**. Published personal-fork `main` remains **0.2.9-lab.1** at
+`5ca4f45`; no new commit/push/install is authorized by this refactor.
+The entry statically imports four dependency-free, import-time-pure leaves:
+pitch, scale intervals, chord theory and timing. Chord theory owns all 27
+`CHORD_FORMULAS` and nine `DIATONIC_QUALITIES` rows. Timing owns nine
+`RHYTHM_CELLS` plus `parseMeter`, `secondsPerDivision`, `rhythmSteps` and
+`measureSeconds`; moving the cell table contains rhythmSteps' sole closure
+dependency. All arrays/objects remain mutable, including memoized synthetic
+chord entries. Rhythm validation stays at its original entry startup point;
+count-in/display/swing application, state, audio and public/debug publication
+are unchanged. No tuning/shape extraction or empty scaffolding is included.
+
+Healthy baseline **23/23**, after extraction **33/33 Node tests**; the unchanged
+71-case fixture from committed `c37dc632` matches full source and generated Lab.
+Direct imports cover exact registries, extended stacks 14/17/21, mutable
+identity, simple/compound/odd meters, tuplets and existing malformed/default/
+NaN/inherited-key behavior. Leaf durations intentionally do not apply swing;
+the seeded pipeline corpus still covers complete generation. All four leaves
+are in narrow checkJs. Packaging includes their static imports and ZIP files,
+real imports, private namespaces and verbatim legal/vendor sources.
+These are source checks, not browser/desktop/audio/DI acceptance.
+
+### Historical first Lab evidence (2026-10-19; not current status)
 
 `node scripts/cut-lab.mjs` generates the **current working tree**, including the
 pitch and scale-interval extraction, into sibling `virtuoso-lab-dist/virtuoso_lab/` and
@@ -61,7 +93,7 @@ tests, all browser smoke and Windows DI remain **BLOCKED / owed**.
 - Plugin baseline: committed `8436194ce45d745902513b2c576031bd2e4db1c9`,
   v0.2.6, ~27,215 lines in `screen.js`. The dirty `feat/learn-mode` checkout
   was not used as source and is not part of this branch.
-- Current slice version: v0.2.8 in both `plugin.json` and `VIRTUOSO_VERSION`.
+- Historical first-slice reservation: v0.2.8 in both `plugin.json` and `VIRTUOSO_VERSION`.
   This is a branch-local reservation, not a release. If Learn or another branch
   lands first, integrate on a fresh branch, reconcile the shared root-entry
   edits, and choose a new version from the then-current trunk. Do not overwrite
@@ -112,10 +144,10 @@ used to verify the anchors and first slice.
 | Candidate / layer | Inputs and observed dependents | Extraction constraint |
 | --- | --- | --- |
 | **Pitch leaf (done)**: names/aliases 58–59; helpers 4347–4348 | `pcName` reads only `NOTE_NAMES`; `midiToFreq` only Math. Alias users: shape selection 3269/3327, `scalePcs` 6477, chord roots/builders 6800/7024/9734+, notation 13801+, tuning/anchor adaptation 22518+, tuner 23821/24078. | No imports, host IO or closure state. Keep exact values, sharp spelling, A440 formula and numeric edge behavior. Alias table is also on `__ss_debug`; preserve its object identity and ordinary mutable-object contract, do not freeze it during a move. |
-| **Scale intervals (done)** / chord formulas (next), §1 | `src/core/scale-intervals.js` → entry scale pitch classes, shape resolver, chord-scale/harmony. `CHORD_FORMULAS` remains in entry → template-quality gate, chord-depth engine, voicing/arpeggios/backing. | Scale leaf has no imports or IO; preserves all 28 arrays and ordinary mutable references. Next chord move must retain intervals above octave (14/17/21). Do not move colors, scheduler or detector constants into theory. |
+| **Scale intervals / chord theory (done)**, §1 | `src/core/scale-intervals.js` → entry scale pitch classes, shape resolver, chord-scale/harmony. `src/core/chord-theory.js` → template-quality gate, chord-depth engine, voicing/arpeggios/backing. | Both leaves have no imports or IO; preserve all 28 scale arrays, full chord stacks above octave (14/17/21), diatonic rows and ordinary mutable references. Synthetic chord registration remains in the entry. |
 | Instrument/tuning data and pure helpers | `STRING_SETUPS`, `TUNING_PRESETS`, `TUNING_TO_SETUP` 84–170 → open-MIDI config, shapes, sessions AND DOM setup/tuning sync. | Split data from storage/UI; preserve low-string-first indexes, offset intent tags, per-config overrides and bass/guitar distinctions. |
 | Shape layer, §4 / interleaved helpers | Unified `CAGED_SHAPES` 2780+; `resolveCAGEDShape` 3003; 3NPS/Open resolvers → scale/arpeggio builders and form position UI. Depends on theory + tuning/pitch helpers. | Keep unified shape table; move pure resolver cluster only after its transitive helpers. Keep no-unison startup asserts at their original point until explicitly initialized by boot. DOM selector helpers in the span are NOT core. |
-| Timing / seed / chart utility leaves | `parseMeter` 4361; `secondsPerDivision`, `rhythmSteps`, `measureSeconds` 6478–6507; RNG helpers near 6610; beats/anchors/fill helpers → exercise/session builders, backing and shell clock. | Next small helper slices, not one general-purpose util dump. `chartBeatSeconds` consumes bundle metadata; keep renderer/display helpers out of core timing. |
+| **Meter/rhythm timing (done)** / seed/chart utilities (later) | `src/core/timing.js` owns meter parsing, division/bar seconds and rhythm cells/steps → exercise/session builders, backing and shell clock. RNG helpers, beats/anchors/fill helpers remain in entry. | Timing is a dependency-free leaf; its cell validation stays in boot orchestration. `chartBeatSeconds` consumes bundle metadata; keep renderer/display helpers out of core timing. |
 | Harmony / voicing / backing | §5 6908+, `voiceChord` 7199, `compileChordTimeline` 7469, `buildBackingEvents` 8355; palettes 4800+, comp/bass/drum recipes. | Shared harmonic timeline must remain the source of truth; preserve cfg+seed determinism. Palette validation references scale/progression/audio registries: definitions can move before guard calls, but do not move guards ahead of initialization. Audio profile selection mixes shell and core-facing data. |
 | Exercise + session orchestration | §7 9171+, `generateExercise` 12012 → single/key-cycle/jam chart + timing/timeline; `buildSessionChart` 12469 and `generateSession` 12612 → segment defaults/materialization, builders, per-block backing/tempo. | Extract individual builders after dependencies. Preserve plain `{version:1,session,chart}` contracts; entry version badge is unrelated to chart schema version. Avoid cycles between `buildSegmentConfig`, dispatch and content registries. |
 | Content / curriculum | §2 PATHWAYS; §3 BUILT_IN_SESSIONS; `STYLE_PALETTES`; `rollSegment` 5524, `refreshWorkout` 5561, `materializeSegment` 5583 → session builders and shell lists/workout draft. | Data registries are not UI controllers. Preserve shared references / IDs and clone-before-edit workout behavior. Cross-registry validators are boot orchestration, not implicit module IO. |
@@ -141,10 +173,10 @@ relocate all state merely to imitate the host example. Aim for modules under
 
 ## Concrete stages and gates
 
-1. **This slice**: static entry + pitch leaf + real-import tests + selective
+1. **First slice (done)**: static entry + pitch leaf + real-import tests + selective
    JSDoc. No side effects in the leaf, no extra exported globals.
-2. **Independent leaf moves**: scale intervals, chord formulas, then meter/beat
-   helpers and seeded random utilities in separate move-only slices. Carry
+2. **Independent leaf moves**: scale intervals, chord theory and meter/rhythm
+   helpers done; seeded random utilities remain for a later move-only slice. Carry
    assertions and expand the narrow checkJs file list with each extracted file.
 3. **Instrument + shape cluster**: tuning data/helpers first; then CAGED/3NPS/Open
    pure resolvers together with their already-extracted imports. Keep unified
@@ -163,7 +195,7 @@ relocate all state merely to imitate the host example. Aim for modules under
 
 Each stage: no cycles or upward core→shell imports; no behavioral fixes bundled
 with moves; Node real-import tests and checkJs; host smoke before promotion.
-No `import-x` dependency introduced for this one-edge DAG; cycle enforcement can
+No `import-x` dependency introduced for this four-leaf DAG; cycle enforcement can
 be added when a graph actually needs it, without introducing runtime tooling.
 
 ## Module compatibility audit (separate from extraction)
@@ -203,6 +235,8 @@ node --test tests/*.mjs
 node --input-type=module --check < screen.js
 node --check src/core/pitch.js
 node --check src/core/scale-intervals.js
+node --check src/core/chord-theory.js
+node --check src/core/timing.js
 npm exec --yes --package=typescript@5.9.3 -- tsc -p tsconfig.core.json
 node scripts/check-brand-hygiene.mjs
 git diff --check
@@ -214,7 +248,7 @@ browser globals and sampler blobs; it needs no Node typings. The pinned ephemera
 checker avoids dependency/lockfile churn; a maintainer can instead use an already
 installed compatible `tsc`. No test subject uses source text slicing.
 
-### Durable characterization before the second extraction
+### Historical characterization setup (2026-10-19; fixture still authoritative)
 
 The old in-memory 25-session/API comparison below was ephemeral evidence.
 It is superseded by `tests/core-characterization.mjs` and the packaging suite's
@@ -242,7 +276,7 @@ Small readable duration/count/tuning/open-MIDI summaries plus three two-note
 examples make diffs inspectable without giant snapshots. Hashes retain every
 note time, flag, tuning, timeline and session value, not rounded comparisons.
 **No version exclusion:** exercise `version:1` is a schema contract; manifest/header
-0.2.8 is not present in exercise output and therefore needs no normalization.
+versions are not present in exercise output and therefore need no normalization.
 
 Every run uses a fresh Node subprocess/native ESM environment, seeded LCG
 `Math.random` (0x51ca1e, reset per case/replay), fixed Date/Date.now and real
@@ -283,17 +317,16 @@ the readable firstNotes summary to prove comparison rejects the SHA difference
 alone. Previously it only mutated the summary after hashing, so the earlier
 raw-output negative-control claim was inaccurate. Final source is not mutated.
 
-Limitations: one RNG seed and representative configs, not exhaustive inputs or
+Historical second-slice limits: one RNG seed and representative configs, not exhaustive inputs or
 all template variants; public **keys**, not every shell API behavior. Data-URL
 Node loading cannot certify browser source-route MIME/module caching/load order,
 DOM binding, render/audio/transport/detection/real DI. Narrow checkJs (both
 leaves), module syntax, hygiene and generation pass without installing packages.
-No host started or dependencies installed. The reviewed source is now authorized
-for a local-only `dev/modular-source` commit and regenerated 0.2.8-lab.1 runtime
-update on personal-fork `main` via nonforce SSH. Publication and remote
-verification remain planned at this source snapshot; dirty sibling and source
-`main` must remain unchanged. This authorization does not certify Windows/host
-behavior or permit upstream/stable publication.
+No host started or dependencies installed. That snapshot's publication approval
+was subsequently exercised; it is historical evidence, not authorization to
+publish the current 0.2.10 candidate. Dirty siblings, publication and source
+`main` remain separate. Windows/host behavior and upstream/stable promotion
+are not certified.
 
 2026-10-19 validation:
 

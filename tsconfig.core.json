@@ -10,5 +10,5 @@
     "lib": ["ES2022"],
     "types": []
   },
-  "files": ["src/core/pitch.js", "src/core/scale-intervals.js"]
+  "files": ["src/core/pitch.js", "src/core/scale-intervals.js", "src/core/chord-theory.js", "src/core/timing.js", "src/core/practice-files.js"]
 }

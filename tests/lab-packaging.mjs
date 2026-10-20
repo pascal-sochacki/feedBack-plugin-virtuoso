@@ -10,6 +10,7 @@ import { after, test } from 'node:test';
 import { buildLab, REPO, transformRuntime } from '../scripts/cut-lab.mjs';
 import { characterize, compareCorpus } from './helpers/characterization.mjs';
 import { checkMarkdownLinks } from '../scripts/check-doc-links.mjs';
+import { lifecycleScenarios } from './helpers/lifecycle.mjs';
 
 const approvedTemp = join(tmpdir(), 'opencode');
 const temp = existsSync(approvedTemp) ? approvedTemp : tmpdir();
@@ -17,6 +18,13 @@ const dist = mkdtempSync(join(temp, 'virtuoso-lab-test-'));
 const artifact = buildLab(dist);
 after(() => rmSync(dist, { recursive: true, force: true }));
 const read = file => readFileSync(join(artifact.root, file), 'utf8');
+
+for (const scenario of lifecycleScenarios) {
+  test(`Lab real entry bound lifecycle: ${scenario}`, () => {
+    const output = execFileSync(process.execPath, ['tests/helpers/core-runner.mjs', artifact.root, '', JSON.stringify({ lifecycle:scenario })], { cwd:REPO, encoding:'utf8' });
+    assert.equal(JSON.parse(output).lifecycle, scenario);
+  });
+}
 
 test('Lab manifest, complete source graph and ZIP carry a separate identity', async () => {
   const manifest = JSON.parse(read('plugin.json'));
@@ -38,15 +46,41 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
   assert.deepEqual(labScales.SCALE_INTERVALS, sourceScales.SCALE_INTERVALS);
   assert.notEqual(labScales.SCALE_INTERVALS, sourceScales.SCALE_INTERVALS);
   assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/scale-intervals\.js['"]/);
+  for (const [file, exports] of [['chord-theory', ['CHORD_FORMULAS','DIATONIC_QUALITIES']], ['timing', ['RHYTHM_CELLS','parseMeter','secondsPerDivision','rhythmSteps','measureSeconds']]]) {
+    const source = await import(`../src/core/${file}.js`);
+    const lab = await import(pathToFileURL(join(artifact.root, `src/core/${file}.js`)));
+    assert.match(read('screen.js'), new RegExp(`import .*from ['"]\\./src/core/${file}\\.js['"]`));
+    for (const name of exports) {
+      if (typeof source[name] === 'function') {
+        const cfg = {bpm:120, meter:source.parseMeter('7/8:2+2+3'), subdivision:'gallop'};
+        assert.deepEqual(lab[name](name === 'parseMeter' ? '7/8:2+2+3' : cfg), source[name](name === 'parseMeter' ? '7/8:2+2+3' : cfg));
+      } else {
+        assert.deepEqual(lab[name], source[name]);
+        assert.notEqual(lab[name], source[name]);
+      }
+    }
+  }
   const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
   assert.match(entries, /virtuoso_lab\/src\/core\/pitch.js/);
   assert.match(entries, /virtuoso_lab\/src\/core\/scale-intervals.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/chord-theory.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/timing.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/practice-files.js/);
+  assert.match(entries, /virtuoso_lab\/src\/shell\/practice-files.js/);
+  assert.match(entries, /virtuoso_lab\/assets\/practices\/index.json/);
+  assert.match(entries, /virtuoso_lab\/assets\/practices\/guitar\/beginner\/chromatic-warmup.md/);
+  assert.match(read('screen.js'), /\/api\/plugins\/virtuoso_lab\/assets\/practices\//);
   assert.match(entries, /virtuoso_lab\/assets\/thumb.png/);
   assert.match(entries, /virtuoso_lab\/static\/wafonts\/WebAudioFontPlayer.js/);
   assert.doesNotMatch(entries, /node_modules|\.git\/|plugin_data\/|\.claude/);
   for (const file of artifact.files.filter(p => p.startsWith('assets/') || /\.(ogg|wav|woff2|txt)$/.test(p))) {
     assert.deepEqual(readFileSync(join(artifact.root, file)), readFileSync(join(REPO, file)), file);
   }
+});
+
+test('source and Lab real dispatch/bundle play authored notes with only count-in/tail shell shifts', () => {
+  compareCorpus(characterize(REPO, undefined, { practiceFileProbe:true }));
+  compareCorpus(characterize(artifact.root, undefined, { practiceFileProbe:true }));
 });
 
 test('runtime namespace rewrites do not rename host APIs or music tokens', () => {
@@ -75,7 +109,11 @@ test('Lab carries verbatim legal texts, upstream preferred source and copyright 
   assert.equal(digest('LICENSES/FluidR3-provenance.md'), '0fa7d85b3114adb91cebd42fe955e22df6b19917e9c8e19c401080c075975636');
   assert.equal(digest('vendor/webaudiofont-src/npm/dist/WebAudioFontPlayer.js'), 'f3f3bae5fa47140eecc0c72834d3b4eaed16ca108f891456aa2625b86d3fb07f');
   for (const file of artifact.files.filter(p => /^(LICENSES|vendor)\//.test(p) || ['SOURCE.md', 'THIRD_PARTY_NOTICES.md'].includes(p))) {
-    assert.deepEqual(readFileSync(join(artifact.root, file)), readFileSync(join(REPO, file)), file);
+    if (file === 'SOURCE.md') {
+      assert.ok(read(file).startsWith(readFileSync(join(REPO, file), 'utf8')));
+      const revision = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: REPO, encoding: 'utf8' }).trim();
+      assert.ok(read(file).includes('Original-identity local source revision: `' + revision + '`'));
+    } else assert.deepEqual(readFileSync(join(artifact.root, file)), readFileSync(join(REPO, file)), file);
     if (file.endsWith('.md') && !file.startsWith('LICENSES/')) {
       assert.deepEqual(checkMarkdownLinks(join(artifact.root, file), read(file), artifact.root), [], file);
     }

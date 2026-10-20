@@ -6,6 +6,39 @@ Source-only tests: `node --test tests/*.mjs`. Before documentation cleanup there
 
 ## Running them
 
+File-practice combined WIP: **72/72 follow-up baseline → 172/172 passing Node tests**;
+direct strict-parser/validation/tempo/loader/text-safety tests plus real source
+and Lab dispatch→bundle checks join discovery. The committed 71-case fixture is
+unchanged. `smoke-generators` now has a file asset/parser/dispatch row; runtime
+Custom/tempo/mismatch/race/navigation/audio checks remain owed without a host.
+Cached narrow TypeScript, syntax, local links, brand/whitespace and local Lab
+rebuild pass. Browser `npm test` attempted 2026-10-20: exit 2, no host at :8765;
+no app/host was started or installed. The reviewed candidate is now authorized
+for local source commit and personal-fork Lab `main` publication only.
+
+Review regressions add 14 lifecycle scenarios each against the complete real
+source and generated Lab entries (28 tests): actual bind/form/file-button
+events with a minimal DOM and stub host renderer, not extracted/copied logic.
+Cover incompatible→compatible Setup, tempo recovery, Advanced toggles, canceled
+fetch, delayed resolver success/rejection, ready success/rejection after newer
+file/Return/view/stop, and current failure recovery. Assert bundle ownership,
+exactly-once destruction, no replacement resize/destruction or stale status/
+transport reset. These are mocked lifecycle checks, not browser certification.
+
+Follow-up adds 50 scenarios each against source and Lab (100 tests): exact
+standard CSV recovery via real per-string blur wiring, normal-type exit after
+mismatch, and Jam/Workout button launches delayed at resolver/readiness/voice
+warming. Mode/navigation/Stop cancellation, late success/rejection and current
+failure must never start abandoned playback; valid completion invokes the
+playback boundary exactly once. Audio/start and voice-loading boundaries are
+stubbed; the complete real launch/attach/controller code executes unchanged.
+
+2026-10-20 chord/timing slice: **23 baseline → 33 passing Node tests**. Direct
+imports pin all 27 chord formulas, nine diatonic rows and nine rhythm cells;
+meter/default/NaN/inherited-key quirks, tuplets, odd meters, swing-independent
+leaf durations and ordinary mutability are covered. Source and generated Lab
+still match the unchanged 71-case committed fixture. All four leaves use narrow checkJs.
+
 `node --test tests/*.mjs` also runs Lab packaging checks (manifest/ZIP/module
 graph, namespace ownership, private audio globals, Python AST/SQLite schema,
 real entry import with deferred DOM boot and committed-baseline session

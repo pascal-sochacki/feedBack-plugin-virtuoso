@@ -4,19 +4,28 @@
 navigation label: **Virtuoso (Lab)**. A supported released desktop version has
 not yet been certified. The running host must understand `scriptType: "module"`
 AND serve the plugin's `src/**` with JavaScript MIME. An older host will fail at
-`import` or return 404 for a core module. Candidate version: **0.2.9-lab.1**.
-This guide describes the reviewed **0.2.9-lab.1** experimental publication on
-the personal fork's `main`, not a stable release or legal certification.
+`import` or return 404 for a core module. Release candidate: **0.2.11-lab.1**.
+This guide accompanies the authorized experimental update to the personal fork's
+`main`, not a stable release or legal certification. Confirm the installed
+manifest reports **0.2.11-lab.1**; the preceding publication was 0.2.9-lab.1.
+
+This update packages **0.2.11-lab.1** (source 0.2.11),
+preserving chord-theory/timing extraction and adding one Custom file practice.
+This needs the complete `src/` graph plus `assets/practices/index.json` and
+`assets/practices/guitar/beginner/chromatic-warmup.md`; generated artifacts include
+both original AGPL lesson files. Existing contained playback is reused.
+Publication does not install the update on your desktop.
 
 This fork packages the native-module prototype based on upstream Virtuoso v0.2.6,
-with source version 0.2.9 and move-only pitch and scale-interval modules.
+with source version 0.2.11 and move-only pitch, scale-interval, chord-theory and timing modules.
 It **does not include the separate Learn-mode work** and is not an official
 stable release. Original project: https://github.com/got-feedBack/feedBack-plugin-virtuoso.
 Copyright (C) 2026 Christian Cowan (original Virtuoso).
 Copyright (C) 2026 Pascal Sochacki (personal fork modifications).
 Modification notice, 2026-10-20: native-module extraction, Lab namespace
-isolation, attribution/source-availability update and withdrawal of uncertain
-recordings. Virtuoso code is free
+isolation, attribution/source-availability update, withdrawal of uncertain
+recordings and validated Markdown-backed practices with lifecycle safety fixes.
+Virtuoso code is free
 software under **AGPL-3.0-only**; you may use, study, modify and redistribute
 under those terms. Supplied **WITHOUT ANY WARRANTY**, including implied
 merchantability or fitness for a particular purpose. See `LICENSE`,
@@ -45,10 +54,35 @@ below are maintainer context, not links to files present in the runtime package.
 3. Fully restart FeedBack after installation. Enable **Virtuoso (Lab)** if needed,
    restart again, and open its navigation entry. Confirm
    `/api/plugins/virtuoso_lab/status` and successful loading of `src/core/pitch.js`
-   and `src/core/scale-intervals.js`.
+    and the complete `src/` graph: pitch, scale intervals, chord theory, timing,
+    core practice parser and shell practice loader.
 
 Installation is user-driven; publication does not install or start anything on
 Windows. Back up important data before experimental testing.
+
+## Try Custom file practices
+
+1. In Setup select **guitar, six strings, standard E A D G B e**
+   (absolute MIDI low→high: `40,45,50,55,59,64`). Do not retune your real
+   instrument to match a falsely declared Setup.
+2. Open **Custom → File practices → Chromatic warm-up → Load practice**.
+   Loading previews the lesson without starting audio: four attacks on the low
+   E string, frets **1, 2, 3, 4**, one per beat at the reference **60 BPM**.
+3. Press **Play**; check Pause, Stop, count-in and loop using the existing
+   controls. Try **30, 60 and 120 BPM**: the authored four-second chart scales to
+   **8, 4 and 2 seconds** before count-in. No backing, transposition or refingering.
+4. Change Setup to a nonstandard tuning or bass: expect an explicit error and
+   stopped/unloaded playable chart, not silent retuning. Restore standard guitar:
+   the retained file rebuilds automatically. Tempo edits also rebuild it.
+5. Choose **Return to generated practice**, a normal Practice type, preset,
+   Workout or Jam to leave the file. Check view changes and navigation/re-entry
+   do not revive an abandoned load or start playback after Stop.
+
+Only this reviewed lesson is supported; this is not an arbitrary-file importer
+or Markdown editor. Lesson prose is displayed as plain text. Its exact JSON
+notes and explicit duration remain authoritative; unsupported techniques,
+instrument or tuning are rejected. All renderers and Windows DI still need
+installed-host acceptance, including correct/wrong-note host judging.
 
 ## Runtime source and regeneration
 
@@ -101,14 +135,14 @@ The generator performs no commit, push, migration or installation.
    userData/plugin location before copying; do not write into Program Files or
    the bundled stable plugin.
 3. The result must be `plugins\virtuoso_lab\plugin.json`, with `screen.js`,
-   `screen.html`, `routes.py`, `settings.html`, `src\package.json`,
-    `src\core\pitch.js`, `src\core\scale-intervals.js`, `static\` and `assets\`
+    `screen.html`, `routes.py`, `settings.html`, the complete `src\` graph,
+    `static\` and `assets\` (including the practice index and Markdown lesson)
     in that same plugin folder.
    Avoid `plugins\virtuoso_lab\virtuoso_lab\plugin.json` nesting.
 4. Restart FeedBack, enable **Virtuoso (Lab)** if needed, restart again and open
    its navigation entry. Check `/api/plugins/virtuoso_lab/status` reports OK.
-    Browser DevTools should show a module entry and successful loads of both
-    `src/core/pitch.js` and `src/core/scale-intervals.js`.
+    Browser DevTools should show a module entry and successful loads of all
+    imported modules and `/api/plugins/virtuoso_lab/assets/practices/index.json`.
 5. To update: fully quit, replace only the Lab runtime folder with a freshly
    generated folder, then restart/reload. To remove: disable Lab, quit, remove
    only `virtuoso_lab`, and restart. Original Virtuoso data stays unchanged.
@@ -141,8 +175,8 @@ not renamed or replaced with private fake host APIs.
 
 ## Acceptance status (2026-10-20)
 
-Reviewed source-only validation: **23/23 Node tests** (pitch, scale intervals,
-characterization, packaging and documentation), real module import,
+Reviewed source-only validation: **172/172 Node tests** (pure leaves, practice
+parser/loader, mocked real-entry lifecycle, characterization, packaging and documentation), real module import,
 manifest/source graph/ZIP integrity, private audio globals, Python AST + SQLite
 schema/endpoints, repeatability and a deterministic **71-case** corpus captured
 from committed pre-extraction source `c37dc632` (40 public keys, 91 debug keys,

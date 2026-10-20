@@ -12,9 +12,11 @@ put procedures and rationale in [development](docs/plugin/development.md).
   on-ramp. Gamification describes competency, never gates content or substitutes
   rank/time/rounds for mastery.
 - This checkout is development source on `dev/modular-source`: ID `virtuoso`,
-  version **0.2.9** (unpublished candidate). The personal fork's `main` is a generated experimental
-  runtime: ID `virtuoso_lab`, published version **0.2.9-lab.1** after review fixes
-  and recording removals (2026-10-20). Neither is a stable-release
+  version **0.2.11** (local combined extraction + file-practice candidate;
+  preserves the prior 0.2.10 WIP). See [practice files](docs/plugin/practice-files.md).
+  The personal fork's `main` is a generated experimental
+  runtime: ID `virtuoso_lab`, authorized update **0.2.11-lab.1** following published
+  0.2.9-lab.1 (2026-10-20); verify the installed manifest. Neither is a stable-release
   certification. Do not confuse source `main`, upstream `main`, and fork `main`.
 - FeedBack serves plain native JS (`scriptType: "module"`). No runtime build,
   bundler, custom loader, injection, fire-and-forget boot import or transpilation.
@@ -81,6 +83,8 @@ put procedures and rationale in [development](docs/plugin/development.md).
   node --input-type=module --check < screen.js
   node --check src/core/pitch.js
   node --check src/core/scale-intervals.js
+  node --check src/core/chord-theory.js
+  node --check src/core/timing.js
   node scripts/check-doc-links.mjs
   node scripts/check-brand-hygiene.mjs
   git diff --check

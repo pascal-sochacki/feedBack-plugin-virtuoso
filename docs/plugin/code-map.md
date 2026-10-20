@@ -8,7 +8,13 @@
 
 ## screen.js structure
 
-`screen.js` is a native module entry retaining its strict IIFE during bottom-up extraction. It statically imports pure dependency-free `src/core/pitch.js` and `src/core/scale-intervals.js`; `plugin.json` opts into `scriptType:"module"`. Consumers remain in the entry; leaves never import upward. See `docs/plugin/native-modules.md` for dependency map and running-host gates. Sections retain `§N` banners and §1–§15 TOC. This dated topical map is not in § order; verify names against source.
+File-practice prototype: `src/core/practice-files.js` owns strict parsing,
+reviewed catalog and pure chart building; `src/shell/practice-files.js` owns
+same-origin fetch/cache and text-only prose. Entry Custom load state passes the
+parsed file to `generateExercise` before normal generation; existing transport
+consumes the result. See [schema and limits](practice-files.md).
+
+`screen.js` is a native module entry retaining its strict IIFE during bottom-up extraction. It statically imports four dependency-free leaves: `src/core/pitch.js`, `scale-intervals.js`, `chord-theory.js` and `timing.js`; `plugin.json` opts into `scriptType:"module"`. Chord/diatonic tables and rhythm cells/meter helpers now live in those leaves; their consumers and startup guards remain in the entry. Leaves never import upward. See `docs/plugin/native-modules.md` for dependency map and running-host gates. Sections retain `§N` banners and §1–§15 TOC. This dated topical map is not in § order; verify names against source.
 
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, `RHYTHM_CELLS`, etc. `RHYTHM_CELLS` is the rhythm-cell table (gallop / dotted-snap / tresillo / clave as per-onset **beat**-arrays fed to `rhythmSteps`); a startup guard (`assertRhythmCellsValid`) rejects any cell that doesn't sum to whole beats (it would phase the bar). `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint in CLAUDE.md Part 3.

@@ -6,13 +6,13 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { format } from 'node:util';
 
-process.on('uncaughtException', error => { console.error(error.message); process.exit(1); });
+process.on('uncaughtException', error => { console.error(error.stack?.replace(/data:text[^\s)]+:(\d+):(\d+)/g, 'entry:$1:$2') || error.message); process.exit(1); });
 
 // Each invocation is a fresh process: module caches, globals and RNG cannot leak
 // between the baseline, source and renamed Lab namespaces.
 const [root, baseline, controlsJson = '{}'] = process.argv.slice(2);
 const controls = JSON.parse(controlsJson);
-assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'mutateRawNote', 'audioRemoval'].includes(key)), 'unknown harness control');
+assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'mutateRawNote', 'audioRemoval', 'practiceFileProbe', 'lifecycle'].includes(key)), 'unknown harness control');
 let startupAssertions = 0;
 // Node only logs console.assert failures; source startup guards must gate CI.
 console.assert = (condition, ...args) => {
@@ -59,6 +59,29 @@ assert.equal(window[lab ? 'Virtuoso' : 'VirtuosoLab'], undefined);
 assert.equal(listeners.length, 1);
 assert.equal(listeners[0][0], 'DOMContentLoaded');
 assert.deepEqual(listeners[0][2], { once: true });
+if (controls.lifecycle) {
+  const { runLifecycle } = await import('./lifecycle.mjs');
+  await runLifecycle({ root, api, debug, lab, scenario: controls.lifecycle });
+  process.stdout.write(JSON.stringify({ lifecycle: controls.lifecycle }));
+  process.exit(0);
+}
+if (controls.practiceFileProbe) {
+  const { parsePracticeMarkdown } = await import(pathToFileURL(resolve(root, 'src/core/practice-files.js')));
+  const practice = parsePracticeMarkdown(read('assets/practices/guitar/beginner/chromatic-warmup.md'));
+  const cfg = { practiceFile:practice, instrument:'guitar', stringSetup:'guitar_6_standard', stringCount:6, bpm:120, countInBars:1, renderer:'builtin_2d', audio:{ notes:true, metronome:true, harmony:true }, swing:'shuffle', bars:32, keyCycle:'fourths', targetSec:60 };
+  const exercise = api.generateExercise(cfg);
+  assert.equal(exercise.chart.duration, 2);
+  assert.deepEqual(exercise.chart.notes, practice.notes.map(n => ({ ...n, t:n.t / 2 })));
+  assert.ok(exercise.chart.beats.length > 0);
+  const bundle = api.makeBundle(exercise);
+  assert.equal(bundle.leadIn, 2);
+  assert.equal(bundle.songInfo.duration, 4);
+  assert.equal(bundle.songInfo.title, practice.title);
+  assert.deepEqual(bundle.notes.filter(n => !n._tail), practice.notes.map(n => ({ ...n, t:2 + n.t / 2 })));
+  assert.deepEqual(bundle.backingEvents, []);
+  assert.deepEqual(bundle.openMidis, [40,45,50,55,59,64]);
+  assert.equal(exercise.chart.notes[0].t, 0);
+}
 if (controls.audioRemoval) {
   const audio = debug.audioRemoval;
   const channels = ['notes', 'harmony', 'pad', 'comp2'];

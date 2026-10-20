@@ -13,6 +13,10 @@ UI → readConfig → generateExercise / generateSession (pure cfg → chart)
 ```
 
 Ladder, Custom, Workout and Jam share the shell, transport and renderer lifecycle.
+Custom's [file-practice prototype](practice-files.md) fetches validated static
+Markdown in the shell, then passes transient parsed `cfg.practiceFile` into a
+pure branch of `generateExercise`. The same bundle/player/host judge consume it;
+no separate Markdown API, player or scoring path exists.
 `screen.js` is a native module entry retaining its strict IIFE; pure mutable leaves
 in `src/core/` are static imports. There is **no runtime build** or custom loader.
 Preserve import-time purity, dependency direction and synchronous API/debug/boot

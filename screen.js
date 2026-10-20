@@ -1,6 +1,10 @@
 // Virtuoso — FeedBack practice chart generator + renderer adapter.
 import { NOTE_NAMES, NOTE_ALIASES, pcName, midiToFreq } from './src/core/pitch.js';
 import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
+import { CHORD_FORMULAS, DIATONIC_QUALITIES } from './src/core/chord-theory.js';
+import { RHYTHM_CELLS, parseMeter, secondsPerDivision, rhythmSteps, measureSeconds } from './src/core/timing.js';
+import { PRACTICE_FILES, buildPracticeFileExercise } from './src/core/practice-files.js';
+import { createPracticeFileLoader, displayPracticeProse } from './src/shell/practice-files.js';
 
 (function () {
   'use strict';
@@ -51,7 +55,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.9';
+  const VIRTUOSO_VERSION = '0.2.11';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -170,52 +174,10 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     bass_6_standard:   'bass_6_standard',
   };
 
-  // Chord qualities defined as semitone intervals from the root. This is a
-  // pitch-primary definition: a chord is a stack of intervals, instrument-agnostic
-  // by design (see ROADMAP Phase 6 — piano). Extensions go ABOVE the octave
-  // (9th = 14, 11th = 17, 13th = 21) so the stack is the complete set of chord
-  // tones. ACTUAL VOICING (which notes to play, octave placement, drop-2, omitting
-  // the 3rd under an 11th, etc.) is a render-time concern, NOT encoded here — the
-  // guitar position-pickers reduce these to pitch classes (% 12); a future piano
-  // voicing engine can read the full stack. `add9` already proved intervals > 12
-  // work end-to-end.
-  const CHORD_FORMULAS = {
-    // Triads
-    maj:{symbol:'maj', intervals:[0,4,7]}, min:{symbol:'min', intervals:[0,3,7]}, dim:{symbol:'dim', intervals:[0,3,6]}, aug:{symbol:'aug', intervals:[0,4,8]},
-    // Power chords — third-less; the harmonic atom of rock/metal/punk/djent.
-    // `5` = root+5th; `5oct` = root+5th+octave (the "spread across 3 strings" voicing).
-    '5':{symbol:'5', intervals:[0,7]}, '5oct':{symbol:'5', intervals:[0,7,12]},
-    // Suspended
-    sus2:{symbol:'sus2', intervals:[0,2,7]}, sus4:{symbol:'sus4', intervals:[0,5,7]},
-    // Sixths / add
-    '6':{symbol:'6', intervals:[0,4,7,9]}, min6:{symbol:'m6', intervals:[0,3,7,9]},
-    add9:{symbol:'add9', intervals:[0,4,7,14]}, '69':{symbol:'6/9', intervals:[0,4,7,9,14]},
-    // Sevenths
-    maj7:{symbol:'maj7', intervals:[0,4,7,11]}, min7:{symbol:'min7', intervals:[0,3,7,10]}, dom7:{symbol:'7', intervals:[0,4,7,10]},
-    min7b5:{symbol:'m7b5', intervals:[0,3,6,10]}, dim7:{symbol:'dim7', intervals:[0,3,6,9]}, min_maj7:{symbol:'m(maj7)', intervals:[0,3,7,11]},
-    // Ninths
-    maj9:{symbol:'maj9', intervals:[0,4,7,11,14]}, min9:{symbol:'m9', intervals:[0,3,7,10,14]}, dom9:{symbol:'9', intervals:[0,4,7,10,14]},
-    // Elevenths — 11th chords commonly OMIT the 3rd in real voicings (the 3rd↔11th
-    // ♭9 clash); the full stack is kept here for completeness, voicing decides.
-    maj11:{symbol:'maj11', intervals:[0,4,7,11,14,17]}, min11:{symbol:'m11', intervals:[0,3,7,10,14,17]}, dom11:{symbol:'11', intervals:[0,4,7,10,14,17]},
-    // Thirteenths
-    maj13:{symbol:'maj13', intervals:[0,4,7,11,14,21]}, min13:{symbol:'m13', intervals:[0,3,7,10,14,21]}, dom13:{symbol:'13', intervals:[0,4,7,10,14,21]}
-  };
   // Qualities the CAGED chord-TEMPLATE path can voice (triads + basic 7ths).
   // Power chords and 9/11/13 extensions are NOT triad/7th shapes — they skip the
   // template and fall back to interval-derived positions (see cagedShapeQualityKey).
   const TEMPLATE_QUALITIES = new Set(['maj','min','dim','aug','sus2','sus4','maj7','min7','dom7','min7b5','dim7','min_maj7','add9','6','min6']);
-  const DIATONIC_QUALITIES = {
-    major:         {triad:['maj','min','min','maj','maj','min','dim'],    seventh:['maj7','min7','min7','maj7','dom7','min7','min7b5']},
-    dorian:        {triad:['min','min','maj','maj','min','dim','maj'],    seventh:['min7','min7','maj7','dom7','min7','min7b5','maj7']},
-    phrygian:      {triad:['min','maj','maj','min','dim','maj','min'],    seventh:['min7','maj7','dom7','min7','min7b5','maj7','min7']},
-    lydian:        {triad:['maj','maj','min','dim','maj','min','min'],    seventh:['maj7','dom7','min7','min7b5','maj7','min7','min7']},
-    mixolydian:    {triad:['maj','min','dim','maj','min','min','maj'],    seventh:['dom7','min7','min7b5','maj7','min7','min7','maj7']},
-    natural_minor: {triad:['min','dim','maj','min','min','maj','maj'],    seventh:['min7','min7b5','maj7','min7','min7','maj7','dom7']},
-    locrian:       {triad:['dim','maj','min','min','maj','maj','min'],    seventh:['min7b5','maj7','min7','min7','maj7','dom7','min7']},
-    harmonic_minor:{triad:['min','dim','aug','min','maj','maj','dim'],    seventh:['min7','min7b5','maj7','min7','dom7','maj7','dim7']},
-    melodic_minor: {triad:['min','min','aug','maj','maj','dim','dim'],    seventh:['min7','min7','maj7','dom7','dom7','min7b5','min7b5']}
-  };
   // Tonic chord identity for genuinely-exotic scales that have NO DIATONIC_QUALITIES
   // row. Without this, chordQualityForDegree silently borrows major's row (line ~2126),
   // so a static_i drone under e.g. locrian ♮2 (a m7♭5 chord-scale) or the altered scale
@@ -383,47 +345,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     sixths:'diatonic sixths',
     broken_triads:'broken triads (1-3-5)',
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
-  };
-  // ── RHYTHM_CELLS — the recombinable rhythm-cell table (Rhythm-ladder panel, ──────
-  // 2026-06-04; spec docs/plugin/design/rhythm-ladder-roundtable.md). The engine already tiles an
-  // arbitrary per-step duration array with no bar-reset (fillNotesFromSeq's `steps`
-  // path), so any rhythmic cell COMMENSURATE with the bar is data, not code: the whole
-  // gallop / dotted-snap / clave / tresillo wave becomes CURATION. `beats` is the cell
-  // as a cycling array of per-onset durations in BEATS (quarter = 1.0); rhythmSteps()
-  // multiplies by the quarter-note seconds. The cross-idiom ATOM is the tresillo
-  // [1.5,1.5,1.0] (3-3-2 eighths) — Latin/NOLA/tango/norteño all point at this ONE def.
-  // INVARIANT (asserted below, mirroring no-unison): every cell sums to a WHOLE number
-  // of beats so it re-aligns to the beat grid (a per-beat cell sums to 1; a 1-bar cell
-  // to 4; son/rumba clave to 8 = 2 bars). A single line teaches the TIME of a feel,
-  // never the ensemble interlock ("tap the clave's time"). gallop/reverse_gallop moved
-  // here from the old hardcoded rhythmSteps lookup.
-  const RHYTHM_CELLS = {
-    // Per-beat gallop family (the Gallop & Snap rung; metal-idiom lane).
-    // `strokes` (optional, hand-marks Slice 2): the cell's DEFINITIVE pick
-    // pattern (guitar-pedagogy ruling: gallop default D-DU, reverse DU-D;
-    // all-down is a named variant, not the default). Consumed by
-    // applyStrokePolicy when stroke emission is active; display-only.
-    gallop:         { beats:[0.5, 0.25, 0.25], strokes:['d','d','u'], label:'Gallop (♪ ♬)' },           // NWOBHM/power
-    reverse_gallop: { beats:[0.25, 0.25, 0.5], strokes:['d','u','d'], label:'Reverse gallop (♬ ♪)' },   // thrash/death
-    skip_chug:      { beats:[0.75, 0.25],      label:'Skip / dotted (♩. ♬)' },   // thrash skip
-    snap:           { beats:[0.25, 0.75],      label:'Snap (♬ ♩.)' },            // front-weighted pickup
-    // The HERTA CHUG (Christian's ask 2026-06-12 — the famous modern-djent
-    // rhythm figure; what the melodic pick_herta drill was NOT). Canonical form
-    // per the drum-transcription literature: a 16th grid accented in groups of
-    // THREE sixteenths with an extra 32nd after every accent — i.e. the cell
-    // [16th, 32nd, 32nd, 16th] spanning ¾ of a beat, a 3-over-2 that phases
-    // against the 4/4 backbeat and re-aligns every 3 beats. Encoded as the full
-    // 3-beat cycle (4 cells) for the whole-beat guard; accentEvery:4 puts the
-    // accent on every CELL start (the audible 3-over-2 lean), not just the
-    // cycle start. NO declared strokes: strict-alternate territory at any
-    // usable tempo, so the rung's strokePolicy:'alternate' marks it.
-    herta_chug: { beats:[0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25,  0.25, 0.125, 0.125, 0.25],
-                  accentEvery: 4, label:'Herta chug (16th + two 32nds + 16th)' },
-    // World-rhythm cells (tap on one note = "the TIME of the feel"). Bar-commensurate.
-    tresillo:       { beats:[1.5, 1.5, 1.0],            label:'Tresillo (3-3-2)' },          // 1 bar — the cross-idiom atom
-    son_clave:      { beats:[1.5, 1.5, 2.0, 1.0, 2.0],  label:'Son clave (2-3, 2-bar)' },    // onsets 0,3,6,10,12 / 16 eighths
-    rumba_clave:    { beats:[1.5, 2.0, 1.5, 1.0, 2.0],  label:'Rumba clave (2-bar)' },       // onsets 0,3,7,10,12 (eighth 7 vs 6 = rumba)
-    habanera:       { beats:[1.5, 0.5, 1.0, 1.0],       label:'Habanera' },                  // onsets 0,3,4,6 / 8 eighths
   };
   // Startup integrity guard (mirrors the no-unison / applicability / strum-grip guards):
   // a cell that doesn't close on a whole number of beats would desync the click, the
@@ -3440,6 +3361,62 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   })();
 
   let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
+  let loadedPracticeFile = null, practiceLoadController = null, practiceLoadIdentity = 0;
+  let rendererAttachIdentity = 0;
+  let generationIdentity = 0;
+  let sessionLaunchIdentity = 0;
+  const destroyedRenderers = new WeakSet();
+  let loadPracticeFile = null;
+  let rendererFactoryProbe = null;
+  let playbackProbe = null, voicesProbe = null;
+
+  function cancelPracticeLoad() {
+    practiceLoadIdentity++;
+    practiceLoadController?.abort();
+    practiceLoadController = null;
+  }
+  function syncPracticeFileControls() {
+    const form = $('virtuoso-controls');
+    if (!form) return;
+    syncAdvancedMode();
+    const fixed = ['key', 'scale', 'meter', 'subdivision', 'bars', 'direction', 'sequence', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'keyCycle', 'swing'];
+    for (const name of fixed) {
+      const el = form.elements[name];
+      if (!el) continue;
+      el.disabled = !!loadedPracticeFile || (!!el.closest('.virtuoso-advanced-only') && !$('virtuoso-advanced-toggle')?.checked);
+    }
+    const prose = $('virtuoso-file-prose');
+    if (prose) displayPracticeProse(prose, loadedPracticeFile);
+    const unload = $('virtuoso-file-unload');
+    if (unload) unload.hidden = !loadedPracticeFile;
+  }
+  function clearPracticeFile() {
+    generationIdentity++;
+    stopRenderer();
+    cancelPracticeLoad();
+    loadedPracticeFile = null;
+    syncPracticeFileControls();
+  }
+  async function onLoadPracticeFile() {
+    cancelPracticeLoad();
+    const identity = practiceLoadIdentity;
+    const controller = new AbortController();
+    practiceLoadController = controller;
+    const id = $('virtuoso-file-select')?.value;
+    showStatus('Loading file practice…');
+    try {
+      if (!loadPracticeFile) loadPracticeFile = createPracticeFileLoader(new URL('/api/plugins/virtuoso/assets/practices/', window.location.href));
+      const practice = await loadPracticeFile(id, controller.signal);
+      if (identity !== practiceLoadIdentity) return;
+      // Check the player's declared tuning before touching the current chart.
+      buildPracticeFileExercise({ ...readConfig(), practiceFile:practice });
+      loadedPracticeFile = practice;
+      syncPracticeFileControls();
+      await onGenerate();
+    } catch (e) {
+      if (identity === practiceLoadIdentity) showStatus(`File practice error: ${e.message || e}`);
+    }
+  }
   // The bundle actually handed to the active renderer. Usually === activeBundle,
   // but for the 3D Highway it's a chord-free clone so the host doesn't project
   // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
@@ -4326,15 +4303,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (hostBus() && typeof hostBus().navigate === 'function') return hostBus().navigate(id);
     if (typeof window.showScreen === 'function') return window.showScreen(id);
     document.querySelector(`[data-screen="${id}"]`)?.click();
-  }
-
-  function parseMeter(value) {
-    const [sig, groupingRaw] = String(value || '4/4').split(':');
-    const [nRaw, dRaw] = sig.split('/');
-    const numerator = Math.max(1, parseInt(nRaw || '4', 10));
-    const denominator = Math.max(1, parseInt(dRaw || '4', 10));
-    const grouping = groupingRaw ? groupingRaw.split('+').map(x => parseInt(x, 10)).filter(Number.isFinite) : [numerator];
-    return { numerator, denominator, grouping: grouping.length ? grouping : [numerator] };
   }
 
   function readConfig() {
@@ -5913,6 +5881,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // per-voice oscillator/synth fallback still covers it). Includes the core drum
   // pieces so the kit starts on samples, not the synth fallback.
   async function awaitVoices(bundle, capMs) {
+    if (voicesProbe) return voicesProbe(bundle);
     const gms = resolveVoiceGms(bundle || activeBundle);
     const dk = activeSampleDrumKit(bundle || activeBundle);
     const drumPromises = dk ? DRUM_CORE_PIECES.map(p => ensureDrumPiece(dk, p)) : [];
@@ -6435,7 +6404,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (bp[3].rh !== bp[2].rh) throw new Error('[Virtuoso stroke-policy] bass descending adjacent-string 16th crossing must rake (same finger)');
   })();
   function scalePcs(cfg) { const keyPc = NOTE_ALIASES[cfg.key] ?? 0; return (SCALE_INTERVALS[cfg.scale] || SCALE_INTERVALS.major).map(i => (keyPc + i) % 12); }
-  function secondsPerDivision(cfg) { const q = 60 / cfg.bpm; return ({ quarter:q, eighth:q/2, sixteenth:q/4, triplet:q/3, eighth_triplet:q/3, sixteenth_triplet:q/6, gallop:q/2, reverse_gallop:q/2 })[cfg.subdivision] || q/2; }
   // Count-in grid preview (rhythm-meter spec 2026-06-12): how many sub-ticks per
   // felt beat the COUNT-IN previews for this exercise — the underlying uniform
   // grid, never the cell's onsets (a gallop previews its eighth floor; skip/snap
@@ -6453,18 +6421,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (!f) return 1;
     return Math.max(1, Math.min(6, Math.round((4 / cfg.meter.denominator) / f)));
   }
-  // Non-uniform rhythm patterns (genre-framework §2.5). Returns a cycling array of
-  // per-note durations for one beat, or null for the uniform subdivisions (which
-  // use secondsPerDivision instead). Gallop = eighth + two sixteenths; reverse =
-  // two sixteenths + eighth — the metal rhythm-guitar staple. Consumed by
-  // fillNotesFromSeq's `steps` path; generators opt in via rhythmSteps(cfg).
-  function rhythmSteps(cfg) {
-    const q = 60 / cfg.bpm;
-    const cell = RHYTHM_CELLS[cfg.subdivision];
-    if (cell) return cell.beats.map(b => b * q);   // gallop/reverse + skip/snap + tresillo/clave/habanera
-    return null;
-  }
-  function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
   // Seconds per metric beat (the meter's denominator unit) for a rendered
   // bundle. Used to size the Tab/Notation view window in beats rather than
   // fixed seconds, so note density stays comfortable across tempos.
@@ -11970,6 +11926,11 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // routes cfg.practiceType to the correct builder above.
   // ===========================================================================
   function generateExercise(cfg) {
+    if (cfg.practiceFile) {
+      const exercise = buildPracticeFileExercise(cfg);
+      exercise.chart.beats = buildBeats(exercise.session, exercise.chart.duration);
+      return exercise;
+    }
     let chart = cfg.jamStyle && STYLE_PALETTES[cfg.jamStyle] && (cfg.jamPasses | 0) > 1
       ? buildJamChart(cfg)
       : cfg.keyCycle && cfg.keyCycle !== 'none'
@@ -12179,6 +12140,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // we never override an explicit one. NOT called on the Jam path (jamPlay builds its
   // own endless config) or for Workout (generateSession), so this stays drill-only.
   function withRunTarget(cfg) {
+    if (cfg?.practiceFile) return cfg;
     if (!cfg || blockTargetSec(cfg) != null) return cfg;
     const target = resolveRunTargetSec(cfg);
     return target != null ? Object.assign({}, cfg, { targetSec: target }) : cfg;
@@ -14288,6 +14250,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
 
   async function resolveRendererFactory(kind) {
+    if (rendererFactoryProbe) return rendererFactoryProbe(kind);
     // 'builtin_2d' is the Jumping Tab slot. We borrow the host's Jumping Tab
     // visualization, which adapts to 4–8 strings + bass on its own — so it also
     // serves as the bass/extended-range fallback for the 6-string-only 3D
@@ -14439,7 +14402,14 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (ctxNow + SCHED_REFILL_AHEAD >= scheduledUntilCtx) scheduleNextChunk();
     pruneSchedChunks();
   }
+  function destroyRenderer(instance) {
+    if (!instance || destroyedRenderers.has(instance)) return;
+    destroyedRenderers.add(instance);
+    try { instance.destroy?.(); } catch (e) { console.warn('[Virtuoso] renderer destroy failed', e); }
+  }
   function stopRenderer() {
+    rendererAttachIdentity++;
+    cancelPracticeLoad();
     // "Sideways" stops land here while still playing (a setting change mid-play
     // regenerates; the Library/Plugins nav buttons leave the screen) — close the
     // practice-session log NOW (while the scorer state is alive, so hit/miss
@@ -14448,10 +14418,10 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // lock + let an abandoned run flush later as a fake clean pass (dev-ops
     // e2e audit, 2026-06-05; guarded in smoke-renderers' play/stop cycle).
     if (playing) { sessionEnd(); releaseWakeLock(); }
-    playing = false; paused = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } if (renderer && typeof renderer.destroy === 'function') { try { renderer.destroy(); } catch (e) { console.warn('[Virtuoso] renderer destroy failed', e); } } renderer = null; syncPlayButton(); }
+    playing = false; paused = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } destroyRenderer(renderer); renderer = null; syncPlayButton(); }
 
   async function attachRenderer(exercise) {
-    const cfg = exercise.session;
+    const cfg = { ...exercise.session };
     // Honour saved renderer preference when the form hasn't been explicitly changed
     if (!cfg.renderer || cfg.renderer === 'highway_3d') {
       const saved = localStorage.getItem('virtuoso.renderer');
@@ -14461,6 +14431,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // palette), so guitar AND bass use it. Only fall back for counts it can't
     // handle (>8 — not currently producible in Virtuoso, but defensive).
     if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) > 8) cfg.renderer = 'builtin_2d';
+    exercise.session.renderer = cfg.renderer;
     // Keep the view row in sync with what's ACTUALLY being rendered (including
     // the saved-pref restore and the bass/extended force above) so the
     // highlighted view button always matches the render.
@@ -14483,20 +14454,38 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     rendererBundle = (cfg.renderer === 'highway_3d')
       ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [], bgReactive: false })
       : activeBundle;
+    const attachingBundle = activeBundle;
+    const attachingIdentity = rendererAttachIdentity;
+    const attachingGeneration = generationIdentity;
     // Resolve the factory FIRST (a borrowed host viz can take up to ~3s to load),
     // THEN create the canvas — so the fresh canvas isn't sitting in the DOM through
     // that await window, where the just-torn-down prior renderer can detach it
     // (which left the fallback renderer's resize() reading a null parentElement).
-    const resolved = await resolveRendererFactory(cfg.renderer);
-    const canvas = replaceCanvas();
-    renderer = resolved.factory();
-    if (!renderer || typeof renderer.draw !== 'function') throw new Error('Selected renderer did not return a FeedBack-compatible renderer object.');
-    if (typeof renderer.init === 'function') { renderer.init(canvas, rendererBundle); if (renderer.readyPromise && typeof renderer.readyPromise.then === 'function') await renderer.readyPromise; }
-    if (cfg.renderer === 'notation_2d') renderer?.setMode?.(notationMode);
-    const rect = (canvas.parentElement || $('virtuoso-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
-    if (typeof renderer.resize === 'function') renderer.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-    const rendererStatus = $('virtuoso-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
-    resetTransportLoop();
+    // Resolver and renderer readiness can both outlive a view switch or Return.
+    const ownsAttachment = () => activeBundle === attachingBundle && attachingIdentity === rendererAttachIdentity && attachingGeneration === generationIdentity;
+    let instance = null;
+    try {
+      const resolved = await resolveRendererFactory(cfg.renderer);
+      if (!ownsAttachment()) return false;
+      const canvas = replaceCanvas();
+      instance = resolved.factory();
+      renderer = instance;
+      if (!instance || typeof instance.draw !== 'function') throw new Error('Selected renderer did not return a FeedBack-compatible renderer object.');
+      if (typeof instance.init === 'function') instance.init(canvas, rendererBundle);
+      if (instance.readyPromise && typeof instance.readyPromise.then === 'function') await instance.readyPromise;
+      if (!ownsAttachment() || renderer !== instance) { destroyRenderer(instance); return false; }
+      if (cfg.renderer === 'notation_2d') instance.setMode?.(notationMode);
+      const rect = (canvas.parentElement || $('virtuoso-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
+      if (typeof instance.resize === 'function') instance.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
+      const rendererStatus = $('virtuoso-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
+      resetTransportLoop();
+      return true;
+    } catch (e) {
+      destroyRenderer(instance);
+      if (!ownsAttachment()) return false;
+      if (renderer === instance) renderer = null;
+      throw e;
+    }
   }
 
   function syncPlayButton() {
@@ -14513,6 +14502,21 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     const stopBtn = $('virtuoso-stop');
     if (stopBtn) stopBtn.disabled = !playing;   // enabled while running OR paused
     updateStartCta();
+  }
+  async function preparePlayback(exercise) {
+    // An attached chart is not permission to start after voice warming if the
+    // user has since stopped, changed modes, navigated or generated another run.
+    const pending = attachRenderer(exercise);
+    const attachment = rendererAttachIdentity, generation = generationIdentity, bundle = activeBundle;
+    const ownsPlayback = () => attachment === rendererAttachIdentity && generation === generationIdentity && bundle === activeBundle;
+    try {
+      if (!await pending || !ownsPlayback()) return false;
+      await awaitVoices(bundle);
+      return ownsPlayback();
+    } catch (e) {
+      if (!ownsPlayback()) return false;
+      throw e;
+    }
   }
   // First-run primed START CTA (Pathways mode): names the exercise + a short skill
   // hook from the goal, and mirrors the transport (START ⇄ STOP). The one lit primary
@@ -20199,6 +20203,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
   function startPlayback() {
     if (!activeBundle) return;
+    if (playbackProbe) return playbackProbe(activeBundle);
     previewStop();         // a graded run supersedes any "Hear it" preview
     closeResultsModal();   // a new run dismisses the previous run's results
     stopTuner();  // the practice scorer owns the strip during playback
@@ -20328,7 +20333,9 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
   // OR paused run; inert when already stopped (the button is disabled then).
   function onStop() {
-    if (!playing) return;
+    rendererAttachIdentity++;
+    generationIdentity++;
+    if (!playing) { stopRenderer(); return; }
     // An explicit Stop is a DELIBERATE run end → the results modal may show.
     // Sideways stops (regenerate-while-playing, mode/screen switches) keep the
     // flag false so a settings fiddle never pops a modal.
@@ -20352,18 +20359,24 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // Bounded wait for the host output-device steer so the run's first notes
     // land on the right sink (150ms cap — routing never delays Play noticeably,
     // and a slow/failed steer just starts on the default sink).
+    const attachment = rendererAttachIdentity, generation = generationIdentity;
     await Promise.race([applyHostSink(), new Promise((r) => setTimeout(r, 150))]);
+    if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
     if ($('virtuoso-root')?.classList.contains('virtuoso-session-mode')) {
       if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
-      await awaitVoices(activeBundle);  // start on WAF, not the oscillator
-      startPlayback();
+      const bundle = activeBundle;
+      await awaitVoices(bundle);  // start on WAF, not the oscillator
+      if (attachment === rendererAttachIdentity && generation === generationIdentity && bundle === activeBundle) startPlayback();
       return;
     }
-    if (!activeBundle) { await onGenerate(); }
-    await awaitVoices(activeBundle);  // start on WAF, not the oscillator
-    startPlayback();
+    if (!activeBundle) {
+      if (!await onGenerate()) return;
+    }
+    const readyAttachment = rendererAttachIdentity, readyGeneration = generationIdentity, bundle = activeBundle;
+    await awaitVoices(bundle);  // start on WAF, not the oscillator
+    if (readyAttachment === rendererAttachIdentity && readyGeneration === generationIdentity && bundle === activeBundle) startPlayback();
   }
 
   // ── Playback transport (scrubber + A/B loop + count-in) ──────────────────────
@@ -20630,7 +20643,9 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // Key — root note editable; the scale name stays a static suffix. chromatic has
     // no key/scale, so it keeps a static Pattern identity cell.
     let keyCell;
-    if (cfg.mode === 'chromatic') {
+    if (cfg.practiceFile) {
+      keyCell = cell('File', cfg.practiceFileId);
+    } else if (cfg.mode === 'chromatic') {
       keyCell = cell('Pattern', CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern);
     } else {
       const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -20643,7 +20658,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       ? `${cfg.meter.numerator}/${cfg.meter.denominator}:${cfg.meter.grouping.join('+')}`
       : `${cfg.meter.numerator}/${cfg.meter.denominator}`;
     const formMeter = document.querySelector('#virtuoso-controls [name="meter"]');
-    const meterCell = formMeter
+    const meterCell = cfg.practiceFile ? cell('Meter', curMeterVal) : formMeter
       ? lcdSel('virtuoso-lcd-meter', 'Meter', Array.from(formMeter.options).map(o => {
           const m = parseMeter(o.value);
           const short = m.grouping.length > 1 ? `${m.numerator}/${m.denominator} ${m.grouping.join('+')}` : `${m.numerator}/${m.denominator}`;
@@ -20670,6 +20685,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   function showStatus(text) { const el = $('virtuoso-status'); if (el) el.textContent = text; }
   function describeCurrentContent() {
     try {
+      if (lastExercise?.session.practiceFile) return `File practice — ${lastExercise.session.sessionName} · ${lastExercise.session.bpm} BPM (reference ${lastExercise.session.referenceTempo})`;
       // Jam describes the JAM, not the form (the form holds whatever exercise
       // was left behind — the status line read "Chromatic…" mid-jam; J-1 fix).
       const js = lastExercise && lastExercise.session;
@@ -20695,17 +20711,30 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
 
   async function onGenerate() {
+    cancelPracticeLoad();
+    const identity = ++generationIdentity;
+    let attachment = rendererAttachIdentity;
+    const practice = loadedPracticeFile;
+    const ownsGeneration = () => identity === generationIdentity && attachment === rendererAttachIdentity;
     const summary = $('virtuoso-summary');
     try {
-      const exercise = generateExercise(withRunTarget(readConfig()));
+      const cfg = readConfig();
+      if (practice) cfg.practiceFile = practice;
+      const exercise = generateExercise(withRunTarget(cfg));
       lastExercise = exercise;
       summary.innerHTML = summarize(exercise);
-      await attachRenderer(exercise);
+      const pending = attachRenderer(exercise);
+      attachment = rendererAttachIdentity;
+      if (!await pending || !ownsGeneration()) return;
       prewarmVoices(activeBundle);  // start the sampled-voice load now so Play starts on WAF, not the oscillator
       syncJamHighlightUI();
       syncFretboardUI();
+      syncPracticeFileControls();
       refreshStatusFromState();
+      return true;
     } catch (e) {
+      if (!ownsGeneration()) return;
+      if (practice) { stopRenderer(); activeBundle = null; lastExercise = null; }
       showStatus(`Error: ${e.message || e}`);
       console.error('[Virtuoso] generate failed', e);
     }
@@ -21126,7 +21155,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     commitCustomTuning(midis);
     instrumentStoreSave();   // user-driven tuning edit = the player's L1 declaration
     reapplyActivePathway();  // per-string edits don't dispatch a setup change
-    if (commit && activeBundle) onGenerate();
+    if (commit && (activeBundle || loadedPracticeFile)) onGenerate();
   }
   function onTuningPresetChange() {
     const sel = $('virtuoso-tuning-select'); if (!sel) return;
@@ -21293,6 +21322,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (sysEl && sysEl.value === 'caged' && shapeEl.value) hidden.value = shapeEl.value;
   }
   function applyPathwayConfig(config) {
+    clearPracticeFile();
     if (!config) return;
     if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
     syncAdvancedMode();
@@ -22064,14 +22094,15 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     const built = buildJamConfig();
     if (!built) return;
     const { cfg } = built;
+    let attachment = rendererAttachIdentity;
+    const generation = ++generationIdentity;
     try {
       if (playing) stopPlayback();
       const exercise = generateExercise(cfg);
       lastExercise = exercise;
-      await attachRenderer(exercise);
-      await awaitVoices(activeBundle);   // warm the genre's voices BEFORE Play so the band starts on
-                                         // samples, not the oscillator fallback (Jam skipped prewarm —
-                                         // the "instruments are synths for the first progression" bug)
+      const pending = preparePlayback(exercise);
+      attachment = rendererAttachIdentity;
+      if (!await pending || attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
       const dur = (activeBundle && activeBundle.songInfo && activeBundle.songInfo.duration) || 0;
       const lead = (activeBundle && activeBundle.leadIn) || 0;
       if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
@@ -22082,6 +22113,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       _jamSnapshot = jamPanelState();   // the delta baseline for wrap-boundary live changes (J-2)
       jamPendingClear();
     } catch (e) {
+      if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
       showStatus(`Jam error: ${e.message || e}`);
       console.error('[Virtuoso] jam failed', e);
     }
@@ -22147,6 +22179,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // select (its change handler applies the pathway / custom + regenerates);
   // Session swaps to the session panel.
   function selectMode(mode) {
+    clearPracticeFile();
     // Switching practice mode (Guided / Custom / Session) is a transport break:
     // the current exercise no longer matches the view the user is moving to, so
     // stop playback rather than letting audio/playhead bleed into the new mode.
@@ -25860,6 +25893,10 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
 
   async function onLaunchSession() {
+    clearPracticeFile();
+    const launch = ++sessionLaunchIdentity;
+    const generation = generationIdentity;
+    let attachment = rendererAttachIdentity;
     const sessionId = _selectedStarterId || Object.keys(BUILT_IN_SESSIONS)[0];
     const baseSession = BUILT_IN_SESSIONS[sessionId];
     if (!baseSession) return;
@@ -25914,15 +25951,17 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       const exercise = generateSession(session);
       lastExercise = exercise;
       if (summary) summary.innerHTML = summarize(exercise);
-      await attachRenderer(exercise);
-      await awaitVoices(activeBundle);  // start on WAF, not the oscillator
+      const pending = preparePlayback(exercise);
+      attachment = rendererAttachIdentity;
+      if (!await pending || attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
       startPlayback();
       refreshStatusFromState();
     } catch (e) {
+      if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
       showStatus(`Session error: ${e.message || e}`);
       console.error('[Virtuoso] session launch failed', e);
     } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
+      if (btn && launch === sessionLaunchIdentity) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
     }
   }
 
@@ -25973,12 +26012,17 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // the playhead, kills audio, AND updates the Play button label back to
     // "▶ Play" so the user isn't left looking at a stale "■ Stop".
     if (playing) stopPlayback();
+    const exercise = lastExercise;
+    let attachment;
     try {
-      await attachRenderer(lastExercise);
+      const pending = attachRenderer(exercise);
+      attachment = rendererAttachIdentity;
+      if (!await pending || attachment !== rendererAttachIdentity) return;
       // Refresh the LCD so a prior failed-attach state doesn't linger after a
       // successful switch.
       if (summary) summary.innerHTML = summarize(lastExercise);
     } catch (e) {
+      if (attachment !== rendererAttachIdentity || lastExercise !== exercise) return;
       console.error('[Virtuoso] renderer switch failed', e);
       // Auto-fall back to 2D Highway, which is in-tree and handles any
       // string count. Without this, a 3D-Highway failure leaves the user
@@ -25989,7 +26033,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
         try {
           syncViewSwitcher('builtin_2d');
           lastExercise.session.renderer = 'builtin_2d';
-          await attachRenderer(lastExercise);
+          if (!await attachRenderer(exercise)) return;
           if (summary) summary.innerHTML = summarize(lastExercise);
         } catch (e2) {
           console.error('[Virtuoso] fallback to 2D Highway failed', e2);
@@ -26124,6 +26168,14 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   function bind() {
     const root = $('virtuoso-root'); if (!root || root.dataset.virtuosoInit === '1') return false; root.dataset.virtuosoInit = '1';
     { const verEl = $('virtuoso-version'); if (verEl) verEl.textContent = 'v' + VIRTUOSO_VERSION; }   // header version badge (mirrors plugin.json)
+    const fileSelect = $('virtuoso-file-select');
+    if (fileSelect) for (const item of PRACTICE_FILES) {
+      const option = document.createElement('option');
+      option.value = item.id; option.textContent = item.title; fileSelect.appendChild(option);
+    }
+    fileSelect?.addEventListener('change', () => { cancelPracticeLoad(); });
+    $('virtuoso-file-load')?.addEventListener('click', onLoadPracticeFile);
+    $('virtuoso-file-unload')?.addEventListener('click', () => { clearPracticeFile(); onGenerate(); });
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('virtuoso-advanced-toggle');
     // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
     // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
@@ -26186,7 +26238,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       // Custom (that path regenerates); otherwise re-derive the rung + regenerate.
       if (dropPathwayIfUnplayable()) return;
       reapplyActivePathway();   // re-derive the active rung for the new instrument
-      if (activeBundle) onGenerate();
+      if (activeBundle || loadedPracticeFile) onGenerate();
     });
     setup?.addEventListener('change', (e) => {
       syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions();
@@ -26207,7 +26259,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       // handlers, which already regenerate. (Programmatic value-sets that must
       // NOT regenerate, e.g. the instrument handler's reset, assign .value
       // without dispatching 'change', so they don't reach here.)
-      if (activeBundle) onGenerate();
+      if (activeBundle || loadedPracticeFile) onGenerate();
     });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
     document.querySelectorAll('.virtuoso-instr-btn').forEach(btn => {
@@ -26217,7 +26269,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // contents dynamically and we still want a single change handler.
     $('virtuoso-tuning-select')?.addEventListener('change', () => {
       onTuningPresetChange();
-      if (activeBundle) onGenerate();
+      if (activeBundle || loadedPracticeFile) onGenerate();
     });
     $('virtuoso-save-tuning')?.addEventListener('click', onSaveTuningClick);
     // The Climb signpost's summit invite (depth slice — the summit-invite atom):
@@ -26259,7 +26311,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     syncInstrumentClass();
     syncStringCountChips();
     syncTuningOptions();
-    advancedToggle?.addEventListener('change', syncAdvancedMode); syncAdvancedMode(); syncChromaticVisibility();
+    advancedToggle?.addEventListener('change', syncPracticeFileControls); syncAdvancedMode(); syncChromaticVisibility();
     $('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
     $('virtuoso-play').addEventListener('click', onPlayToggle);
     $('virtuoso-stop')?.addEventListener('click', onStop);
@@ -26486,6 +26538,9 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       // and killed a running jam (latent since J-1; exposed by J-2's live edits).
       if (ev && ev.target && ev.target.closest && ev.target.closest('.virtuoso-jam-inspector')) return;
       const name = ev && ev.target ? ev.target.name : '';
+      if (ev.target?.closest?.('#virtuoso-file-practices')) return;
+      const leavingFile = name === 'practiceType' && !!loadedPracticeFile;
+      if (name === 'practiceType') clearPracticeFile();
       if (name === 'shape') syncShapeDropdownSelectionToHidden();
       if (name === 'practiceType') syncChromaticVisibility();
       if (name === 'keyCycle') { const h = $('virtuoso-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
@@ -26497,9 +26552,10 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       if (name === 'meter') meterAwareSubdivisionBump();
       if (name === 'meter' || name === 'subdivision') syncDivisionHelp();
       syncAdvancedMode();
+      syncPracticeFileControls();
       markPathwayModifiedIfApplicable(name);
       writeShareHash();
-      if (activeBundle) onGenerate();
+      if (activeBundle || loadedPracticeFile || leavingFile) onGenerate();
     });
     syncDivisionHelp();   // paint the Division pulse caption on first load
     // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
@@ -27069,7 +27125,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     if (hostBus() && typeof hostBus().on === 'function') {
       hostBus().on('screen:changed', (ev) => {
-        if (ev?.detail?.id !== 'plugin-virtuoso') return;
+        if (ev?.detail?.id !== 'plugin-virtuoso') { stopRenderer(); return; }
         // Sidebar always shows when the plugin is (re)selected.
         panelCollapsed = false; syncPanelToggle();
         if (lastExercise) {
@@ -27179,6 +27235,14 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // Keep test-only audio probes out of the characterized enumerable core API.
   if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) Object.defineProperty(globalThis.__ss_debug, 'audioRemoval', {
     value: { mixerLoad, sgToneFor, buildAmpChain, cabIrBuffer, AMP_PRESETS, MIXER_INSTRUMENTS }
+  });
+  if (typeof globalThis !== 'undefined' && globalThis.__SS_HARNESS__) Object.defineProperty(globalThis.__ss_debug, 'lifecycle', {
+    value: { bind, generate: onGenerate, load: onLoadPracticeFile, clear: clearPracticeFile, switchView: onViewSwitch, stop: stopRenderer,
+      jam: jamPlay, workout: onLaunchSession,
+      customTuningSync: syncCustomTuningInputs,
+      playback: (start, voices) => { playbackProbe = start; voicesProbe = voices; },
+      resolveFactory: probe => { rendererFactoryProbe = probe; },
+      state: () => ({ renderer, activeBundle, lastExercise, loadedPracticeFile, currentPracticeTime }) }
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();

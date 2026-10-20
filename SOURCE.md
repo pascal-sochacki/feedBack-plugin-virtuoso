@@ -1,7 +1,7 @@
 # Source availability and pinned provenance
 
 Audit update: 2026-10-20. Reviewed for the authorized experimental
-**0.2.9-lab.1** publication, not a stable release or legal certification.
+**0.2.11-lab.1** update, not a stable release or legal certification.
 The files below were fetched read-only
 from official GitHub API/raw endpoints. A matching historical commit's license
 is used for the player, not an unsupported retroactive current-license claim.
@@ -12,7 +12,8 @@ Copyright (C) 2026 Christian Cowan (original Virtuoso).
 Copyright (C) 2026 Pascal Sochacki (personal-fork modifications).
 Fork modification notice: native-module extraction and Lab identity isolation;
 2026-10-20 attribution/source-availability update and uncertain-recording
-withdrawal, source 0.2.9 / Lab 0.2.9-lab.1.
+withdrawal, followed by chord-theory/timing extraction, validated Markdown
+practices and lifecycle safety fixes, source 0.2.11 / Lab 0.2.11-lab.1.
 AGPL-3.0-only; supplied WITHOUT ANY WARRANTY. See [LICENSE](LICENSE).
 
 The installation consists of editable native JS, HTML, Python and assets.
