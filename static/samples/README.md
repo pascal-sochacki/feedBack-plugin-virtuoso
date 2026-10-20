@@ -1,9 +1,10 @@
-# static/samples — committed sample assets (license-cleared only)
+# static/samples — committed sample provenance (review pending)
 
-Unlike `static/irs/` and `static/nam/` (gitignored pending licensing), everything in
-this directory is **license-cleared for redistribution and committed to git**. Each
-asset set below records its provenance and license. Only add assets here whose
-license verifiably permits redistribution in an AGPL-3.0 plugin repo.
+These are the existing harvest records, not a blanket clearance certificate.
+**2026-10-20:** the 61 8ridgelite-derived recordings were removed because their
+recording-license scope and preferred-source mapping were unresolved. See
+[notices](../../THIRD_PARTY_NOTICES.md) and [evidence/blockers](../../SOURCE.md).
+Only add assets whose recording license verifiably permits redistribution.
 
 ## Shinyguitar derived subset (`sg_*.ogg`) — CC0 1.0
 
@@ -30,13 +31,19 @@ release noises, and body percussion.
 Region table + player live in `screen.js` §14; served by the `/sample/{name}`
 route in `routes.py`.
 
-## 8ridgelite 8-string DI subset (`8r_*.ogg`) — GPL-3.0
+## Removed 8ridgelite subset — historical harvest record only
+
+All 61 `8r_*.ogg` files and the Electric DI 8 option were removed on 2026-10-20.
+Stored `8ridge` mixer pins now select Shinyguitar/Electric DI. The following
+old processing/mapping record is retained as history, not redistribution
+permission or a description of current shipped samples.
 
 A derived subset of **8ridgelite**, an open-source JUCE 8-string electric-guitar DI
 sampler, obtained from `github.com/OmikronApex/8ridgelite`. The repository is licensed
-**GPL-3.0** (its `LICENSE` is the full GPL-3.0 text; the `.wav` set is committed in-repo
-under that license) — compatible with this repo's AGPL-3.0-only, so the derived OGGs are
-likewise GPL-3.0. The derivative: the `8ridgelite_20sec_wav/Natural/` articulation only
+**GPL-3.0 text at the repository root**, but no recording-specific grant was
+independently established. Do not infer WAV scope or clearance from that text
+alone. Pending source matching, the recorded derivative is the
+`8ridgelite_20sec_wav/Natural/` articulation only
 (the as-recorded sustain), each 20 s source WAV transcoded to **OGG Vorbis q3, mono
 44.1 k** and trimmed to **4.5 s** (0.4 s fade-out), renamed `8r_<midi>.ogg`.
 
@@ -52,11 +59,17 @@ chucks / dead-mutes fall back to the WAF voice. Selected via the mixer **"Electr
 instrument pin (`mixerState[..].instrument === '8ridge'`); the bank descriptor (`R8_KCS`)
 and player share the Shinyguitar region engine in `screen.js` §14.
 
-> Pitch mapping is `midi = sourceIndex + 27` (verified against the source's own a4/c5/e6
+> Historical harvest claims `midi = sourceIndex + 27` (against a4/c5/e6
 > note-name labels). The low-octave file labels read one semitone off that mapping — if a
 > by-ear check finds the whole bank a semitone out, it's a one-line offset fix here.
+> This mapping is **not currently verified**; pinned upstream player starts its
+> sorted Natural bank at MIDI 28. Do not reintroduce this set without reviewed
+> recording permission and verified source/audio identity.
 
 ## Salamander Grand Piano subset (`sal_<midi>_v<N>.ogg`) — CC-BY 3.0
+
+License: [CC-BY 3.0 Unported](https://creativecommons.org/licenses/by/3.0/),
+[full legal code](../../LICENSES/CC-BY-3.0.txt); see root notices for attribution.
 
 A derived subset of the **Salamander Grand Piano V3** by **Alexander Holm**, licensed
 **CC-BY 3.0** (Creative Commons Attribution 3.0) and obtained from the Internet Archive
@@ -104,6 +117,9 @@ melodic instrument pin (`mixerState[..].instrument === 'emily'`); shares the reg
 in `screen.js` §14. Note→MIDI verified against the source SFZ (`db2` → keycenter 37).
 
 ## Wurlitzer EP200 subset (`wur_<midi>.ogg`) — CC-BY 3.0
+
+License: [CC-BY 3.0 Unported](https://creativecommons.org/licenses/by/3.0/),
+[full legal code](../../LICENSES/CC-BY-3.0.txt); upstream mapping/fixes by kinwie.
 
 A derived subset of the **Wurlitzer EP200** from **Greg Sullivan's E-Pianos**, licensed
 **CC-BY 3.0** (Creative Commons Attribution 3.0), from `github.com/sfzinstruments/
@@ -155,6 +171,9 @@ its keycenter** on re-export (`asetrate`/`atempo` by the measured per-sample off
 added for coverage. No per-bank `tune` correction is needed now.
 
 ## CP-80 electric grand subset (`cp_<midi>_<dyn>.ogg`) — CC-BY 3.0
+
+License: [CC-BY 3.0 Unported](https://creativecommons.org/licenses/by/3.0/),
+[full legal code](../../LICENSES/CC-BY-3.0.txt); upstream mapping/fixes by kinwie.
 
 A derived subset of the **Yamaha CP-80 electric grand** from **Greg Sullivan's E-Pianos**
 (the same CC-BY 3.0 pack as the Wurlitzer above), from `github.com/sfzinstruments/

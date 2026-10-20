@@ -4,14 +4,32 @@
 navigation label: **Virtuoso (Lab)**. A supported released desktop version has
 not yet been certified. The running host must understand `scriptType: "module"`
 AND serve the plugin's `src/**` with JavaScript MIME. An older host will fail at
-`import` or return 404 for a core module. Version: **0.2.8-lab.1**.
+`import` or return 404 for a core module. Candidate version: **0.2.9-lab.1**.
+This guide describes the reviewed **0.2.9-lab.1** experimental publication on
+the personal fork's `main`, not a stable release or legal certification.
 
 This fork packages the native-module prototype based on upstream Virtuoso v0.2.6,
-with source version 0.2.8 and move-only pitch and scale-interval modules.
+with source version 0.2.9 and move-only pitch and scale-interval modules.
 It **does not include the separate Learn-mode work** and is not an official
 stable release. Original project: https://github.com/got-feedBack/feedBack-plugin-virtuoso.
-Virtuoso remains licensed **AGPL-3.0-only**; see `LICENSE` and retained asset
-licenses/attribution under `assets/` and `static/`.
+Copyright (C) 2026 Christian Cowan (original Virtuoso).
+Copyright (C) 2026 Pascal Sochacki (personal fork modifications).
+Modification notice, 2026-10-20: native-module extraction, Lab namespace
+isolation, attribution/source-availability update and withdrawal of uncertain
+recordings. Virtuoso code is free
+software under **AGPL-3.0-only**; you may use, study, modify and redistribute
+under those terms. Supplied **WITHOUT ANY WARRANTY**, including implied
+merchantability or fitness for a particular purpose. See `LICENSE`,
+`THIRD_PARTY_NOTICES.md` and `SOURCE.md` at the installed repository root;
+asset licenses are separate, not all AGPL. On 2026-10-20 the 61 unverified
+8ridgelite-derived recordings and Deer Ink Studios V30 WAV were removed.
+Electric DI 8 is unavailable; saved `8ridge` mixer choices select the existing
+Shinyguitar Electric DI. Metal keeps its amp settings with the existing
+procedural cab; user IR overrides still work. Generation is unchanged.
+
+This guide is also copied verbatim as the generated runtime README. Its install
+instructions are standalone: source-only development/docs/test paths mentioned
+below are maintainer context, not links to files present in the runtime package.
 
 ## Install with Git Plugin Manager
 
@@ -36,7 +54,12 @@ Windows. Back up important data before experimental testing.
 
 The published repository contains the complete editable runtime source: plain
 `screen.js`, `src/`, Python routes, HTML and licensed assets. There is no compiled
-or hidden bundle. Upstream development docs, tests, packaging scripts and CI that
+or hidden plugin bundle. The GPL WebAudioFont player also includes its preferred
+TypeScript source, original build config/license and Lab reconstruction script
+under `vendor/webaudiofont-src/`. `SOURCE.md` explains matching the manifest
+version to its published Git revision, historical removals and review limits.
+`THIRD_PARTY_NOTICES.md` and `LICENSES/` accompany every generated candidate.
+Upstream development docs, tests, packaging scripts and CI that
 depend on the original source layout are intentionally omitted from this runtime
 edition; publication does not imply browser/desktop certification.
 
@@ -116,10 +139,10 @@ edition's wrapper: keep original disabled and restart; don't run both together.
 Shared host globals (`feedBack*`, `noteDetect`, tuner, host legacy aliases) are
 not renamed or replaced with private fake host APIs.
 
-## Acceptance status (2026-10-19)
+## Acceptance status (2026-10-20)
 
-Source-only validation: **18/18 Node tests** (pitch, scale intervals,
-characterization and packaging), real module import,
+Reviewed source-only validation: **23/23 Node tests** (pitch, scale intervals,
+characterization, packaging and documentation), real module import,
 manifest/source graph/ZIP integrity, private audio globals, Python AST + SQLite
 schema/endpoints, repeatability and a deterministic **71-case** corpus captured
 from committed pre-extraction source `c37dc632` (40 public keys, 91 debug keys,
@@ -130,6 +153,10 @@ mutation controls pass. Syntax,
 narrow JSDoc checking, brand hygiene and whitespace gates are checked as well.
 The user's earlier installed Windows Lab “seems to work” report is preliminary
 functional smoke only, not regression certification for this update.
+Tests also verify complete legal/vendor-source retention, exact player
+reconstruction, legal UI links, withdrawal of all **62 assets** (61 OGGs and one
+WAV), saved-bank migration and the procedural Metal cab. Use current runner
+output rather than treating this dated count as the full suite forever.
 The host smoke runner cannot reach a host on port 8765; browser smoke and Python
 route-runtime tests need host/dependencies unavailable in this environment.
 Real installed-host module loading/cache/navigation, renderers, transport,

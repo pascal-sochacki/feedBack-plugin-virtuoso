@@ -8,7 +8,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // ===========================================================================
   // TABLE OF CONTENTS
   // The IIFE remains during bottom-up native-module extraction so startup and
-  // closure state keep their original order. See docs/native-modules.md.
+  // closure state keep their original order. See docs/plugin/native-modules.md.
   // Major sections are marked with a "§N" banner below.
   //
   //   §1  Constants & music-theory data
@@ -16,7 +16,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   //   §3  Built-in sessions (BUILT_IN_SESSIONS)
   //   §4  CAGED / 3NPS / Open shape system (CAGED_SHAPES, resolveCAGEDShape)
   //   §5  Chord-depth / diatonic extension engine
-  //   §6  Voicing engine (docs/musicality-guardrails.md Layer 2)
+  //   §6  Voicing engine (docs/theory/musicality-guardrails.md Layer 2)
   //   §7  Exercise builders (scale / chord-scale / arpeggio / sweep / chromatic / guide-tones)
   //   §8  generateExercise() dispatch
   //   §9  Session builders (segment / bpm-ladder / session charts, generateSession)
@@ -51,7 +51,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.8-lab.1';
+  const VIRTUOSO_VERSION = '0.2.9-lab.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -385,7 +385,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     yngwie_sixes:'sixes (1-2-3-4-3-2)'
   };
   // ── RHYTHM_CELLS — the recombinable rhythm-cell table (Rhythm-ladder panel, ──────
-  // 2026-06-04; spec docs/rhythm-ladder-roundtable.md). The engine already tiles an
+  // 2026-06-04; spec docs/plugin/design/rhythm-ladder-roundtable.md). The engine already tiles an
   // arbitrary per-step duration array with no bar-reset (fillNotesFromSeq's `steps`
   // path), so any rhythmic cell COMMENSURATE with the bar is data, not code: the whole
   // gallop / dotted-snap / clave / tresillo wave becomes CURATION. `beats` is the cell
@@ -442,7 +442,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     }
   })();
   // Default chord-scale for "mode of the moment". These follow the codebase's
-  // documented jazz stance (see docs/theory-jazz-advanced.md "Chord-scale
+  // documented jazz stance (see docs/theory/theory-jazz-advanced.md "Chord-scale
   // defaults"): prefer scales that dodge the avoid-note a half-step above a
   // chord tone, even though that's a more advanced choice than the textbook
   // functional scale.
@@ -670,7 +670,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // VERTICAL column through difficulty, vs the Core bands' horizontal staircase.
     // Style-kind so they're opt-in via the Pack manager; family 'Concepts' heads the
     // Available column. First of a planned set (Arpeggio, Voice-Leading, Fretboard…).
-    // See docs/triad-mastery-ladder.md + memory project_python_generator_reconciliation.
+    // See docs/plugin/design/triad-mastery-ladder.md + memory project_python_generator_reconciliation.
     { id:'concept_chords', label:'Chords', kind:'style', family:'Concepts', buildsOn:'Builds on Core Beginner — power chords and a steady strum hand; and Core Intermediate — the CAGED major scale (a barre chord is that scale shape\'s skeleton). Hold the grip, change it cleanly in time, then move it around the neck: open cowboy chords -> the five CAGED shapes -> movable barres -> comping a whole progression.', pathways:['chord_cowboy','chord_caged_shapes','chord_barre_changes','chord_caged_progression','chord_sevenths','chord_diatonic_7ths','chord_color_extensions'] },
     { id:'concept_triads', label:'Triads', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — the CAGED major scale. A triad is the top three strings of the barre chords you already know; own the three inversions, then use them over the changes.', pathways:['triad_inversions','triad_five_shapes','triads_over_changes','triad_pairs'] },
     { id:'concept_arpeggios', label:'Arpeggios', kind:'style', family:'Concepts', buildsOn:'Builds on Core Intermediate — diatonic triads and the CAGED shapes. An arpeggio is a chord one note at a time; spell the sevenths, invert them, then chase them through the changes.', pathways:['arp_seventh_shapes','arp_inversions','arp_over_changes','arp_sweeps'] },
@@ -806,7 +806,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // over changes → pairs), a VERTICAL column through difficulty vs the Core bands'
     // horizontal staircase. ~80% curation of existing arpeggio generators; the
     // differentiating rung (upper-structure triad over a moving bass) is the queued
-    // new generator — see docs/triad-mastery-ladder.md. Reviewed: guitar-pedagogy +
+    // new generator — see docs/plugin/design/triad-mastery-ladder.md. Reviewed: guitar-pedagogy +
     // harmony-theory (2026-06-03). Each goal-card NAMES the transferable skill.
     triad_inversions: {
       label:'Triad Inversions',
@@ -844,7 +844,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // The single highest-value harmony ladder (harmony-theory): changes are LINES,
     // not boxes — the 3rd/7th skeleton + nearest-tone voice leading through a tune.
     // Pure curation (shell_voicings → guide_tones → chord_scales/Connect). Reviewed
-    // by harmony-theory (2026-06-03). See docs/triad-mastery-ladder.md (concept-ladder pattern).
+    // by harmony-theory (2026-06-03). See docs/plugin/design/triad-mastery-ladder.md (concept-ladder pattern).
     vl_shells: {
       label:'Shell Voicings',
       goal:'Three notes spell a chord: root, 3rd, 7th. Comp a ii–V–I with just those shells and you have the skeleton of jazz rhythm guitar — economical, voice-led, no mud. The 3rd and 7th carry the sound; the root only names it.',
@@ -1133,7 +1133,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       vary:[ { scale:'major_pentatonic' }, { scale:'minor_pentatonic' }, { scale:'blues' }, { key:'E', scale:'major_pentatonic' }, { key:'G', scale:'minor_pentatonic' } ]
     },
     // ── Blues VOCABULARY rungs (riff-vocabulary pilot, 2026-06-12) ──────────────
-    // The arc NAME → DRILL → VARY → CONSTRUCT → JAM (docs/riff-vocabulary-playbook.md):
+    // The arc NAME → DRILL → VARY → CONSTRUCT → JAM (docs/plugin/riff-vocabulary-playbook.md):
     // the goal-card NAMES the device, the drill rung's vary[] is ONE axis
     // (transposition — D9: a lick clean in 5 keys is a transferable device; the
     // same lick at 200 BPM in one key is a parlor trick; tempoTiers short), the
@@ -1282,7 +1282,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     },
     bass_walking: {
       label:'Walking Bass',
-      feltGate:true,   // bass FEEL rung (v1 pilot): completes on a sustained POCKET (Settling-or-better), not a %; LOCKED raises the feltBpm PB. See docs/bass-felt-hold-roundtable.md.
+      feltGate:true,   // bass FEEL rung (v1 pilot): completes on a sustained POCKET (Settling-or-better), not a %; LOCKED raises the feltBpm PB. See docs/plugin/design/bass-felt-hold-roundtable.md.
       goal:'The jazz/blues engine: one note per beat, walking from chord to chord — root on the downbeat, chord tones and chromatic approach notes leading into the next change. The skill is voice-leading the bass line so it both outlines the harmony and pulls forward. The most-wanted bass skill in jazz and blues.',
       scales:['major','dorian','mixolydian'],
       tempoTiers:[65, 85, 105, 125],
@@ -1370,7 +1370,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // the neck", with a box diagram). Where bass_arp_sevenths travels by KEY, this
     // travels by POSITION: one quality box walked up the neck. The four qualities are a
     // one-note-edit chain (maj7→dom7→min7→m7♭5). Pure config (static_i + chordOverride +
-    // a stepped window), no new generator. See docs/bass-technique-content-roundtable.md.
+    // a stepped window), no new generator. See docs/plugin/design/bass-technique-content-roundtable.md.
     bass_arp_neck: {
       label:'Seventh Boxes — Up the Neck',
       goal:"One seventh-chord box, walked up the whole neck: the same shape — root, 3rd, 5th, 7th — in each position from low to high, so the arpeggio lives everywhere, not just one spot. Four boxes, each a single finger-move from the last: maj7, drop the 7 for dom7, drop the 3 for min7, drop the 5 for m7♭5. The 3rd says major or minor, the ♭7 says dominant — own these and you outline the changes anywhere on the bass with no chart.",
@@ -1477,7 +1477,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // the minor-3rd reach in the box lands the hammered note on the PINKY (fg 4), so
     // it builds exactly the finger bassists most need. Starts at the comfortable 5th
     // fret; felt/clean, never scored on the slur. Core: Bass (NOT the CAGED concept
-    // rung). See docs/bass-technique-content-roundtable.md.
+    // rung). See docs/plugin/design/bass-technique-content-roundtable.md.
     bass_finger_legato: {
       label:'Pinky Power — Hammer-Ons & Pull-Offs',
       goal:"The fretting hand makes the sound and the pinky earns its keep: hammer onto the higher note, pull off to the lower, pick only the first note on each string. In the pentatonic box the reach lands on your pinky — the very finger bassists most need to strengthen. Up at the 5th fret the stretch is easy; as your slurs get clean and even, work it lower. No straining, no flat four-finger reach — just the strength and independence that let a bassline flow.",
@@ -1595,7 +1595,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       vary:[ { meter:'7/8:2+2+3' }, { meter:'5/8:3+2' }, { meter:'9/8:3+3+3' }, { meter:'7/8:3+2+2' }, { meter:'11/8:3+3+3+2' } ]
     },
     // ── Rhythm ladder — genre-spanning expansion (panel 2026-06-04) ──────────────
-    // Spec docs/rhythm-ladder-roundtable.md. ONE genre-neutral spine; genres attach as
+    // Spec docs/plugin/design/rhythm-ladder-roundtable.md. ONE genre-neutral spine; genres attach as
     // a vary[] step / their own Style-pack app rung / goal-card prose — never a new band
     // rung. New rungs over the RHYTHM_CELLS substrate + the buildRhythmPulseExercise
     // keystone. Difficulty axis = feel/accent control; the pitch vehicle stays simple.
@@ -2398,7 +2398,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   //
   // A session is an ordered list of exercise segments. Each segment configures
   // one exercise type and duration. buildSessionChart() concatenates them into
-  // a single sloppak with section markers. See docs/session-schema.md for the
+  // a single sloppak with section markers. See docs/plugin/session-schema.md for the
   // full field reference.
   //
   // Segment `kind` values map to buildSingleChart() mode dispatch:
@@ -2760,8 +2760,8 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // String indices follow Virtuoso's existing convention: s=0 is the lowest
   // string (low E in standard tuning, index 0 of openMidis). s=5 is high E.
   //
-  // See docs/fretboard-pedagogy.md for the design rationale and
-  // docs/position-system-rework.md for how this data model is intended to
+  // See docs/theory/fretboard-pedagogy.md for the design rationale and
+  // docs/archive/position-system-rework.md for how this data model is intended to
   // flow into the rest of the plugin.
 
   // Unified CAGED shape data — single source of truth.
@@ -3505,7 +3505,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
   let _lastEndedSession = null;  // the just-finished session → the P-sheet "Last session" card
   // A-B segment loop endpoints in chart-time seconds. Null = no loop.
-  // See docs/section-looping.md for the design + phasing.
+  // See docs/archive/section-looping.md for the design + phasing.
   let segmentLoopA = null, segmentLoopB = null;
   // Transport UI state: tpA/tpB are the user's chosen A/B loop points (either
   // may be set before the other); the committed loop lives in segmentLoopA/B.
@@ -3708,7 +3708,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // (its shipped default 0.080s). Virtuoso's old model — serialized first-match
   // active note + a 2-CONSECUTIVE-frame streak on the raw clock — judged every
   // attack against the PREVIOUS note in continuous runs (the chromatic
-  // "unforgiving" complaint). See docs/timing-judging-roundtable.md.
+  // "unforgiving" complaint). See docs/archive/timing-judging-roundtable.md.
   const PT_DETECT_LATENCY = 0.080;  // the DEFAULT anchor (host's shipped default) — see ptLatency()
   // ── Slice 3: A/V latency auto-calibration (mirrors the host's sweep) ───────
   // The judge clock's anchor is a HIDDEN per-device setting, refined at the end
@@ -3816,7 +3816,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   const PT_CONF_INPUT = 0.55;       // input-presence + meter display floor
   const PT_BEND_CENTS = 600;        // bn notes: lenient pitch gate (host convention — the hit rides
                                     // presence + timing, never a moving bend target)
-  // ── Slice 2: the fast-idiom honesty layer (docs/timing-judging-roundtable.md;
+  // ── Slice 2: the fast-idiom honesty layer (docs/archive/timing-judging-roundtable.md;
   //    constants characterized by probe-verifier-envelope 2026-06-06) ──────────
   const PT_MIN_RING_YIN = 0.045;      // per-note certifiability floor, YIN ear. Under
                                       // the single-frame commit (feel panel 2026-06-06)
@@ -5949,13 +5949,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   const SG_VAR_START = 0.004; // up to N s buffer-start jitter (small — preserves the pick attack)
   const sgBuffers = {};      // file -> { state:'loading'|'ready'|'failed', buf, promise }
   const sgRR = {};           // keycenter_layer -> alternating round-robin pick
-  // Second sample BANK (harvested 2026-06-14): 8ridgelite — an open GPL-3.0 8-string
-  // guitar DI, chromatic single-take / single-layer (static/samples/8r_<midi>.ogg;
-  // provenance + license in static/samples/README.md). One articulation (Natural
-  // sustain): palm-mutes are the runtime 'chug' envelope, and chucks / dead-mutes fall
-  // back to WAF (no such samples). Selected via the mixer 'Electric DI 8' pin
-  // (mixerState[..].instrument === '8ridge'). MIDI 33 wasn't in the source set.
-  const R8_KCS = Array.from({ length: 62 }, (_, i) => 27 + i).filter(m => m !== 33);  // 27..88 ∖ 33
   function sgNearestKc(midi, kcs) {
     const list = kcs || SG_KEYCENTERS;
     let best = list[0];
@@ -5995,8 +5988,6 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     shiny:      { kcs: SG_KEYCENTERS, rr: 2, bright: 0, amped: true,
                   velLayers: [{ tag: 'vl2', maxVel: SG_VEL_HARD }, { tag: 'vl3', maxVel: Infinity }],
                   file: (kc, layer, rr) => `sg_sus_${kc}_${layer}_rr${rr}.ogg` },
-    '8ridge':   { kcs: R8_KCS, rr: 1, bright: 0.5, amped: true, velLayers: null,
-                  file: (kc) => `8r_${kc}.ogg` },
     salamander: { kcs: PF_KCS, rr: 1, bright: 0,
                   velLayers: [{ tag: 4, maxVel: 0.42 }, { tag: 9, maxVel: 0.75 }, { tag: 14, maxVel: Infinity }],
                   file: (kc, layer) => `sal_${kc}_v${layer}.ogg` },
@@ -6071,11 +6062,10 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   };
   const sgReadyFor = (midis, vel, bank) =>
     (midis || []).every(m => sgFilesFor(m, vel, bank).every(f => sgBuffers[f] && sgBuffers[f].state === 'ready'));
-  // Which sample BANK a strip resolves to: a bank id ('shiny' | '8ridge') or null/false.
+  // Which sample BANK a strip resolves to: a bank id or null/false.
   // (Truthy where callers test "is the sampled guitar on"; the string also names WHICH
-  // set to load/play.) Only 'shiny' is ever a profile default — '8ridge' is opt-in via
-  // the mixer pin, so no profile/default behaviour changes.
-  const SAMPLE_BANK_PINS = { shiny: 1, '8ridge': 1, salamander: 1, emily: 1, wurli: 1, banjo: 1, cp80: 1 };
+  // set to load/play.) Profile defaults are unchanged by removing the opt-in DI bank.
+  const SAMPLE_BANK_PINS = { shiny: 1, salamander: 1, emily: 1, wurli: 1, banjo: 1, cp80: 1 };
   const sgToneFor = key => {
     const pin = mixerState[key] && mixerState[key].instrument;
     return SAMPLE_BANK_PINS[pin] ? pin : null;
@@ -6156,7 +6146,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     }
     const bank = (opts && opts.bank) || 'shiny';
     // Only the guitar DI 'shiny' bank has recorded chuck / dead-mute samples; every other
-    // bank (8ridge, salamander, …) bails on those so the caller falls back to WAF.
+    // bank (salamander, …) bails on those so the caller falls back to WAF.
     if (bank !== 'shiny' && (artic === 'chuck' || (artic && artic.mutestr != null))) return false;
     let file;
     if (artic === 'chuck') {
@@ -6215,7 +6205,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     // driven low-pass (opts.bright 0..1 = strength). Absent for multi-velocity-layer
     // sets like Shinyguitar — so no node + no tone change there. Soft → darker, hard → open.
     let head = g;
-    // Per-bank brightness default (8ridge single-layer engages it; multi-layer banks like
+    // Per-bank brightness default (single-layer keys engage it; multi-layer banks like
     // Shinyguitar/Salamander stay off — no node, tone unchanged) unless a caller overrides.
     const bright = (opts && opts.bright != null) ? opts.bright : bankDesc(bank).bright;
     if (bright && !unpitched) {
@@ -6262,7 +6252,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // 4 = bend-and-release (round trip). `bn` stays the magnitude (now incl. the
   // 0.25 quarter-curl). Audio/judging already treat bn generically; bt is the
   // declared INTENT for renderers/judging to grow into (the DapperTap
-  // "bends judged unbent" class). See docs/exercise-schema.md.
+  // "bends judged unbent" class). See docs/plugin/exercise-schema.md.
   function noteDefaults(extra) { return Object.assign({ t:0, s:0, f:0, sus:0, sl:-1, slu:-1, bn:0, bt:0, ho:false, po:false, hm:false, hp:false, pm:false, mt:false, vb:false, tr:false, ac:false, tp:false }, extra || {}); }
   // Alternate-picking pkd emission (hand-marks Slice 1; guitar-pedagogy ruling):
   // strict alternation by NOTE ORDER — string crossings included; the triplet
@@ -7129,7 +7119,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // ===========================================================================
   // §6 · VOICING ENGINE
   // ===========================================================================
-  // --- Voicing engine (docs/musicality-guardrails.md Layer 2) ----------------
+  // --- Voicing engine (docs/theory/musicality-guardrails.md Layer 2) ----------------
   // Classify each chord-tone pitch class (mod 12) into a role + inclusion rank
   // (lower = kept first). Context resolves ambiguity: a minor 3rd is a ♯9 when a
   // major 3rd is also present; the ♭5/♯5 vs ♯11/♭13 split depends on the natural 5th;
@@ -9139,7 +9129,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
 
   // ===========================================================================
   // §7 · EXERCISE BUILDERS
-  // each returns an { exercise } object (see docs/exercise-schema.md).
+  // each returns an { exercise } object (see docs/plugin/exercise-schema.md).
   // ===========================================================================
   function buildChordScaleExercise(cfg) {
     const degrees = progressionDegreesForConfig(cfg);
@@ -10062,8 +10052,8 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
 
   // ── MOTIF_CELLS — the riff-vocabulary engine ─────────────────────────────────
-  // (Charette 2026-06-12; schema docs/riff-vocabulary-roundtable.md §1, process
-  // docs/riff-vocabulary-playbook.md.) The pitch-bearing sibling of RHYTHM_CELLS:
+  // (Charette 2026-06-12; schema docs/plugin/design/riff-vocabulary-roundtable.md §1, process
+  // docs/plugin/riff-vocabulary-playbook.md.) The pitch-bearing sibling of RHYTHM_CELLS:
   // hand-authored 1–2-bar trademark genre DEVICES, degree-relative and key-free,
   // drilled through keys/positions by buildMotifExercise. Devices not songs —
   // every cell is a technique device, a traditional common-stock figure, or an
@@ -10343,7 +10333,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   })();
 
   // ── Single-string rhythm pulse — the keystone of the Rhythm ladder ───────────
-  // (Rhythm-ladder panel, 2026-06-04; spec docs/rhythm-ladder-roundtable.md.) ONE
+  // (Rhythm-ladder panel, 2026-06-04; spec docs/plugin/design/rhythm-ladder-roundtable.md.) ONE
   // palm-muted note on the LOWEST string, struck in the configured rhythm cell over a
   // steady click, so the drill is PURE TIME — no fretting-hand variable, no pitch
   // reading: the picking hand IS the metronome (guitar-pedagogy's keystone framing).
@@ -11818,7 +11808,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     return { notes, chords, chordTemplates, handShapes, sections, anchors, backingEvents, timeline, duration: t };
   }
 
-  // ── Jam multi-pass chart (Jam redesign slice J-1; docs/jam-mode-roundtable.md) ──
+  // ── Jam multi-pass chart (Jam redesign slice J-1; docs/plugin/design/jam-mode-roundtable.md) ──
   // Bakes the "living band" variation INTO the chart instead of mutating a live
   // loop (D-J4 "variety before reactivity"): N passes of the style's progression,
   // each pass re-rolled (per-pass humanSeed → fresh micro-timing/velocity/figure
@@ -12257,7 +12247,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // composes with the inter-block breaks / segmentBounds / per-block backing / wrap
   // for free, and keeps smoke-session-sync + smoke-variation coverage). Recomputes
   // from the CANONICAL arc (strips prior _added blocks) so presets don't compound.
-  // Spec: docs/workout-love-roundtable.md (Tier 3); memory project_workout_love.
+  // Spec: docs/plugin/design/workout-love-roundtable.md (Tier 3); memory project_workout_love.
   const LENGTH_PRESETS = { quick: 10, standard: 20, woodshed: 30 };   // minutes
   const LENGTH_CAP = { quick: 1.25, standard: 1.5, woodshed: 1.75 };  // most the ORIGINAL arc may stretch (rhythm-meter)
   // Per-category single-run dose ceiling (L&D) — the forcing function: a block
@@ -16034,7 +16024,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
              post: [['lowshelf', 95, 0, 2], ['peaking', 580, 1.1, -5], ['peaking', 3500, 0.9, 3]],
              // makeup raised 0.24→0.38 (2026-06-13 dogfood: the rhythm comp read
              // "low volume"); the master limiter still guards peaks. By-ear tunable.
-             makeup: 0.38, comp: [-16, 3, 0.008, 0.12], ir: 'v30_4x12' },
+              makeup: 0.38, comp: [-16, 3, 0.008, 0.12] },
     // Bass overdrive (genre-band panel 2026-06-13, bass-pedagogy): a SEPARATE preset
     // for the BASS bus — do NOT reuse drive/metal (their 75–110 Hz preHp guts the
     // bass fundamental). Low HP keeps the sub, a gentle upper-mid grind adds the
@@ -16071,8 +16061,8 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // cabIrBuffer is the immediate fallback (the chain never waits) AND the permanent
   // fallback when the file is absent — the LOCAL-ONLY case: the clean/overdrive
   // cab IRs are gitignored (commercial captures), so the PUBLIC build falls back
-  // to procedural while a local dogfood build plays the real cab. The metal V30
-  // (v30_4x12.wav, GPL-3 via AIDA-X) ships, so everyone gets the real metal cab.
+  // to procedural while a local dogfood build plays the real cab. Metal uses the
+  // procedural cab directly: its former third-party capture lacked verified permission.
   // wireTrackAmp builds a chain once + caches it (not per-pass), so when an IR
   // decodes after the chain was built, swap the buffer on the waiting convolver.
   const IR_BASE = '/api/plugins/virtuoso_lab/ir/';
@@ -16191,7 +16181,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (sel === 'off') return null;
     if (AMP_PRESETS[sel]) return sel;
     // Auto: a profile-declared amp wins (distorted family's comp declares 'metal');
-    // else ONLY a raw electric-DI bank (SAMPLE_BANKS[bank].amped: shiny/8ridge) takes
+    // else ONLY a raw electric-DI bank (SAMPLE_BANKS[bank].amped: shiny) takes
     // Clean — acoustic/keys banks (emily/salamander/wurli) get no forced guitar-cab insert.
     const slot = prof && (name === 'harmony' ? prof.harmony : name === 'bass' ? prof.bass : prof.notes);
     if (slot && AMP_PRESETS[slot.amp]) return slot.amp;
@@ -16455,7 +16445,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // Per-channel instrument options (Phase C — backing-voice selection lives here now,
   // moved out of the form). Values are TONE_GM keys; '' = Auto (use the style profile).
   const MIXER_INSTRUMENTS = {
-    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['salamander','Grand Piano'],['wurli','Wurlitzer'],['cp80','Electric grand'],['clean','Clean gtr'],['shiny','Electric DI'],['8ridge','Electric DI 8'],['guitar','Acoustic'],['emily','Steel acoustic'],['banjo','Banjo'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['brass','Brass'],['synthlead','Synth lead'],['pad','Synth pad']],
+    melodic: [['','Auto'],['epiano','E-piano'],['organ','Organ'],['piano','Piano'],['salamander','Grand Piano'],['wurli','Wurlitzer'],['cp80','Electric grand'],['clean','Clean gtr'],['shiny','Electric DI'],['guitar','Acoustic'],['emily','Steel acoustic'],['banjo','Banjo'],['nylon','Nylon'],['clav','Clav'],['strings','Strings'],['brass','Brass'],['synthlead','Synth lead'],['pad','Synth pad']],
     bass:    [['','Auto'],['bass','Electric'],['upright','Upright']],
   };
   // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
@@ -16548,12 +16538,12 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       if (gm != null) ensureWafPreset(gm);
     }
   }
-  // Is a channel's pinned WAF instrument decoded? The DI sample banks (shiny / 8ridge),
+  // Is a channel's pinned WAF instrument decoded? The DI sample bank (shiny),
   // synth voices, and Auto have their own readiness/fallback — only a cold WAF sample swap
   // would land on the thin oscillator, so gate ONLY that case (never tear down a good voice).
   function liveInstrumentReady(k) {
     const tone = mixerState[k] && mixerState[k].instrument;
-    if (!tone || tone === 'shiny' || tone === '8ridge' || tone === 'salamander' || tone === 'emily' || tone === 'wurli' || tone === 'banjo' || tone === 'cp80') return true;
+    if (!tone || SAMPLE_BANK_PINS[tone]) return true;
     const gm = TONE_GM[tone];
     if (gm == null) return true;                       // synth voice (pad/synthlead) — always ready
     return !!getReadyWafPreset(gm);
@@ -16590,7 +16580,12 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   function mixerLoad() {
     try {
       const s = JSON.parse(localStorage.getItem('virtuoso_lab.mixer') || 'null');
-      if (s && s.ch) { Object.keys(s.ch).forEach(k => { ensureChannelState(k); Object.assign(mixerState[k], s.ch[k]); }); mixerBackingDim = !!s.dim; }
+      if (s && s.ch) { Object.keys(s.ch).forEach(k => {
+        ensureChannelState(k);
+        Object.assign(mixerState[k], s.ch[k]);
+        // Preserve a saved DI choice without requesting the removed recordings.
+        if (mixerState[k].instrument === '8ridge') mixerState[k].instrument = 'shiny';
+      }); mixerBackingDim = !!s.dim; }
       if (s && Number.isFinite(s.master)) mixerMasterLevel = Math.max(0, Math.min(2, s.master));
     } catch (_) {}
   }
@@ -17283,7 +17278,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // A calm, dismissible mirror of the run that just ended — what you practised,
   // time on the instrument, tempo-tier reached, streak. Descriptive + gained-only
   // (no score/accuracy/rank); meter-green only for a freshly-cleared tier. See
-  // docs/design-system.md §13/§14. Inputs are controlled internal strings.
+  // docs/plugin/design-system.md §13/§14. Inputs are controlled internal strings.
   function sessionSummaryCardHtml() {
     const s = _lastEndedSession; if (!s) return '';
     const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
@@ -18465,7 +18460,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     }
   }
   // ── Host topbar parity: tuner + profile badges & instrument-settings sync ───
-  // (docs/topbar-host-parity.md, 2026-07-10.) Virtuoso's "fullscreen":true hides
+  // (docs/plugin/design/topbar-host-parity.md, 2026-07-10.) Virtuoso's "fullscreen":true hides
   // the host topbar on this screen, so the header mirrors its three badges. HOST
   // CHECK verdicts: tuner = BORROW the launch (window.tuner.toggle) + MIRROR the
   // card; instrument = BORROW persistence (/api/settings + /api/tunings +
@@ -20236,7 +20231,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   // very start — Logic's "press Stop again to go to the top".
   function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // ── PR 2.1 · "Hear it" — audition the target phrase (Ear-Mode enabler) ───────
-  // Ear Mode's foundation (docs/ear-mode.md): play the current exercise's NOTES as
+  // Ear Mode's foundation (docs/plugin/design/ear-mode.md): play the current exercise's NOTES as
   // audio, UNGRADED — no scorer, no session, no RAF clock. Just schedule the
   // notes-only voice through the same audio bus playback uses, so the player can
   // HEAR the phrase (the "call" a future Echo rung will have them reproduce).
@@ -23514,7 +23509,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     _ptJamRun = isJamMode();   // the mirror rule: gems/paint never judge a Jam run
     _ptLabelGates = ndLabelGates();   // the host's own label toggles (inherit-never-write), read per run
     _ptNdWin = ndTimingInherit();     // the host tuner's timing windows (Clean Timing / chord), read per run
-    // ── Slice 2: the fast-idiom honesty classes (docs/timing-judging-roundtable.md) ──
+    // ── Slice 2: the fast-idiom honesty classes (docs/archive/timing-judging-roundtable.md) ──
     // (a) LEGATO: ho/po notes have no pick transient — the PICKED note that
     //     opens the slur is judged; the slurred notes are shown, never judged
     //     (herta's physics generalized globally).
@@ -24178,7 +24173,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     }
     return { pathwayId, tier };
   }
-  // ── Bass FELT-HOLD (engagement foundations) — docs/bass-felt-hold-roundtable.md ──
+  // ── Bass FELT-HOLD (engagement foundations) — docs/plugin/design/bass-felt-hold-roundtable.md ──
   // The bass analog of the guitar clean-tempo PB. Bass is felt-not-scored, so a
   // FELT-rung pathway (feltGate:true) completes on a sustained POCKET, not a %: a
   // verdict — Locked / Settling / Dragging / Rushing — from the onset-timing
@@ -24260,7 +24255,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
     if (!flip && !feltPB) return null;
     return { pathwayId: pwId, pathwayLabel: pw.label, tier, tierName: TIER_LABELS[tier] || ('Tier ' + (tier + 1)), verdict: v, flip: !!flip, feltPB, feltBpm: (pathwayTiersLoad()[pwId] || {}).feltBpm || null };
   }
-  // ── Proof-loop slice (flagged, pilot-only) — docs/proof-loop-slice.md ────────
+  // ── Proof-loop slice (flagged, pilot-only) — docs/archive/proof-loop-slice.md ────────
   // ONE flagged build, TRIPLE duty: (1) a per-rung CLEAN-PASS verdict — the
   // settling-tax guard below makes a rung clear only on a run that HELD the standard,
   // not a 22s fluke (the missing "clean-gate"); (2) the only honest retention signal
@@ -25405,7 +25400,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
       }
     }
     // Snapshot for the P-sheet "Last session" card — descriptive + gained-only,
-    // no score/accuracy (mirror not judge; see docs/design-system.md §13).
+    // no score/accuracy (mirror not judge; see docs/plugin/design-system.md §13).
     let displayName;
     if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
     else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[_selectedStarterId]?.name || 'Session practice');
@@ -27120,7 +27115,7 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   }
   function boot() { if (bind()) return; let tries = 0; const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250); }
 
-  // A-B segment loop public API. See docs/section-looping.md for the spec.
+  // A-B segment loop public API. See docs/archive/section-looping.md for the spec.
   // No UI yet — this is the transport-layer foundation that a phase-2 UI
   // (or a sibling plugin / driver script) can drive.
   function setSegmentLoop(a, b) {
@@ -27181,5 +27176,9 @@ import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
   if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) globalThis.__virtuoso_lab_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, DRUMKIT_BANKS, KIT_REGISTRY, resolveDrumKit, recipeTracks, resolveHumanSeed, buildCompCellHits, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, activeBundleTimeline: () => activeBundle ? (activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline)) : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, sgHarmWanted, sgPadWanted, applyStyleMixerDefaults, sgFilesFor, bankDesc, bankLayerTag, SAMPLE_BANKS, compTargetMidis, COMP_GROOVES, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState, jamMirrorCapture, jamMirrorReset, jamMirrorDebugAdd, jamRecapAnalysisLines, jamBassIntents, jamSpotlightPhraseNotes, jamMirror: () => _jamMirror ? { noteCount: _jamMirror.noteCount, pcs: [..._jamMirror.pcs] } : null, jamPlayedLen: () => _jamPlayed.length, jamSpotlightTurn, activeBundleNotes: () => activeBundle ? activeBundle.notes : null,
     busRms: () => { const out = {}; if (audioBus && audioBus.analysers) { for (const k in audioBus.analysers) { const an = audioBus.analysers[k]; const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; out[k] = Math.sqrt(s / buf.length); } } return out; },
     busGains: () => { const out = {}; if (audioBus && audioBus.tracks) { for (const k in audioBus.tracks) out[k] = audioBus.tracks[k].gain.value; } return out; }, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+  // Keep test-only audio probes out of the characterized enumerable core API.
+  if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) Object.defineProperty(globalThis.__virtuoso_lab_debug, 'audioRemoval', {
+    value: { mixerLoad, sgToneFor, buildAmpChain, cabIrBuffer, AMP_PRESETS, MIXER_INSTRUMENTS }
+  });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
