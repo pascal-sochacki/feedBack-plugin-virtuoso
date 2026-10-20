@@ -15,9 +15,10 @@ Old upstream release stories, PR states and handoffs are preserved as
   (`feedBack` eef58c8, `plugins/__init__.py:2492–2520`, 2026-10-20) and current
   player/judge; BUILD strict parser/adapter, no Markdown API/editor/player.
   Flip if a documented reusable host parser/editor adapter appears.
-  **2026-10-20: user authorized publication of reviewed 0.2.11-lab.1** to
-  personal-fork `main` only, replacing `5ca4f45` after verification. Commit source
-  locally, regenerate the complete runtime, verify and push via nonforce SSH.
+  **2026-10-20: published reviewed 0.2.11-lab.1** to personal-fork `main` only,
+  via authorized nonforce SSH, replacing `5ca4f45` with
+  `ac8fc44e2a3c0388dc5c936427dc6c85d492b802`. Generated from local source
+  `1a6a1ecfbeb913b72c46625045c02335b6a149e5`; SOURCE map records that revision.
   Dirty modules sibling, source `main` and upstream remain untouched.
   Host/UI/audio/DI acceptance is still owed; publication does not install.
   Review fixes: retain the authoritative file through incompatible Setup and
@@ -30,9 +31,14 @@ Old upstream release stories, PR states and handoffs are preserved as
   voice warming; Stop cancels pending starts, including ordinary Play.
   Verification: **72/72 follow-up baseline → 172/172 Node tests**, unchanged 71-case source/
   Lab corpus and 40/91 API keys; cached narrow checkJs, syntax, links, brand and
-  whitespace pass. Local Lab folder/ZIP rebuilt only. Browser npm test exits 2
+  whitespace pass. Lab folder/ZIP rebuilt. Prior browser npm test exits 2
   (no host :8765); no host start/install. Source and actual publication checks
-  must pass again before the authorized push.
+  passed again: **172/172 each**, unchanged 71-case corpus, exact 488-file
+  generated inventory, all 12 vendor files/full licenses and withdrawn assets absent.
+  Remote SHA verified; 18 commit-pinned runtime/practice/source/legal resources
+  return HTTP 200 and match local bytes, manifest **0.2.11-lab.1**. All three
+  settings source/license/notice links return HTTP 200. No moving raw-main cache
+  claim or installed-host/Windows acceptance is inferred.
 
 - Local development branch: **`dev/modular-source`**, source ID **`virtuoso`**,
   manifest/header **0.2.11** (local combined candidate; extraction was 0.2.10), based on
@@ -44,7 +50,7 @@ Old upstream release stories, PR states and handoffs are preserved as
   transport/audio lifecycle; four rendering choices; procedural backing;
   presets/tunings, progression and host-consumed note_detect verdicts.
 - Generated personal-fork `main` is **Virtuoso (Lab)** / `virtuoso_lab` /
-   authorized update **0.2.11-lab.1**, not this complete development checkout or upstream `main`.
+   published **0.2.11-lab.1**, not this complete development checkout or upstream `main`.
   Installation and isolation limits: [Lab guide](docs/plugin/virtuoso-lab.md).
   Candidate **0.2.9-lab.1** adds attribution/legal notices and preferred vendor
   source. **2026-10-20:** removed all 61 8ridgelite OGG recordings and the Deer Ink
@@ -52,7 +58,7 @@ Old upstream release stories, PR states and handoffs are preserved as
   Stored DI pins migrate to Shinyguitar; Metal uses the existing procedural cab.
    **2026-10-20: review fixes were experimentally published** at `5ca4f45`.
    Reviewed **0.2.11-lab.1** combines the extraction and Markdown practice update;
-   publication is now authorized, with installed Windows acceptance outstanding.
+   publication is complete at `ac8fc44`, with installed Windows acceptance outstanding.
   See [third-party notices](THIRD_PARTY_NOTICES.md) / [pinned evidence](SOURCE.md).
    Source commits stay local on `dev/modular-source`; source `main`, upstream
    and the dirty modules sibling remain untouched. Publication does not install.
@@ -76,9 +82,11 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Next work
 
-1. Publish the reviewed 0.2.11-lab.1 candidate and verify remote SHA plus
-   commit-pinned manifest/practice/source/legal bytes. Moving raw `main` may be
-   cached; do not mistake that for commit-pinned evidence or DI acceptance.
+1. User updates Lab and confirms installed **0.2.11-lab.1**. Test Custom → File
+   practices → Chromatic warm-up on standard six-string guitar: low E frets 1–4,
+   tempos 30/60/120, Play/Pause/Stop/count-in/loop, incompatible tuning recovery,
+   Return/normal type/Jam/Workout/view/navigation transitions and host judging.
+   See the standalone [Lab guide](docs/plugin/virtuoso-lab.md). Windows DI remains owed.
 2. Complete installed Lab runtime acceptance and record host/detector versions
    and evidence before selecting a supported release floor.
 3. Continue move-only core extraction: seeded random utilities or tuning data;
