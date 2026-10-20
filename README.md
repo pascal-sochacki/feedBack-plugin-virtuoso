@@ -14,8 +14,8 @@ must support `scriptType: "module"` and serve `src/**` with JavaScript MIME.
 There is no runtime build or npm installation step.
 
 The personal fork's **`main` is a different, generated installable runtime**:
-**Virtuoso (Lab)**, ID `virtuoso_lab`; published **0.2.8-lab.1**, candidate
-**0.2.9-lab.1** is authorized for publication after review fixes (2026-10-20). It is experimental, not
+**Virtuoso (Lab)**, ID `virtuoso_lab`; published **0.2.9-lab.1** after review
+fixes (2026-10-20). It is experimental, not
 an upstream stable update, and does not include the separate Learn-mode work.
 Use this URL in FeedBack's Git Plugin Manager (no branch selector required):
 

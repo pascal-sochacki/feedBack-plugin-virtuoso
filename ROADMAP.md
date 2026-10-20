@@ -16,7 +16,7 @@ Old upstream release stories, PR states and handoffs are preserved as
   transport/audio lifecycle; four rendering choices; procedural backing;
   presets/tunings, progression and host-consumed note_detect verdicts.
 - Generated personal-fork `main` is **Virtuoso (Lab)** / `virtuoso_lab` /
-  **0.2.8-lab.1**, not this complete development checkout or upstream `main`.
+  **0.2.9-lab.1**, not this complete development checkout or upstream `main`.
   Installation and isolation limits: [Lab guide](docs/plugin/virtuoso-lab.md).
   Candidate **0.2.9-lab.1** adds attribution/legal notices and preferred vendor
   source. **2026-10-20:** removed all 61 8ridgelite OGG recordings and the Deer Ink
@@ -47,9 +47,9 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Next work
 
-1. Complete authorized experimental **0.2.9-lab.1** publication after final
-   source/package checks; verify the remote revision and public source/legal links.
-   Do not treat root GPL text as recording clearance or claim DI acceptance.
+1. Recheck raw `main/plugin.json` after GitHub cache expiry: immediately after
+   publication it still returned 0.2.8-lab.1 while commit-pinned source and all
+   other checked `main` files were current. Do not claim DI acceptance.
 2. Complete installed Lab runtime acceptance and record host/detector versions
    and evidence before selecting a supported release floor.
 3. Continue move-only core extraction: chord formulas, then timing helpers;
@@ -99,7 +99,18 @@ Python route-runtime/desktop/DI gates remain owed; no launcher or installation
 is authorized. Python `pytest` previously could not collect because
 `fastapi` is absent. Recording scope/mapping blockers in
 [SOURCE.md](SOURCE.md) are now addressed by removal (2026-10-20), not a grant.
-Final remote/public checks must be reported separately; no legal certification is made.
+Published 2026-10-20 via nonforce SSH to personal-fork `main`:
+`5ca4f45564daf5a2b05808546a0ce9e46354553b`, generated from local source
+`afacd2fa1a003b5d90b9e3c20a535daf48af3d3a`. Remote SHA verified. Publication
+tree has all 12 vendor files and complete license/source notices; 62 withdrawn
+assets are absent. Publication 71-case corpus, real audio migration/cab probes,
+exact generated inventory and TypeScript 5.9.3 vendor/Lab rebuild passed.
+All three settings GitHub links return HTTP 200; eight commit-pinned public
+runtime/legal files match local bytes, including manifest 0.2.9-lab.1. Raw
+`main` source/legal/settings/README/player files match; raw `main/plugin.json`
+remains cached at 0.2.8-lab.1 after one targeted retry. Removed commit-pinned
+OGG/WAV URLs return 404. Source `main` and modules sibling remain unchanged.
+No legal or live-runtime/desktop/DI certification is made.
 
 Keep current state/next work here, durable technical procedures in plugin docs,
 and completed session narrative in the archive. Commit/push only when asked.

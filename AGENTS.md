@@ -13,8 +13,7 @@ put procedures and rationale in [development](docs/plugin/development.md).
   rank/time/rounds for mastery.
 - This checkout is development source on `dev/modular-source`: ID `virtuoso`,
   version **0.2.9** (unpublished candidate). The personal fork's `main` is a generated experimental
-  runtime: ID `virtuoso_lab`, published version **0.2.8-lab.1**; candidate
-  **0.2.9-lab.1** is authorized for experimental publication after review fixes
+  runtime: ID `virtuoso_lab`, published version **0.2.9-lab.1** after review fixes
   and recording removals (2026-10-20). Neither is a stable-release
   certification. Do not confuse source `main`, upstream `main`, and fork `main`.
 - FeedBack serves plain native JS (`scriptType: "module"`). No runtime build,
