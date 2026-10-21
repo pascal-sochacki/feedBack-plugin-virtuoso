@@ -148,7 +148,7 @@ test('entry retains the original chord-fingering startup guard against mutated i
   assert.throws(() => execFileSync(process.execPath,['--input-type=module','-e',`
     const core = await import(${JSON.stringify(url)});
     core.CAGED_SHAPES.A.chordTemplates.maj[1].fg = 1;
-    process.argv = [process.execPath,'runner',${JSON.stringify(root)},'','{}'];
+    process.argv = [process.execPath,'runner',${JSON.stringify(root)},'{}'];
     await import(${JSON.stringify(runner)});
   `],{ encoding:'utf8',stdio:'pipe' }),error => {
     assert.equal(error.status,1);

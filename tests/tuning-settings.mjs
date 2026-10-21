@@ -9,8 +9,6 @@ import {createTuningSettings} from '../src/shell/tuning-settings.js';
 import {readConfig, setFieldSilent, syncAdvancedMode, applyPracticeConfig} from '../src/shell/practice-config.js';
 import {practiceFormDefaults} from '../src/core/practice-form-defaults.js';
 import {createPracticePresets} from '../src/shell/practice-presets.js';
-import {practiceFormCue} from '../src/core/practice-form-cue.js';
-import {FORM_CUES} from '../src/content/form-cues.js';
 
 function configDom(values = {}, disabled = []) {
   const fields = Object.fromEntries(Object.entries(values).map(([name,value]) => [name,{name,value,disabled:disabled.includes(name),type:'text'}]));
@@ -82,21 +80,21 @@ function presetDom() {
 
 test('real source and Lab preset recall retains canceled unload and rejects abandoned visits before returning once', () => {
   characterize(undefined,{lifecycle:'preset-navigation'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-navigation-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-preset-navigation-'));
   try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'preset-navigation'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 test('real source and Lab preset GET completion cannot append into an abandoned screen', () => {
   characterize(undefined,{lifecycle:'preset-late-load'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-late-load-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-preset-late-load-'));
   try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'preset-late-load'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 test('real source and Lab tuning hooks reject stale visits and detach on confirmed navigation', () => {
   characterize(undefined,{lifecycle:'tuning-navigation'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-navigation-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-tuning-navigation-'));
   try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'tuning-navigation'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });

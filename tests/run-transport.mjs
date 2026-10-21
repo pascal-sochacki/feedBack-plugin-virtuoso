@@ -25,7 +25,7 @@ function harness() {
 
 test('real source and Lab repeated pending Play warms and starts exactly once',()=>{
   const controls={lifecycle:'transport-repeat-play'};assert.deepEqual(characterize(undefined,controls),controls);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-transport-repeat-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-transport-repeat-'));
   try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });

@@ -22,9 +22,11 @@ console.assert = (condition, ...args) => {
 };
 const read = file => readFileSync(resolve(root, file), 'utf8');
 const dataUrl = text => 'data:text/javascript;base64,' + Buffer.from(text).toString('base64');
+const audioRemovalProbe = controls.audioRemoval;
+delete controls.audioRemoval;
+assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'lifecycle', 'pathwayIdentity', 'workoutIdentity'].includes(key)), 'unknown harness control');
 const seed = 0x51ca1e;
 let state = seed;
-const reset = () => { state = seed; };
 Math.random = () => {
   state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
   return state / 4294967296;
@@ -51,6 +53,10 @@ if (entrySafety) {
 if (controls.lifecycle === 'editor-page-events') {
   const end = entry.lastIndexOf('})();');
   entry = entry.slice(0,end) + `globalThis[Symbol.for('workout-editor-probe')] = { loadStarter, loadRoutine, editor: typeof workoutEditor !== 'undefined' ? workoutEditor : undefined, draft: () => typeof workoutEditor !== 'undefined' ? workoutEditor.draft : _workoutDraft };\n` + entry.slice(end);
+}
+if (audioRemovalProbe) {
+  const end = entry.lastIndexOf('})();');
+  entry = entry.slice(0,end) + `globalThis[Symbol.for('audio-removal-probe')] = { mixerLoad, sgToneFor, buildAmpChain, cabIrBuffer, AMP_PRESETS, MIXER_INSTRUMENTS };\n` + entry.slice(end);
 }
 entry = entry.replace(/(import\s+[^;]+?\s+from\s+)(['"])(\.\/[^'"]+)\2/g, (_, prefix, quote, file) =>
   prefix + quote + pathToFileURL(resolve(root, file)).href + quote);
@@ -156,8 +162,8 @@ if (controls.lifecycle) {
   process.exit(0);
 }
 
-if (controls.audioRemoval) {
-  const audio = debug.audioRemoval;
+if (audioRemovalProbe) {
+  const audio = globalThis[Symbol.for('audio-removal-probe')];
   const channels = ['notes', 'harmony', 'pad', 'comp2'];
   const saved = { ch: Object.fromEntries(channels.map(k => [k, { instrument: '8ridge', level: 0.73, amp: 'metal' }])) };
   globalThis.localStorage.getItem = key => key.endsWith('.mixer') ? JSON.stringify(saved) : null;

@@ -27,7 +27,7 @@ function dom() {
 
 test('real source and Lab retain Workout handlers on canceled unload and active BFCache restore, not inactive restore', () => {
   characterize(undefined,{lifecycle:'editor-page-events'});
-  const temp = mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-page-events-'));
+  const temp = mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-page-events-'));
   try {
     buildLab(temp);
     characterize(join(temp,'virtuoso_lab'),{lifecycle:'editor-page-events'});

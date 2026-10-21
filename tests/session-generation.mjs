@@ -3,11 +3,7 @@ import test from 'node:test';
 import {generateSession} from '../src/core/session.js';
 import {buildBpmLadderChart} from '../src/core/session-chart.js';
 import {buildSegmentConfig} from '../src/core/session-config.js';
-import {SEGMENT_TEMPLATES} from '../src/content/segments.js';
-import {BUILT_IN_SESSIONS} from '../src/content/workouts.js';
-import {STYLE_PALETTES} from '../src/core/style-palettes.js';
-import {stylePaletteConfig} from '../src/core/config-defaults.js';
-import {materializeSegment, refreshWorkout} from '../src/core/segments.js';
+import {materializeSegment} from '../src/core/segments.js';
 import {measureSeconds} from '../src/core/timing.js';
 
 test('session blocks retain incoming meter breaks, rung-local tempo/backing, offsets, target tiling and tuning', () => {

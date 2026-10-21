@@ -56,7 +56,7 @@ test('native renderer owner import and construction never read DOM, host, storag
 
 test('real entry Play waits on a candidate already published but not ready',()=>{
   assert.deepEqual(characterize(undefined,{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-play-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-renderer-play-'));
   try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
@@ -64,7 +64,7 @@ test('real entry Play waits on a candidate already published but not ready',()=>
 for (const suffix of ['stop','stop-reject','new','new-reject','new-play-reject','voices-stop','voices-new']) test(`real source and Lab held Play cancellation: ${suffix}`,()=>{
   const controls={lifecycle:'renderer-held-play-'+suffix};
   assert.deepEqual(characterize(undefined,controls),controls);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-cancel-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-renderer-cancel-'));
   try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
@@ -72,7 +72,7 @@ for (const suffix of ['stop','stop-reject','new','new-reject','new-play-reject',
 for (const suffix of ['reject', 'session-reject']) test(`real source and Lab report current held Play readiness failure without unhandled rejection: ${suffix}`,()=>{
   const controls={lifecycle:'renderer-held-play-'+suffix};
   assert.deepEqual(characterize(undefined,controls),controls);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-reject-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-renderer-reject-'));
   try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });

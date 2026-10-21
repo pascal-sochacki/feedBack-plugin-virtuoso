@@ -3,7 +3,6 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { ROOT } from './helpers/characterization.mjs';
-import { makeClassic2DHighwayRenderer } from '../src/shell/renderers/classic-2d.js';
 import { checkNativeGraph, moduleEdges } from '../scripts/native-module-graph.mjs';
 
 test('Tab/Notation factories and imports are inert with strict global traps and own no RAF or document listeners', () => {

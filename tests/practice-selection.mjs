@@ -21,7 +21,7 @@ const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{reso
 test('real entry lifecycle owns listeners across three actor cycles, canceled unload, incompatible tuning recovery and late ready rejection in source and Lab',()=>{
   const control={lifecycle:'selection-events'};
   assert.deepEqual(characterize(undefined,control),{lifecycle:'selection-events'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-selection-events-'));
+  const temp=mkdtempSync(join(process.env.TMPDIR || '/tmp/opencode','virtuoso-selection-events-'));
   try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),control),{lifecycle:'selection-events'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
