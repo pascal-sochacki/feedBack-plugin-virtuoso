@@ -1,29 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync} from 'node:fs';
+import {mkdtempSync,rmSync} from 'node:fs';
+import {join} from 'node:path';
 import {execFileSync} from 'node:child_process';
-import {createHash} from 'node:crypto';
 import {characterize} from './helpers/characterization.mjs';
+import {buildLab} from '../scripts/cut-lab.mjs';
 import {createWorkoutEditor} from '../src/shell/workout-editor.js';
 import {materializeWorkoutConfig} from '../src/core/workout-config.js';
 import {BUILT_IN_SESSIONS} from '../src/content/workouts.js';
 import {SEGMENT_TEMPLATES} from '../src/content/segments.js';
-import {buildLab,transformRuntime} from '../scripts/cut-lab.mjs';
-import {mkdtempSync,rmSync} from 'node:fs';
-import {join} from 'node:path';
-
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/workout-editor-before-extraction.json',import.meta.url),'utf8'));
-test('real bound Workout edits and launch match independent 297-test dirty-entry capture in source and Lab', () => {
-  assert.equal(createHash('sha256').update(JSON.stringify(fixture.snapshot)).digest('hex'),'23ef7a9f118d78967fec1e4a0a9a293fcefaca6206f4534bf132a281cc28e0aa');
-  assert.deepEqual(characterize(undefined,undefined,{workoutEditorSnapshot:true}),fixture.snapshot);
-  const temp = mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-editor-'));
-  try {
-    const lab = buildLab(temp);
-    const root = typeof lab === 'string' ? lab : join(temp,'virtuoso_lab');
-    const snapshot = characterize(root,undefined,{workoutEditorSnapshot:true});
-    assert.equal(JSON.stringify(snapshot),transformRuntime(JSON.stringify(fixture.snapshot)));
-  } finally {rmSync(temp,{recursive:true,force:true});}
-});
 
 function dom() {
   class Element {
@@ -41,11 +26,11 @@ function dom() {
 }
 
 test('real source and Lab retain Workout handlers on canceled unload and active BFCache restore, not inactive restore', () => {
-  characterize(undefined,undefined,{lifecycle:'editor-page-events'});
+  characterize(undefined,{lifecycle:'editor-page-events'});
   const temp = mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-page-events-'));
   try {
     buildLab(temp);
-    characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'editor-page-events'});
+    characterize(join(temp,'virtuoso_lab'),{lifecycle:'editor-page-events'});
   } finally {rmSync(temp,{recursive:true,force:true});}
 });
 

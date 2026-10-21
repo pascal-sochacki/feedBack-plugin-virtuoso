@@ -221,10 +221,10 @@ audio-profile metadata is lower core data, not WebAudio/host access. All guard
 calls are entry-owned; imported tables retain ordinary shared mutable identity.
 No new public API or behavioral change; `generateExercise` is published by exact
 native function identity, as is `generateSession`. Shared source/Lab graph checking
-uses developer-only vendored Acorn (ECMAScript 2022), inspecting all nested import/
-reexport/literal-dynamic edges; computed imports/new syntax/upward cycles reject.
-Core may import passive content; content cannot import core/shell. The parser is
-not served runtime; no compiler cache/install is needed by tests.
+uses the pinned TypeScript compiler API and inspects nested import/reexport/literal-
+dynamic edges. Computed imports, unsupported syntax and upward cycles reject. Core
+may import passive content; content cannot import core/shell. This is developer
+tooling only, not a plugin runtime dependency or build step.
 
 - Virtuoso owns generated chart data, contained transport/audio scheduling,
   looping and render lifecycle. The chart is portable; generation never reads

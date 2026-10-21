@@ -1,23 +1,28 @@
-// Developer-only parser: never packaged, imported or required by runtime modules.
-import { parse } from './vendor/acorn.mjs';
+// Developer-only source graph check using the TypeScript compiler API.
+import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 
 export function moduleEdges(source, file = '<module>') {
-  let ast;
-  try { ast = parse(source, {ecmaVersion:2022, sourceType:'module'}); }
-  catch (error) { throw Error(`${file}: unsupported/invalid module syntax: ${error.message}`); }
+  const ast = ts.createSourceFile(file, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.JS);
+  if (ast.parseDiagnostics.length) {
+    const diagnostic = ast.parseDiagnostics[0];
+    const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ');
+    throw Error(`${file}: unsupported/invalid module syntax: ${message}`);
+  }
   const edges = [];
   const visit = node => {
-    if (node.type === 'ImportExpression') {
-      if (node.source.type !== 'Literal' || typeof node.source.value !== 'string') throw Error(`${file}: computed dynamic import is unsupported by native graph policy; use a literal relative specifier`);
-      edges.push({kind:'dynamic',specifier:node.source.value});
-    } else if (node.type === 'ImportDeclaration') edges.push({kind:'import',specifier:node.source.value});
-    else if ((node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') && node.source) edges.push({kind:'export',specifier:node.source.value});
-    for (const value of Object.values(node)) {
-      if (Array.isArray(value)) { for (const child of value) if (child?.type) visit(child); }
-      else if (value?.type) visit(value);
+    if (ts.isImportDeclaration(node)) {
+      if (ts.isStringLiteral(node.moduleSpecifier)) edges.push({kind:'import',specifier:node.moduleSpecifier.text});
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier) {
+      if (ts.isStringLiteral(node.moduleSpecifier)) edges.push({kind:'export',specifier:node.moduleSpecifier.text});
+    } else if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+      if (node.arguments.length !== 1) throw Error(`${file}: dynamic import options are unsupported by native graph policy`);
+      const specifier = node.arguments[0];
+      if (!specifier || !ts.isStringLiteral(specifier)) throw Error(`${file}: computed dynamic import is unsupported by native graph policy; use a literal relative specifier`);
+      edges.push({kind:'dynamic',specifier:specifier.text});
     }
+    ts.forEachChild(node, visit);
   };
   visit(ast);
   return edges;

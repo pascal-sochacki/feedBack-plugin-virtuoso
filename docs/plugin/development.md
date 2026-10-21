@@ -17,8 +17,8 @@ the current candidate from an old completion. Play must await published-but-not-
 attachment before warming voices. Preserve actual fallback cfg persistence separately
 from desired intent; do not silently change view policy during cleanup. SPA leave
 unmounts, canceled beforeunload/pagehide does not. Factory/DOM/preferences stay live.
-Independent CURRENT DIRTY source hash and 17 complete renderer operation rows are
-pinned alongside prior config/selection/event captures; historical fixtures remain.
+Direct renderer lifecycle tests cover request ownership, readiness, fallback and
+teardown in source and Lab; no saved output baseline is required.
 
 Practice selection owns its state and transition listeners together. Do not add
 entry mirrors of pathway/tier/variant/pending file state. Controller request guards
@@ -27,8 +27,8 @@ entry mirrors of pathway/tier/variant/pending file state. Controller request gua
 preserve the separate `files`/`position`/`selection` mount positions. Only confirmed
 SPA departure removes listeners; beforeunload/pagehide do not invalidate an active
 document or BFCache. No host feature added: reuse the evidence-dated Oct-20 host
-check. Full dirty-before cfg/selection/event captures remain approved-temp; small
-source/output hashes are permanent. New native controller is measured by c8;
+check. Direct transition and lifecycle assertions replace saved cfg/selection/event
+captures. New native controller is measured by c8;
 data-URL entry attribution is still zero, not browser coverage. Plain selection
 property tests exercise real PATHWAYS sequences with metadata/mutation invariants.
 
@@ -38,19 +38,19 @@ inherited defaults and explicit null/false/zero values intentionally differ.
 Preset recall keeps the existing host meta-DB URL/cache identity, but request,
 visit and DOM ownership reject abandoned completion. No new save/manage UI:
 the HTML explicitly cut save-preset, and the verified unreachable writer is removed
-(lint **18→17**, historical baseline row retained as evidence, no ignore increase).
+(lint **18→17**, no ignore increase).
 Cue vocabulary stays mutable/passive; selection receives explicit pathway/tier/
 cfg/band. Goal-card/controller selection and L1 adaptation remain entry-owned.
-Independent complete dirty-entry event and cue captures were saved before each
-boundary; permanent provenance hashes are small, full captures stay approved-temp.
+Behavior is covered by focused cue/selection semantics and lifecycle tests rather
+than saved event/cue baselines.
 
 Tuning cache and all preset/custom-input callers move together into a typed
 inner-form owner. Keep declaration and post-selection callbacks separate: setup
 dispatch already runs L1/pathway recovery, while outer completion remains
-independently observable. Preserve both listener clusters/order. Complete dirty
-pre-edit 0.2.14 capture was compared after cleanup and after lifecycle hardening,
-not regenerated. Physical lines mean `wc -l` (split-newline length minus one),
-including blank lines/comments: 16,128 baseline, not historical 16,126 prose.
+independently observable. Preserve both listener clusters/order. Direct controller
+and real-entry lifecycle assertions cover setup changes, stale visits, save/load and
+recovery. Physical lines mean `wc -l` (split-newline length minus one), including
+blank lines/comments.
 USERREPORTED installed 0.2.13-lab.1 smoke PASS on 2026-10-21 does not cover local
 0.2.14 or independently certify audio/Windows DI; host/detector versions unknown.
 
@@ -457,8 +457,8 @@ devDependencies. No declared root dependency is exempted. `includeEntryExports`
 also checks entry exports; `ignoreExportsUsedInFile` preserves locally used
 exports instead of mistaking a still-running function for dead implementation.
 
-Scope is first-party JS/MJS. Vendor preferred sources, the vendored Acorn parser,
-static/generated assets and the independent `.claude` host-smoke package are not
+Scope is first-party JS/MJS. Vendor preferred sources, static/generated assets
+and the independent `.claude` host-smoke package are not
 project inventory. This is not permission to delete them: Python routes,
 manifest/native entry registration, HTML bootstrap/inline handlers, string asset
 references in generators, lazy browser scripts and host APIs are separate roots.
@@ -484,7 +484,7 @@ findings, **not verified deletions**:
 
 ESLint, not Knip, owns entry-IIFE private locals. All 14 unused entry bindings
 were reviewed against current source, HTML, backend, scripts/tests and published
-objects. Orbit skipped the >1 MiB entry, so a full-file Acorn AST/source reference
+objects. Orbit skipped the >1 MiB entry, so a full-file TypeScript-AST/source-reference
 scan was used there; indexed “no callers” alone is not proof. No function, import,
 initializer or file was removed in this report-first pass:
 

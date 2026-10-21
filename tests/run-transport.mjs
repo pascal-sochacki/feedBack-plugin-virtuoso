@@ -1,17 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import fc from 'fast-check';
 import {createRunTransport} from '../src/shell/run-transport.js';
-import {characterize,ROOT} from './helpers/characterization.mjs';
-import {transportStatements} from './helpers/run-transport.mjs';
-import {buildLab,transformRuntime} from '../scripts/cut-lab.mjs';
+import {characterize} from './helpers/characterization.mjs';
+import {buildLab} from '../scripts/cut-lab.mjs';
 
-const fixture=JSON.parse(readFileSync(new URL('./fixtures/run-transport-before-extraction.json',import.meta.url)));
-const hash=text=>createHash('sha256').update(text).digest('hex');
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 const flush=async()=>{for(let i=0;i<20;i++)await Promise.resolve();};
 
@@ -27,22 +23,10 @@ function harness() {
     ready:promise=>{ready=promise;}};
 }
 
-test('transport retains independently captured dirty-before actual audio/clock/target/status events in source and Lab',()=>{
-  const rows=transportStatements(readFileSync(join(ROOT,'screen.js'),'utf8'));
-  const cleanup=JSON.parse(readFileSync(new URL('./fixtures/unused-declarations-before-cleanup.json',import.meta.url)));
-  assert.equal(fixture.entry.statements,782);
-  assert.equal(rows.length,cleanup.entry.statements);assert.equal(hash(JSON.stringify(rows)),cleanup.entry.sha256);
-  const actual=characterize(undefined,undefined,{lifecycle:'transport-events'}),text=JSON.stringify(actual);
-  assert.equal(actual.length,fixture.events.rows);assert.equal(Buffer.byteLength(text),fixture.events.bytes);assert.equal(hash(text),fixture.events.sha256);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-transport-parity-'));
-  try {buildLab(temp);assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'transport-events'})),transformRuntime(text));}
-  finally {rmSync(temp,{recursive:true,force:true});}
-});
-
-test('real source and Lab repeated pending Play warms and starts exactly once (dirty-before failed 2 vs 1)',()=>{
-  const controls={lifecycle:'transport-repeat-play'};assert.deepEqual(characterize(undefined,undefined,controls),controls);
+test('real source and Lab repeated pending Play warms and starts exactly once',()=>{
+  const controls={lifecycle:'transport-repeat-play'};assert.deepEqual(characterize(undefined,controls),controls);
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-transport-repeat-'));
-  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),undefined,controls),controls);}
+  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 

@@ -1,8 +1,0 @@
-{
-  "sourceSha256": "3e37e1519d9fc78f30b502e515e31462d9fdb533c9ebd3b1371b03d896650bda",
-  "provenance": "Complete current dirty entry saved before unused-declaration cleanup; exact named removals and nested edits only, not recaptured runtime fixtures.",
-  "entry": { "statements": 773, "sha256": "cc3d2eb76122e142169e57c8c52c6abadbddb62e9fbbc59f49282661f58da35a" },
-  "selection": { "statements": 748, "sha256": "cab5179b517cc8a80511565e51daf8219beff2f66715c6316fec6824d99dc3a4" },
-  "renderer": { "statements": 759, "sha256": "e3e06eb72fdb9e14f78d9c4c00a11f69350e0954faec0cf72bc093bad4368e3f" },
-  "historical": { "statements": 738, "sha256": "38c64e855e48580b0167911709098e01fb11ddd686f9aec9c3db4b622b30448c" }
-}

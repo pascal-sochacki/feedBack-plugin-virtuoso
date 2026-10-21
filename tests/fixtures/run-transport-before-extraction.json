@@ -1,9 +1,0 @@
-{
-  "beforeSha256": "958f0ebcc0c24278e99ec05d3514d1020fec3c1f8ba2975ec91f7e0a3ce00373",
-  "beforePhysicalLines": 14541,
-  "entry": {"statements":782,"sha256":"8429f275582be931bada19c8d80e1368e330b473e7a520dbccd118b974764a9b"},
-  "renderer": {"statements":768,"sha256":"09f1e594319f340df601a9226ae8b4f0418f8f62b0e52a1c27ac6963966eedc2"},
-  "selection": {"statements":757,"sha256":"ad6d55cbe50fbc05f8b2f4da226e1d0afeffafe86dae2ebcd2e7c3837129add2"},
-  "historical": {"statements":747,"sha256":"a7deb80ea0480d2106c67131f799e7450641c45554adea9310000638ce06e011"},
-  "events": {"rows":15,"bytes":70054,"sha256":"166ff9c1067588e596eeebdc9365580e70633b9c8abaf4f02d8daea7327ed1cc"}
-}

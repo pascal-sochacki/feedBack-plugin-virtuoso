@@ -1,9 +1,0 @@
-{
-  "source": "dirty dev/modular-source 0.2.13, before shape extraction (2026-10-20)",
-  "entrySha256": "65f61da46d6e90eaf2f6c0da83387cc2fa8eaf8a837db21dd8bc607b90a7da03",
-  "snapshotSha256": "2bd7cb199713a9297734a00849e4d480ce125a3dc7a48bb7ae58e66c4d310af5",
-  "tableSha256": "8e4253741465f08342ad43a2701191b45b690f4c0de62b22d2c73046aad33263",
-  "resolvers": 2600,
-  "helpers": 385,
-  "exercises": 76
-}

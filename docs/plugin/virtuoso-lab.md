@@ -230,7 +230,7 @@ strict core/content/shell-renderer noEmit JSDoc checking, brand hygiene and
 whitespace gates are checked as well. Developer ESLint retains 18 explicit legacy
 warnings; Knip intentionally reports one full/two production export findings
 (exit 1, advisory inventory, not runtime failures). Root npm dependencies, lock,
-lint/Knip configs and vendored MIT Acorn are developer-only and excluded from
+lint/Knip configs and the TypeScript compiler are developer-only and excluded from
 the runtime; only `src/package.json` selects native ESM. No runtime npm install.
 Known inherited low-level 3NPS cases can reach fret 51; malformed NaN BPM or
 nonpositive ladder steps may not terminate. These are not fixed or certified

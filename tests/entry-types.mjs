@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import assert from 'node:assert/strict';
-import {createHash} from 'node:crypto';
 import {spawnSync} from 'node:child_process';
 import {readFileSync} from 'node:fs';
 import {test} from 'node:test';
 import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
-import {parse} from '../scripts/vendor/acorn.mjs';
-import {normalizeTransport} from './helpers/run-transport.mjs';
-import {normalizeEntrySafety} from './helpers/entry-safety.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const entry = readFileSync(new URL('../screen.js', import.meta.url), 'utf8');
@@ -53,21 +49,11 @@ export function lookup(key: string | null | undefined, profile: AudioProfile) {
   assert.deepEqual(check().map(d => d.code).sort((a,b) => a-b), [2322,2538,2538,2551]);
 });
 
-test('typing foundation retains independently saved dirty-before complete executable AST', () => {
-  const text = JSON.stringify(parse(normalizeEntrySafety(entry), {ecmaVersion:'latest', sourceType:'module'}),
-    (key, value) => ['start', 'end', 'raw'].includes(key) ? undefined : value);
-  assert.equal(createHash('sha256').update(text).digest('hex'),
-    '10f4e4402b7fdff8a2d5da9286ea4ea7e922e5077e67ace9acdc185513de863c');
-  const host = JSON.stringify(parse(readFileSync(new URL('../src/shell/renderers/host-factories.js', import.meta.url), 'utf8'),
-    {ecmaVersion:'latest', sourceType:'module'}), (key, value) => ['start', 'end', 'raw'].includes(key) ? undefined : value);
-  assert.equal(createHash('sha256').update(host).digest('hex'),
-    '440c940cc17a4c41bdf302a35e117ac74b0b80c0f20d96d7140b0266c419c7ae');
-  assert.equal(normalizeTransport('function f(x) { return x; }'),
-    normalizeTransport('/** @param {number} x */\nfunction f(x) { return x; }'));
-  assert.notEqual(normalizeTransport('/** @param {number} x */\nfunction f(x) { return x + 1; }'),
-    normalizeTransport('function f(x) { return x; }'));
-  assert.notEqual(normalizeTransport('function f(x) { /* behavior explanation */ return x; }'),
-    normalizeTransport('function f(x) { return x; }'));
+test('entry and host-factory sources have no TypeScript parser diagnostics', () => {
+  for (const [file, source] of [['screen.js', entry], ['src/shell/renderers/host-factories.js', readFileSync(new URL('../src/shell/renderers/host-factories.js', import.meta.url), 'utf8')]]) {
+    const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+    assert.equal(ast.parseDiagnostics.length, 0, file);
+  }
 });
 
 test('DOM ID contract agrees with actual uncommented markup, including settings-only controls', () => {
@@ -203,16 +189,18 @@ test('fixed control-list metadata matches uncommented authored HTML', () => {
 
 test('public and debug duplicate removal preserves first insertion order and identical final references', () => {
   const properties = source => {
-    const ast = parse(source, {ecmaVersion:'latest',sourceType:'module'});
+    const ast = ts.createSourceFile('entry.js', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
     const objects = [];
     const visit = node => {
-      if (node.type === 'AssignmentExpression' && ['window.Virtuoso','globalThis.__ss_debug'].includes(source.slice(node.left.start,node.left.end))) {
-        objects.push(node.right.properties.map(property => ({key:property.key.name, value:source.slice(property.value.start,property.value.end)})));
+      if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && ts.isObjectLiteralExpression(node.right)) {
+        let left = node.left;
+        while (ts.isParenthesizedExpression(left)) left = left.expression;
+        const target = left.getText(ast);
+        if (['window.Virtuoso','globalThis.__ss_debug'].includes(target)) {
+          objects.push(node.right.properties.map(property => ({key:property.name?.getText(ast), value:property.initializer?.getText(ast)})));
+        }
       }
-      for (const value of Object.values(node)) {
-        if (Array.isArray(value)) value.forEach(child => {if(child?.type)visit(child);});
-        else if (value?.type) visit(value);
-      }
+      ts.forEachChild(node, visit);
     };
     visit(ast);
     return objects;

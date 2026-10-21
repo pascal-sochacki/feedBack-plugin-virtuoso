@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
 import {join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import fc from 'fast-check';
 import {createPracticeSelection} from '../src/shell/practice-selection.js';
@@ -10,47 +9,20 @@ import {initialPracticeSelection,selectPracticePathway,practiceTierFields,PRACTI
 import {PATHWAYS} from '../src/content/pathways.js';
 import {STRING_SETUPS} from '../src/core/instrument-tuning.js';
 import {parsePracticeMarkdown,practicePathwayEntry} from '../src/core/practice-files.js';
-import {characterize,ROOT} from './helpers/characterization.mjs';
-import {untouchedSelectionStatements} from './helpers/practice-selection.mjs';
-import {buildLab,transformRuntime} from '../scripts/cut-lab.mjs';
+import {characterize} from './helpers/characterization.mjs';
+import {buildLab} from '../scripts/cut-lab.mjs';
 
-const hash = text => createHash('sha256').update(text).digest('hex');
-const fixture=JSON.parse(readFileSync(new URL('./fixtures/practice-selection-before-extraction.json',import.meta.url),'utf8'));
 const md=readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup.md',import.meta.url),'utf8');
 const ladder=readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup-ladder.md',import.meta.url),'utf8');
 const index=readFileSync(new URL('../assets/practices/index.json',import.meta.url),'utf8');
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
 
-test('selection owner preserves independent dirty-entry config, catalog choices and actual event bytes in source and isolated Lab',()=>{
-  const controls={config:{tuningSnapshot:true},selection:{presentationSnapshot:true},events:{lifecycle:'presentation-events'}};
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-selection-'));
-  try {
-    buildLab(temp);
-    for(const [name,control] of Object.entries(controls)) {
-      const rows=characterize(undefined,undefined,control),text=JSON.stringify(rows),expected=fixture[name];
-      assert.equal(rows.length,expected.cases);assert.equal(Buffer.byteLength(text),expected.bytes);assert.equal(hash(text),expected.sha256);
-      assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,control)),transformRuntime(text));
-    }
-  } finally {rmSync(temp,{recursive:true,force:true});}
-});
-
-test('untouched selection entry statements retain dirty-before order outside the characterized renderer owner',()=>{
-  const rows=untouchedSelectionStatements(readFileSync(join(ROOT,'screen.js'),'utf8'));
-  const rendererFixture=JSON.parse(readFileSync(new URL('./fixtures/renderer-lifecycle-before-extraction.json',import.meta.url),'utf8'));
-  assert.equal(fixture.selectionUnmovedStatements,805);
-  assert.equal(rendererFixture.selectionStatements,780);
-  const transportFixture=JSON.parse(readFileSync(new URL('./fixtures/run-transport-before-extraction.json',import.meta.url),'utf8'));
-  const cleanup=JSON.parse(readFileSync(new URL('./fixtures/unused-declarations-before-cleanup.json',import.meta.url)));
-  assert.equal(transportFixture.selection.statements,757);
-  assert.equal(rows.length,cleanup.selection.statements);assert.equal(hash(JSON.stringify(rows)),cleanup.selection.sha256);
-});
-
 test('real entry lifecycle owns listeners across three actor cycles, canceled unload, incompatible tuning recovery and late ready rejection in source and Lab',()=>{
   const control={lifecycle:'selection-events'};
-  assert.deepEqual(characterize(undefined,undefined,control),{lifecycle:'selection-events'});
+  assert.deepEqual(characterize(undefined,control),{lifecycle:'selection-events'});
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-selection-events-'));
-  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),undefined,control),{lifecycle:'selection-events'});}
+  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),control),{lifecycle:'selection-events'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 

@@ -6,31 +6,13 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Current source state
 
-- **Strict browser-entry typing continuation (2026-10-21; entry debt cleared):**
-  fresh baseline **72 diagnostics → 0** on TypeScript 5.9.3. The final report is
-  `coverage/typecheck-entry.json` (ignored). No strictness changes, `any`, TS
-  suppressions, expected-hash edits, or historical fixture recapture. The existing
-  40-key public API and order now have an explicit type contract; persisted progress
-  remains `unknown` until callers narrow it. Form-state lookup keeps its original
-  `form.elements[name]` runtime behavior through a local optional-property type view.
-  Historical entry AST SHA, renderer extraction and transport pins pass. Focused
-  entry-types/renderer-lifecycle/run-transport/practice-selection tests pass
-  **60/60**. Root `npm run typecheck`, lint (132 files; 0 new/errors, 1 known
-  warning), entry syntax, docs links, brand scan and `git diff --check` pass. Full
-  `npm test` was not rerun: its previous timeout is not a result. No live host,
-  browser, audio, Windows DI, publication or installation is claimed.
-
-- **Strict entry typing continuation (2026-10-21; verified narrow batch):** fresh
-  TypeScript 5.9.3 diagnostics **72→70**, only TS18047 changed (**22→20**); all
-  other by-code counts are unchanged. Two type-only non-null casts express the
-  synchronous `_jamMirror` initialization immediately after `jamMirrorReset()`;
-  each has an exact allowlisted AST-pin reversal. Historical entry AST pin passes.
-  Focused entry/renderer/transport suites pass **48/48**. `npm run typecheck`,
-  lint (132 files, zero new/error diagnostics, one known warning), entry syntax,
-  docs links, brand hygiene and `git diff --check` pass. Entry typecheck still
-  exits 1 at 70 diagnostics. The full `npm test` was not rerun; prior timeout
-  after 183 passes is not a result for this state. No fixture/hash recapture,
-  strictness weakening, publication or host action.
+- **Snapshot/baseline cleanup (2026-10-21; unverified):** removed committed
+  extraction captures, fixture-driven golden comparisons, capture helpers, and the
+  core fixture-generation command. Direct semantic, property, import-safety,
+  lifecycle and packaging tests remain. Historical test-count/capture narratives
+  were retired from the testing/native-module guides. Node/npm are unavailable in
+  this environment, so syntax/full-suite gates have not run; `git diff --check`
+  is the only completed repository gate. No commit/push requested or performed.
 
 - **Strict entry typing continuation (2026-10-21; unfinished):** TypeScript
   5.9.3 entry diagnostics **130→80** via narrow JSDoc typing at verified guards
@@ -675,10 +657,10 @@ Old upstream release stories, PR states and handoffs are preserved as
   12 guitar/bass mixed ladder/cycle/target/break/seed cases, eight tuning cases,
   three edges and 595 helper calls. Old fixtures unchanged; source/Lab pin full
   hashes, direct native identity and per-block timing/backing/offset semantics.
-  Shared graph uses vendored MIT Acorn 8.18.0 (dev only, never packaged), fixing
-  both exact call-then-block/object-division review misses. ECMAScript 2022;
-  unsupported syntax/computed imports fail closed. Core→passive-content allowed,
-  content→core/shell forbidden. No runtime dependency/build or new features.
+  Shared graph uses the existing TypeScript compiler API (developer tooling only),
+  covering nested static/dynamic imports, reexports, graph boundaries and cycles.
+  Computed imports and dynamic import options reject. Core→passive-content allowed,
+  content→core/shell forbidden. No plugin runtime dependency/build was added.
   `makeBundle`, `readConfig`, live-tier run targets, draft/store/UI, launch/cache/
   lifecycle and guards/public40/debug91 publication remain entry-owned.
   Known NaN-BPM backing and nonpositive ladder-step loops may not terminate:

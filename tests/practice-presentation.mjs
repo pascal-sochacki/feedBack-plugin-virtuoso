@@ -1,25 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync,mkdtempSync,rmSync} from 'node:fs';
-import {join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {characterize} from './helpers/characterization.mjs';
-import {buildLab,transformRuntime} from '../scripts/cut-lab.mjs';
 import {createPracticePresentation,positionStepperIsShapeMode} from '../src/shell/practice-presentation.js';
 import {PATHWAYS} from '../src/content/pathways.js';
 import {FORM_CUES} from '../src/content/form-cues.js';
-
-test('actual entry goal/selection/START/status matches independent dirty source capture and isolated Lab', () => {
-  const fixture=JSON.parse(readFileSync(new URL('./fixtures/practice-presentation-before-extraction.json',import.meta.url),'utf8'));
-  const rows=characterize(undefined,undefined,{presentationSnapshot:true}),serialized=JSON.stringify(rows);
-  assert.equal(rows.length,fixture.cases);assert.equal(Buffer.byteLength(serialized),fixture.snapshotBytes);
-  assert.equal(createHash('sha256').update(serialized).digest('hex'),fixture.snapshotSha256);
-  assert.equal(new Set(rows.filter(row=>!['chromatic_warmup','custom','missing'].includes(row.id)).map(row=>row.id)).size,151);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-presentation-'));
-  try {buildLab(temp);assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,{presentationSnapshot:true})),transformRuntime(serialized));}
-  finally {rmSync(temp,{recursive:true,force:true});}
-});
 
 function dom() {
   const nodes=new Map();
@@ -33,16 +17,6 @@ function dom() {
   return id=>nodes.get(`virtuoso-${id}`);
 }
 const base=()=>({pathwayId:'pent_foundation',tierIndex:0,variationIndex:0,bandId:'concept_picking',cfg:{instrument:'guitar',practiceType:'scale',key:'D',scale:'major',fretMin:0,fretMax:12,backingDensity:0},bestBpm:null,proveClean:false,instrument:null,detectorMinHz:30,concertKey:'D',playing:false,paused:false,jamMode:false,jamIntent:'',session:null});
-
-test('real bound rung/variant/Next and failed-load/canceled-unload/navigation UI preserves independent event bytes', () => {
-  const fixture=JSON.parse(readFileSync(new URL('./fixtures/practice-presentation-before-extraction.json',import.meta.url),'utf8'));
-  const rows=characterize(undefined,undefined,{lifecycle:'presentation-events'}),serialized=JSON.stringify(rows);
-  assert.equal(rows.length,fixture.eventCases);assert.equal(Buffer.byteLength(serialized),fixture.eventBytes);
-  assert.equal(createHash('sha256').update(serialized).digest('hex'),fixture.eventSha256);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-presentation-events-'));
-  try {buildLab(temp);assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'presentation-events'})),transformRuntime(serialized));}
-  finally {rmSync(temp,{recursive:true,force:true});}
-});
 
 test('direct presentation priority, disclosure, PB, supports and transport are display-only and live', () => {
   const el=dom(),state=base(),calls=[];

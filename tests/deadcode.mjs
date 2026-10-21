@@ -19,7 +19,7 @@ test('dead-code scope protects native entry and developer commands without makin
   const root = config.workspaces['.'];
   assert.ok(root.entry.includes('screen.js!'));
   assert.ok(root.entry.includes('tests/*.mjs'));
-  for (const name of ['capture-core-fixtures', 'check-brand-hygiene', 'check-doc-links', 'cut-beta', 'cut-lab', 'lint']) {
+  for (const name of ['check-brand-hygiene', 'check-doc-links', 'cut-beta', 'cut-lab', 'lint']) {
     assert.ok(root.entry.includes(`scripts/${name}.mjs`), name);
   }
   for (const patterns of [root.entry, root.project]) {

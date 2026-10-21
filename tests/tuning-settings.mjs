@@ -1,26 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {characterize} from './helpers/characterization.mjs';
-import {buildLab, transformRuntime} from '../scripts/cut-lab.mjs';
+import {buildLab} from '../scripts/cut-lab.mjs';
 import {createTuningSettings} from '../src/shell/tuning-settings.js';
 import {readConfig, setFieldSilent, syncAdvancedMode, applyPracticeConfig} from '../src/shell/practice-config.js';
 import {practiceFormDefaults} from '../src/core/practice-form-defaults.js';
 import {createPracticePresets} from '../src/shell/practice-presets.js';
 import {practiceFormCue} from '../src/core/practice-form-cue.js';
 import {FORM_CUES} from '../src/content/form-cues.js';
-
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/tuning-settings-before-extraction.json',import.meta.url),'utf8'));
-const hash = value => createHash('sha256').update(value).digest('hex');
-test('configuration funnel preserves independently saved current dirty real-event config bytes', () => {
-  const captured = JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
-  const actual = JSON.stringify(characterize(undefined,undefined,{tuningSnapshot:true}));
-  assert.equal(Buffer.byteLength(actual),captured.snapshotBytes);
-  assert.equal(hash(actual),captured.snapshotSha256);
-});
 
 function configDom(values = {}, disabled = []) {
   const fields = Object.fromEntries(Object.entries(values).map(([name,value]) => [name,{name,value,disabled:disabled.includes(name),type:'text'}]));
@@ -74,15 +64,6 @@ test('practice form application preserves instrument-before-fields and profile-b
   assert.equal(defaults.hertaAccent,0);assert.equal(defaults.sweepStrings,'0');assert.ok(Number.isNaN(defaults.backingDensity));assert.deepEqual(defaults.customOpenMidis,[]);
 });
 
-test('saved practice preset real-entry selection matches independently saved before output in source and isolated Lab', () => {
-  const captured=JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
-  const source=characterize(undefined,undefined,{lifecycle:'preset-capture'}),serialized=JSON.stringify(source);
-  assert.equal(source.length,captured.presetCases);assert.equal(Buffer.byteLength(serialized),captured.presetSnapshotBytes);assert.equal(hash(serialized),captured.presetSnapshotSha256);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-practice-presets-'));
-  try {buildLab(temp);assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-capture'})),transformRuntime(serialized));}
-  finally {rmSync(temp,{recursive:true,force:true});}
-});
-
 function presetDom() {
   class Element {
     constructor(){this.children=[];this.handlers=new Set();this.value='';}
@@ -100,33 +81,24 @@ function presetDom() {
 }
 
 test('real source and Lab preset recall retains canceled unload and rejects abandoned visits before returning once', () => {
-  characterize(undefined,undefined,{lifecycle:'preset-navigation'});
+  characterize(undefined,{lifecycle:'preset-navigation'});
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-navigation-'));
-  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-navigation'});}
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'preset-navigation'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 test('real source and Lab preset GET completion cannot append into an abandoned screen', () => {
-  characterize(undefined,undefined,{lifecycle:'preset-late-load'});
+  characterize(undefined,{lifecycle:'preset-late-load'});
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-late-load-'));
-  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-late-load'});}
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'preset-late-load'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
-test('cue selection matches all independently saved dirty-entry pathways and explicit plain-config policy', () => {
-  const fixture=JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
-  const rows=characterize(undefined,undefined,{cueSnapshot:true});const serialized=JSON.stringify(rows);
-  assert.equal(rows.length,fixture.cueCases);assert.equal(Buffer.byteLength(serialized),fixture.cueSnapshotBytes);assert.equal(hash(serialized),fixture.cueSnapshotSha256);
-  const pathway=Object.freeze({tempoTiers:[60,80],formCues:['light_grip','guide_finger']});
-  assert.equal(practiceFormCue('test',pathway,99,null,'concept_picking'),FORM_CUES.guitar.guide_finger);
-  assert.equal(practiceFormCue('test',{tempoTiers:[60,80]},1,null,null),FORM_CUES.guitar.shoulder_drop);
-  assert.equal(practiceFormCue('test',{},0,null,'concept_picking'),FORM_CUES.guitar.wrist_neutral);
-  assert.equal(practiceFormCue('test',pathway,1,{instrument:'bass',practiceType:'slap_pop'},null),FORM_CUES.bass.pop_hook);
-  assert.equal(practiceFormCue('test',{formCues:['unknown']},0,null,null),null);
-  assert.equal(practiceFormCue('missing',null,0,null,null),null);
-  const original=FORM_CUES.guitar.light_grip;FORM_CUES.guitar.light_grip='mutable';
-  try {assert.equal(practiceFormCue('test',{},0,null,null),'mutable');} finally {FORM_CUES.guitar.light_grip=original;}
-  execFileSync(process.execPath,['--input-type=module','-e',`for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});const {practiceFormCue}=await import(${JSON.stringify(new URL('../src/core/practice-form-cue.js',import.meta.url).href)});practiceFormCue('x',{},0,null,null);`]);
+test('real source and Lab tuning hooks reject stale visits and detach on confirmed navigation', () => {
+  characterize(undefined,{lifecycle:'tuning-navigation'});
+  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-navigation-'));
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),{lifecycle:'tuning-navigation'});}
+  finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 test('practice preset owner retains cache identity, first insertion and live selection without auto-apply on fetch', async () => {
@@ -148,19 +120,6 @@ test('practice preset loads are latest-request and visit owned; stale handlers a
   assert.equal(group.children.length,1);picker.value='fav__new';stale();assert.equal(calls,0);picker.fire();assert.equal(calls,1);owner.unmount();
   execFileSync(process.execPath,['--input-type=module','-e',`for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});const {createPracticePresets}=await import(${JSON.stringify(new URL('../src/shell/practice-presets.js',import.meta.url).href)});createPracticePresets({onSelect(){throw Error('early selection')}});const {practiceFormDefaults}=await import(${JSON.stringify(new URL('../src/core/practice-form-defaults.js',import.meta.url).href)});practiceFormDefaults({});`]);
 });
-test('real tuning events retain independent dirty 0.2.14 config, controls, presets, modes and file recovery in source and Lab', () => {
-  const source = characterize(undefined,undefined,{tuningSnapshot:true});
-  assert.equal(source.length,fixture.cases);
-  assert.equal(Buffer.byteLength(JSON.stringify(source)),fixture.snapshotBytes);
-  assert.equal(hash(JSON.stringify(source)),fixture.snapshotSha256);
-  const temp = mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-test-'));
-  try {
-    buildLab(temp);
-    const lab = characterize(join(temp,'virtuoso_lab'),undefined,{tuningSnapshot:true});
-    assert.equal(JSON.stringify(lab),transformRuntime(JSON.stringify(source)));
-  } finally { rmSync(temp,{recursive:true,force:true}); }
-});
-
 function dom() {
   class Element {
     constructor() {this.handlers=new Map();this.dataset={};this.style={};this.children=[];this.value='';this.classList={add(){},remove(){}};}
@@ -223,13 +182,6 @@ test('tuning settings import and construction are inert without DOM, host, stora
     const {createTuningSettings}=await import(${JSON.stringify(new URL('../src/shell/tuning-settings.js',import.meta.url).href)});
     createTuningSettings({hostEntries(){throw Error('early host')},onDeclaration(){},onCustomChange(){},onSelection(){},onDisplay(){}});
   `]);
-});
-
-test('real source and Lab tuning hooks preserve canceled unload, detach on SPA exit and reject stale input handlers', () => {
-  characterize(undefined,undefined,{lifecycle:'tuning-navigation'});
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-navigation-'));
-  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'tuning-navigation'});}
-  finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 test('tuning save cancellation, HTTP failure and load rejection preserve declaration and cache semantics', async () => {

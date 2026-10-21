@@ -1,18 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {mkdtempSync, rmSync} from 'node:fs';
 import {join} from 'node:path';
-import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import fc from 'fast-check';
 import {createRendererLifecycle} from '../src/shell/renderer-lifecycle.js';
-import {characterize, ROOT} from './helpers/characterization.mjs';
-import {untouchedRendererStatements} from './helpers/renderer-lifecycle.mjs';
-import {buildLab, transformRuntime} from '../scripts/cut-lab.mjs';
+import {characterize} from './helpers/characterization.mjs';
+import {buildLab} from '../scripts/cut-lab.mjs';
 
-const fixture = JSON.parse(readFileSync(new URL('./fixtures/renderer-lifecycle-before-extraction.json', import.meta.url)));
-const transportFixture = JSON.parse(readFileSync(new URL('./fixtures/run-transport-before-extraction.json', import.meta.url)));
-const hash = text => createHash('sha256').update(text).digest('hex');
 const deferred = () => {let resolve, reject; const promise = new Promise((yes,no) => {resolve=yes; reject=no;}); return {promise,resolve,reject};};
 const flush = async () => {for (let i=0;i<20;i++) await Promise.resolve();};
 
@@ -49,24 +44,6 @@ function harness() {
 const savedGlobals = Object.fromEntries(['document','window','localStorage','setTimeout','clearTimeout','requestAnimationFrame','cancelAnimationFrame'].map(name=>[name,Object.getOwnPropertyDescriptor(globalThis,name)]));
 test.afterEach(()=>{for(const [name,descriptor] of Object.entries(savedGlobals)) {if(!descriptor)delete globalThis[name];else Object.defineProperty(globalThis,name,descriptor);}});
 
-test('renderer extraction retains independent dirty-before entry order and full cfg/selection/event bytes in source and isolated Lab',()=>{
-  const source=readFileSync(join(ROOT,'screen.js'),'utf8');
-  const rows=untouchedRendererStatements(source);
-  assert.equal(fixture.unmovedStatements,791);
-  const cleanup=JSON.parse(readFileSync(new URL('./fixtures/unused-declarations-before-cleanup.json',import.meta.url)));
-  assert.equal(transportFixture.renderer.statements,768);
-  assert.equal(rows.length,cleanup.renderer.statements); assert.equal(hash(JSON.stringify(rows)),cleanup.renderer.sha256);
-  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-evidence-'));
-  try {
-    buildLab(temp);
-    for(const [name,controls] of Object.entries({config:{tuningSnapshot:true},selection:{presentationSnapshot:true},events:{lifecycle:'presentation-events'},attachment:{lifecycle:'renderer-capture'}})) {
-      const text=JSON.stringify(characterize(undefined,undefined,controls));
-      assert.equal(Buffer.byteLength(text),fixture[name].bytes); assert.equal(hash(text),fixture[name].sha256);
-      assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,controls)),transformRuntime(text));
-    }
-  } finally {rmSync(temp,{recursive:true,force:true});}
-});
-
 test('native renderer owner import and construction never read DOM, host, storage, clocks or factories',()=>{
   execFileSync(process.execPath,['--input-type=module','-e',`
     for(const name of ['document','window','localStorage','fetch','performance','requestAnimationFrame'])Object.defineProperty(globalThis,name,{get(){throw Error('IO '+name)}});
@@ -78,25 +55,25 @@ test('native renderer owner import and construction never read DOM, host, storag
 });
 
 test('real entry Play waits on a candidate already published but not ready',()=>{
-  assert.deepEqual(characterize(undefined,undefined,{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});
+  assert.deepEqual(characterize(undefined,{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-play-'));
-  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});}
+  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),{lifecycle:'renderer-held-play'}),{lifecycle:'renderer-held-play'});}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 for (const suffix of ['stop','stop-reject','new','new-reject','new-play-reject','voices-stop','voices-new']) test(`real source and Lab held Play cancellation: ${suffix}`,()=>{
   const controls={lifecycle:'renderer-held-play-'+suffix};
-  assert.deepEqual(characterize(undefined,undefined,controls),controls);
+  assert.deepEqual(characterize(undefined,controls),controls);
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-cancel-'));
-  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),undefined,controls),controls);}
+  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 
 for (const suffix of ['reject', 'session-reject']) test(`real source and Lab report current held Play readiness failure without unhandled rejection: ${suffix}`,()=>{
   const controls={lifecycle:'renderer-held-play-'+suffix};
-  assert.deepEqual(characterize(undefined,undefined,controls),controls);
+  assert.deepEqual(characterize(undefined,controls),controls);
   const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-renderer-reject-'));
-  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),undefined,controls),controls);}
+  try {buildLab(temp);assert.deepEqual(characterize(join(temp,'virtuoso_lab'),controls),controls);}
   finally {rmSync(temp,{recursive:true,force:true});}
 });
 

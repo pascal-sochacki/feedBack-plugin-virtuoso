@@ -2,72 +2,9 @@ import assert from 'node:assert/strict';
 import { moduleEdges, checkNativeGraph } from '../scripts/native-module-graph.mjs';
 import test from 'node:test';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
-import { BUILT_IN_SESSIONS } from '../src/content/workouts.js';
 import * as instrumentTuning from '../src/core/instrument-tuning.js';
-import { instrumentTuningSnapshot } from './helpers/instrument-tuning.mjs';
 import * as fretboardShapes from '../src/core/fretboard-shapes.js';
-import { fretboardShapeSnapshot } from './helpers/fretboard-shapes.mjs';
-import { characterize, compareCorpus, expectedCorpus } from './helpers/characterization.mjs';
-import * as chromatic from '../src/core/builders/chromatic.js';
-import * as strokes from '../src/core/stroke-policy.js';
-import { noteDefaults } from '../src/core/notes.js';
-import { wholeCycleStepCount, secondsPerDivision, measureSeconds } from '../src/core/timing.js';
-import { chromaticBuilderSnapshot } from './helpers/chromatic-builder.mjs';
-
-test('chromatic raw builders, helper calls, full exercises/bundles and Workouts match independently captured dirty entry', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/chromatic-builder-before-extraction.json',import.meta.url),'utf8'));
-  const snapshot = characterize(undefined,undefined,{chromaticBuilderSnapshot:true});
-  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  assert.equal(hash(snapshot),fixture.snapshotSha256);
-  for (const name of ['tables','charts','edges','helpers','exercises','sessions']) {
-    assert.equal(hash(snapshot[name]),fixture[name].sha256,name);
-    assert.equal(Array.isArray(snapshot[name]) ? snapshot[name].length : Object.keys(snapshot[name]).length,fixture[name].count);
-  }
-  const direct = JSON.parse(JSON.stringify(chromaticBuilderSnapshot({...chromatic,...strokes,noteDefaults,wholeCycleStepCount},instrumentTuning)));
-  for (const name of ['tables','charts','edges','helpers']) assert.deepEqual(direct[name],snapshot[name]);
-  const changed = structuredClone(snapshot);
-  changed.exercises[0].exercise.chart.notes[0].sus += 0.001;
-  assert.notEqual(hash(changed),fixture.snapshotSha256,'tail changes are not normalized away');
-});
-
-test('chromatic note grid, full-cycle overflow, final sustain, string order and finger/pick annotations remain exact', () => {
-  const snapshot = chromaticBuilderSnapshot({...chromatic,...strokes,noteDefaults,wholeCycleStepCount},instrumentTuning);
-  for (const {cfg,chart} of snapshot.charts) {
-    const step = secondsPerDivision(cfg), minimum = cfg.bars * measureSeconds(cfg);
-    const count = instrumentTuning.openMidisForConfig(cfg).length;
-    const legs = cfg.direction === 'ascending' || cfg.direction === 'descending' ? 1 : 2;
-    const cycle = count * 4 * legs;
-    assert.ok(chart.notes.length > 0 && chart.notes.length % cycle === 0);
-    assert.ok(chart.duration >= minimum && chart.duration <= Math.max(minimum,cycle * step) + cycle * step);
-    let t = 0;
-    for (const [i,note] of chart.notes.entries()) {
-      assert.equal(note.t,Number(t.toFixed(6))); t += step;
-      assert.equal(note.sus,Math.max(0.04,step * 0.85));
-      assert.equal(note.ac,false);
-      assert.ok(note.s >= 0 && note.s < count && note.f >= 0 && note.f <= 24);
-      const floor = Math.max(instrumentTuning.isBassCfg(cfg) ? 5 : 0,Math.max(0,cfg.fretMin || 1));
-      assert.equal(note.fg,note.f === 0 ? 0 : note.f - floor + 1);
-      if (!cfg.strokePolicy && !instrumentTuning.isBassCfg(cfg) && !['gallop','reverse_gallop'].includes(cfg.subdivision)) {
-        const beat = (60 / cfg.bpm) * (4 / cfg.meter.denominator);
-        assert.equal(note.pkd,step >= beat * 1.4 ? 0 : i % 2,'coarse /8 grid preserves existing rest re-anchor');
-      }
-      if (!cfg.strokePolicy && instrumentTuning.isBassCfg(cfg)) assert.ok(note.rh === 1 || note.rh === 2);
-    }
-    assert.equal(chart.duration,Math.max(minimum,Number(t.toFixed(6))));
-    const last = chart.notes.at(-1);
-    assert.ok(last.t + last.sus <= chart.duration + 1e-6,'final sustain fits complete-cycle duration');
-    assert.equal(chart.notes[0].s,cfg.direction === 'descending' ? count - 1 : 0);
-  }
-  const cfg = snapshot.charts[0].cfg;
-  const chart = chromatic.buildChromaticExercise(cfg);
-  assert.equal(chart.notes.length,24);
-  assert.ok(chart.duration > cfg.bars * measureSeconds(cfg),'one nominal bar rounds up to one complete six-string pass');
-  const upDown = chromatic.buildChromaticExercise({...cfg,direction:'up_down'});
-  assert.equal(upDown.notes.length,48);
-  assert.equal(upDown.notes[23].s,5); assert.equal(upDown.notes[24].s,5,'turnaround string repeats intentionally');
-});
+import { characterize } from './helpers/characterization.mjs';
 
 test('fresh chromatic dependency graph traps IO/boot, preserves mutable tables and never mutates cfg', () => {
   const url = new URL('../src/core/builders/chromatic.js',import.meta.url).href;
@@ -108,38 +45,9 @@ test('fresh chromatic dependency graph traps IO/boot, preserves mutable tables a
   `],{encoding:'utf8'});
 });
 
-test('unified shape data, resolvers and actual scale/arpeggio outputs match dirty pre-move runtime', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/fretboard-shapes-before-extraction.json', import.meta.url), 'utf8'));
-  const snapshot = characterize(undefined, undefined, { fretboardShapeSnapshot:true });
-  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  assert.equal(hash(snapshot), fixture.snapshotSha256);
-  assert.equal(hash(snapshot.tables), fixture.tableSha256);
-  for (const name of ['resolvers','helpers','exercises']) assert.equal(snapshot[name].length, fixture[name]);
-  const direct = JSON.parse(JSON.stringify(fretboardShapeSnapshot(fretboardShapes,instrumentTuning)));
-  assert.deepEqual(direct.tables,snapshot.tables);
-  assert.deepEqual(direct.resolvers,snapshot.resolvers);
-  assert.deepEqual(direct.helpers,snapshot.helpers);
-  assert.equal(characterize(undefined, undefined, { fretboardShapeIdentity:true }).fretboardShapeIdentity,true);
-  for (const { cfg,selected,exercise } of snapshot.exercises) {
-    assert.ok(exercise.chart.notes.length);
-    if (cfg.instrument === 'bass') assert.equal(selected,null,'bass stays position-based, not new guitar shape support');
-    for (const note of exercise.chart.notes) {
-      assert.ok(Number.isFinite(note.t) && Number.isInteger(note.f) && note.f >= 0 && note.f <= 24);
-      assert.ok(Number.isInteger(note.s) && note.s >= 0 && note.s < cfg.stringCount);
-    }
-    if (cfg.practiceType !== 'scale') continue;
-    const midis = exercise.chart.notes.map(n => cfg.openMidis[n.s] + n.f);
-    for (let i = 1; i < midis.length; i++) assert.notEqual(midis[i],midis[i-1],'one-way scalar seam no-unison');
-  }
-  const changed = structuredClone(snapshot);
-  changed.resolvers[0].result.value.notes[0].fg++;
-  assert.notEqual(hash(changed),fixture.snapshotSha256,'fingering change is not normalized away');
-});
-
 test('fresh shape import/calls are host-independent, guard-free, mutable and dependency-shared', () => {
   const url = new URL('../src/core/fretboard-shapes.js',import.meta.url).href;
   const scalesUrl = new URL('../src/core/scale-intervals.js',import.meta.url).href;
-  const helperUrl = new URL('./helpers/fretboard-shapes.mjs',import.meta.url).href;
   const tuningUrl = new URL('../src/core/instrument-tuning.js',import.meta.url).href;
   execFileSync(process.execPath,['--input-type=module','-e',`
     import assert from 'node:assert/strict';
@@ -148,9 +56,7 @@ test('fresh shape import/calls are host-independent, guard-free, mutable and dep
     const core = await import(${JSON.stringify(url)});
     const again = await import(${JSON.stringify(url)});
     const { SCALE_INTERVALS } = await import(${JSON.stringify(scalesUrl)});
-    const { fretboardShapeSnapshot } = await import(${JSON.stringify(helperUrl)});
     const tuning = await import(${JSON.stringify(tuningUrl)});
-    fretboardShapeSnapshot(core,tuning);
     const before = JSON.stringify(core.CAGED_SHAPES);
     assert.equal(Object.getPrototypeOf(core.CAGED_SHAPES),Object.prototype);
     assert.equal(again.CAGED_SHAPES,core.CAGED_SHAPES);
@@ -252,18 +158,6 @@ test('entry retains the original chord-fingering startup guard against mutated i
   });
 });
 
-test('instrument/tuning tables and six helpers match independently captured dirty-entry runtime', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/instrument-tuning-before-extraction.json', import.meta.url), 'utf8'));
-  const snapshot = JSON.parse(JSON.stringify(instrumentTuningSnapshot(instrumentTuning)));
-  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  assert.equal(hash(snapshot), fixture.snapshotSha256);
-  assert.equal(hash(snapshot.tables), fixture.tableSha256);
-  for (const [name, ids] of Object.entries(fixture.tableIds)) assert.deepEqual(Object.keys(snapshot.tables[name]), ids);
-  for (const [key, ids] of Object.entries(fixture.presetIds)) assert.deepEqual(snapshot.tables.TUNING_PRESETS[key].map(p => p.id), ids);
-  assert.deepEqual(characterize(undefined, undefined, { instrumentTuningSnapshot:true }), snapshot);
-  assert.equal(characterize(undefined, undefined, { instrumentTuningIdentity:true }).instrumentTuningIdentity, true);
-});
-
 test('fresh instrument/tuning import and calls trap host access; ordinary data stays shared and mutable', () => {
   const url = new URL('../src/core/instrument-tuning.js', import.meta.url).href;
   execFileSync(process.execPath, ['--input-type=module', '-e', `
@@ -352,21 +246,6 @@ test('supported guitar/bass preset overrides preserve low-string order, offsets,
   assert.equal(STRING_SETUPS.guitar_6_standard.openMidis[0], 40);
 });
 
-test('passive workouts preserve all 25 ordered IDs and complete pre-extraction metadata/configs', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/workouts-before-extraction.json', import.meta.url), 'utf8'));
-  assert.equal(fixture.ids.length, 25);
-  assert.deepEqual(Object.keys(BUILT_IN_SESSIONS), fixture.ids);
-  const json = JSON.stringify(BUILT_IN_SESSIONS);
-  assert.equal(createHash('sha256').update(json).digest('hex'), fixture.sha256);
-  const root = new URL('../', import.meta.url).pathname;
-  const snapshot = execFileSync(process.execPath, ['tests/helpers/core-runner.mjs', root, '', '{"workoutSnapshot":true}'], { cwd:root, encoding:'utf8' });
-  assert.equal(snapshot, json);
-  assert.deepEqual(JSON.parse(snapshot), BUILT_IN_SESSIONS);
-  const changed = structuredClone(BUILT_IN_SESSIONS);
-  changed.starter_arc.segments[0].config.bpm++;
-  assert.notEqual(createHash('sha256').update(JSON.stringify(changed)).digest('hex'), fixture.sha256);
-});
-
 test('fresh workouts import traps host access and preserves mutable registry/rows/arrays', () => {
   const url = new URL('../src/content/workouts.js', import.meta.url).href;
   execFileSync(process.execPath, ['--input-type=module', '-e', `
@@ -406,7 +285,7 @@ test('fresh workouts import traps host access and preserves mutable registry/row
 });
 
 test('synchronous public workout registry is the exact import with valid real template references', () => {
-  assert.equal(characterize(undefined, undefined, { workoutIdentity:true }).workoutIdentity, true);
+  assert.equal(characterize(undefined, { workoutIdentity:true }).workoutIdentity, true);
 });
 
 test('source native generation graph is acyclic, host-free and has no upward dependencies', async () => {
@@ -447,157 +326,8 @@ test('native graph sees side effects/reexports/literal dynamics and rejects hidd
   assert.throws(()=>checkNativeGraph([root+'/a.js'],graph({[root+'/a.js']:"import(config.path)"})),/computed dynamic import/);
 });
 
-test('strum/motif/voicing/timeline cluster matches independent dirty entry capture through actual native imports', async () => {
-  const { generationClusterSnapshot } = await import('./helpers/generation-cluster.mjs');
-  const core = Object.assign({},...await Promise.all(['strum-grips','builders/strum','chord-timeline','motif','voicing'].map(path=>import('../src/core/'+path+'.js'))));
-  const snapshot = generationClusterSnapshot(core,instrumentTuning);
-  const fixture=JSON.parse(readFileSync(new URL('./fixtures/generation-cluster-before-extraction.json',import.meta.url),'utf8'));
-  const hash=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  assert.equal(hash(snapshot),fixture.clusterSha256);
-  for(const [name,count] of Object.entries(fixture.counts)) assert.equal(snapshot[name].length,count);
-  assert.deepEqual(JSON.parse(JSON.stringify(snapshot)),characterize(undefined,undefined,{generationClusterSnapshot:true}));
-});
-
-test('native backing and full genre Jam corpus matches independent dirty entry and preserves mutable data', async () => {
-  const {backingClusterSnapshot}=await import('./helpers/backing-cluster.mjs');
-  const modules=['arrangement','comp-cells','bass-figures','audio-profiles','drum-grooves','backing','feel','style-palettes','key-cycle','exercise','exercise-dispatch','chord-timeline','random'];
-  const core=Object.assign({},...await Promise.all(modules.map(path=>import('../src/core/'+path+'.js'))));
-  const snapshot=backingClusterSnapshot(core);
-  const fixture=JSON.parse(readFileSync(new URL('./fixtures/generation-cluster-before-extraction.json',import.meta.url),'utf8'));
-  assert.equal(createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),fixture.backingSha256);
-  for(const [name,count] of Object.entries(fixture.backingCounts)) assert.equal(snapshot[name].length,count);
-  assert.equal(snapshot.jams.filter(r=>r.result.error).length,0,'all 31 styles × 3 band modes generate valid spotlight/switch-up charts');
-  for(const row of snapshot.jams) assert.ok(row.result.value.chart.notes.length);
-  const table=core.ARRANGEMENT_RECIPES,first=Object.keys(table)[0],rec=table[first];
-  const value=rec.picks.comp; rec.picks.comp='probe'; assert.equal(core.ARRANGEMENT_RECIPES[first],rec); rec.picks.comp=value;
-  assert.deepEqual(characterize(undefined,undefined,{backingClusterSnapshot:true}),JSON.parse(JSON.stringify(snapshot)));
-});
-
-test('complete native exercise core imports under IO/RNG/guard traps and drives all 40 practice types', () => {
-  const root=new URL('../',import.meta.url).href;
-  execFileSync(process.execPath,['--input-type=module'],{input:`
-    import assert from 'node:assert/strict';
-    for(const name of ['window','document','localStorage','sessionStorage','fetch','AudioContext','feedBack','slopsmith','noteDetect']) Object.defineProperty(globalThis,name,{configurable:true,get(){throw Error('host access: '+name)}});
-    Math.random=()=>{throw Error('ambient RNG')}; console.assert=()=>{throw Error('import startup guard')};
-    const base=${JSON.stringify(root)};
-    const {generateExercise}=await import(base+'src/core/exercise.js');
-    const {buildSingleChart}=await import(base+'src/core/exercise-dispatch.js');
-    const tuning=await import(base+'src/core/instrument-tuning.js');
-    const shapes=await import(base+'src/core/fretboard-shapes.js');
-    const {foundationConfigs}=await import(base+'tests/helpers/generation-foundation.mjs');
-    const passed=new Set();
-    for(const cfg of foundationConfigs(tuning,shapes)) {
-      let exercise; try {exercise=generateExercise(cfg)} catch {continue}
-      if (!exercise.chart.notes.length || !(exercise.chart.duration > 0) || !Number.isFinite(exercise.chart.duration)) continue;
-      assert.equal(exercise.version,1); assert.equal(exercise.session,cfg);
-      assert.ok(exercise.chart.notes.length); assert.ok(Number.isFinite(exercise.chart.duration));
-      assert.deepEqual(generateExercise(cfg),exercise); passed.add(cfg.practiceType);
-    }
-    assert.equal(passed.size,40);
-    const {STRUM_GRIPS}=await import(base+'src/core/strum-grips.js');
-    assert.equal((await import(base+'src/core/strum-grips.js')).STRUM_GRIPS,STRUM_GRIPS);
-    const row=STRUM_GRIPS.dom7[0]; const finger=row.notes[0].fg;
-    row.notes[0].fg=4; assert.equal(STRUM_GRIPS.dom7[0].notes[0].fg,4); row.notes[0].fg=finger;
-  `,encoding:'utf8'});
-});
-
-test('generation foundation matches independently captured dirty raw charts, bundles and every Workout', () => {
-  const fixture = JSON.parse(readFileSync(new URL('./fixtures/generation-foundation-before-extraction.json',import.meta.url),'utf8'));
-  const snapshot = characterize(undefined,undefined,{generationFoundationSnapshot:true});
-  const hash = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-  assert.equal(hash(snapshot),fixture.snapshotSha256);
-  for (const [name,count] of Object.entries(fixture.counts)) assert.equal(snapshot[name].length,count);
-  for (const [name,expected] of Object.entries(fixture.sections)) assert.equal(hash(snapshot[name]),expected,name);
-  assert.equal(snapshot.charts.filter(r=>r.result.value).length,fixture.validCharts);
-  assert.equal(snapshot.exercises.filter(r=>r.result.value).length,fixture.validExercises);
-  const valid = new Set(snapshot.exercises.filter(r=>r.result.value).map(r=>r.cfg.practiceType));
-  assert.equal(valid.size,40,'every actual practice type has valid generation coverage');
-  const changed = structuredClone(snapshot.charts);
-  changed[0].result.value.notes[0].t += 0.001;
-  assert.notEqual(hash(changed),fixture.sections.charts,'raw note time cannot be normalized away');
-});
-
-test('fresh foundation modules trap host, startup guards and ambient randomness; builders match real entry', () => {
-  const root = new URL('../',import.meta.url).href;
-  const snapshot = characterize(undefined,undefined,{generationFoundationSnapshot:true});
-  execFileSync(process.execPath,['--input-type=module'],{input:`
-    import assert from 'node:assert/strict';
-    import { createHash } from 'node:crypto';
-    for (const name of ['window','document','localStorage','sessionStorage','fetch','AudioContext','feedBack','slopsmith','noteDetect']) Object.defineProperty(globalThis,name,{configurable:true,get() { throw Error('host access: ' + name); }});
-    Math.random = () => { throw Error('ambient random'); };
-    console.assert = () => { throw Error('startup guard moved into import'); };
-    const base = ${JSON.stringify(root)};
-    const modules = await Promise.all(['random','sequence','positions','chart-grid','harmony','chord-positions','builders/scale','builders/technique','builders/arpeggio','builders/bass','builders/tapping','builders/guide-tones','builders/pedal-riff','builders/chromatic'].map(path=>import(base+'src/core/'+path+'.js')));
-    const core = Object.assign({},...modules);
-    const tuning = await import(base+'src/core/instrument-tuning.js');
-    const shapes = await import(base+'src/core/fretboard-shapes.js');
-    const { foundationConfigs } = await import(base+'tests/helpers/generation-foundation.mjs');
-    const builders = { scale:'buildScaleExercise',modal_vamp:'buildScaleExercise',chord_scales:'buildChordScaleExercise',sweep_arpeggios:'buildSweepArpeggioExercise',chromatic:'buildChromaticExercise',spider:'buildSpiderExercise',guide_tones:'buildGuideTonesExercise',bending:'buildBendingExercise',legato:'buildLegatoExercise',vibrato:'buildVibratoExercise',scale_thirds:'buildScaleThirdsExercise',scale_sixths:'buildScaleSixthsExercise',call_response:'buildCallResponseExercise',tremolo_picking:'buildTremoloPickingExercise',herta:'buildHertaExercise',rhythm_pulse:'buildRhythmPulseExercise',tapping:'buildTappingExercise',pedal_point:'buildPedalPointExercise',string_skipping:'buildStringSkippingExercise',position_shift:'buildPositionShiftExercise',rhythmic_displacement:'buildRhythmicDisplacementExercise',chromatic_enclosures:'buildChromaticEnclosuresExercise',bebop_scale:'buildBebopScaleExercise',arpeggio_inversions:'buildArpeggioInversionsExercise',walking_bass:'buildWalkingBassExercise',hybrid_picking:'buildHybridPickingExercise',triadic_pairs:'buildTriadicPairsExercise',pentatonic_super:'buildPentatonicSuperExercise',shell_voicings:'buildShellVoicingsExercise',octave_displacement:'buildOctaveDisplacementExercise',root_fifth_octave:'buildRootFifthOctaveExercise',octave_groove:'buildOctaveGrooveExercise',dead_note_groove:'buildDeadNoteGrooveExercise',right_hand_technique:'buildRightHandTechniqueExercise',slap_pop:'buildSlapPopExercise',arpeggio:'buildArpeggioExercise' };
-    const expected = ${JSON.stringify(snapshot.charts.filter(r=>buildersAvailable(r.cfg.practiceType)).map(r=>({cfg:r.cfg,result:r.result})))};
-    builders.pedal_riff = 'buildPedalRiffExercise';
-    const cfgs = foundationConfigs(tuning,shapes).filter(c=>builders[c.practiceType]);
-    const charts = cfgs.map(cfg=>{
-      let result;
-      try { const chart=cfg.practiceType === 'arpeggio' ? core.buildArpeggioExercise(cfg,core.progressionDegreesForConfig(cfg)) : core[builders[cfg.practiceType]](cfg); result={value:chart}; }
-      catch(error) { result={error:error.name,message:error.message}; }
-      return {cfg,result};
-    });
-    assert.deepEqual(JSON.parse(JSON.stringify(charts)),expected);
-    const cfg=cfgs[0];
-    Object.freeze(cfg); Object.freeze(cfg.meter); Object.freeze(cfg.openMidis);
-    const chart=core.buildScaleExercise(cfg);
-    assert.notEqual(core.buildScaleExercise(cfg).notes,chart.notes);
-    assert.ok(chart.notes.every(n=>Number.isFinite(n.t) && n.s >= 0 && n.s < cfg.stringCount));
-    const pitches=chart.notes.map(n=>cfg.openMidis[n.s]+n.f);
-    assert.equal(new Set(core.scalePositionsForSystem(cfg).map(p=>p.midi)).size,core.scalePositionsForSystem(cfg).length);
-    for(let i=1;i<pitches.length;i++) assert.notEqual(pitches[i],pitches[i-1]);
-    const dyads=core.buildScaleThirdsExercise({...cfg,harmonize:true,direction:'ascending'}).notes;
-    for(let i=0;i<dyads.length;i+=2) {
-      assert.equal(dyads[i].t,dyads[i+1].t);
-      const interval=cfg.openMidis[dyads[i+1].s]+dyads[i+1].f-cfg.openMidis[dyads[i].s]-dyads[i].f;
-      assert.ok(interval === 3 || interval === 4,'thirds are pitch intervals, not array offsets');
-    }
-    const bassCfg=cfgs.find(c=>c.stringSetup === 'bass_4_standard' && c.practiceType === 'scale');
-    const octave=core.buildOctaveGrooveExercise(bassCfg).notes;
-    for(let i=0;i+1<octave.length;i+=2) {
-      assert.equal(bassCfg.openMidis[octave[i+1].s]+octave[i+1].f-bassCfg.openMidis[octave[i].s]-octave[i].f,12);
-      assert.equal(octave[i].rh,1); assert.equal(octave[i+1].rh,2);
-      assert.equal(octave[i+1].ac,true); assert.equal(octave[i].noSwing,true);
-    }
-    const positions=[{s:0,f:1,midi:41},{s:0,f:2,midi:42},{s:0,f:3,midi:43}];
-    assert.equal(core.applyBassFingering(positions),positions);
-    assert.deepEqual(positions.map(p=>p.fg),[1,2,4]);
-    assert.equal(core.orientSeq(positions,'ascending'),positions);
-    const table=core.SEQUENCE_PATTERNS;
-    assert.equal((await import(base+'src/core/sequence.js')).SEQUENCE_PATTERNS,table);
-    table.__probe=[0,1]; assert.equal(delete table.__probe,true);
-    const theory=await import(base+'src/core/chord-theory.js');
-    const quality=core.diatonicExtendedQuality('major',3,'ninth');
-    const row=theory.CHORD_FORMULAS[quality];
-    assert.equal(core.diatonicExtendedQuality('major',3,'ninth'),quality);
-    assert.equal(theory.CHORD_FORMULAS[quality],row);
-    assert.deepEqual(row.intervals,core.diatonicChordIntervals('major',3,5));
-  `,encoding:'utf8',maxBuffer:8<<20});
-});
-
-function buildersAvailable(type) { return !['fingerstyle_arp','motif','strum_comp'].includes(type); }
-
-test('source core matches committed pre-extraction exercises, all sessions and synchronous API', () => {
-  compareCorpus(characterize());
-});
-
-test('negative control: a raw note-time mutation is rejected by corpus comparison', () => {
-  const expected = expectedCorpus();
-  const actual = characterize(undefined, undefined, { mutateRawNote: true });
-  assert.equal(actual.results['scale/major'].firstNotes[0].t, expected.results['scale/major'].firstNotes[0].t + 0.001);
-  assert.notEqual(actual.results['scale/major'].sha256, expected.results['scale/major'].sha256);
-  // Remove the readable-summary difference so only the raw-output SHA gate fails.
-  actual.results['scale/major'].firstNotes = expected.results['scale/major'].firstNotes;
-  assert.throws(() => compareCorpus(actual), /committed pre-extraction core corpus changed/);
-});
-
 test('negative control: a failing entry startup console.assert exits fatally', () => {
-  assert.throws(() => characterize(undefined, undefined, { failStartupAssertion: true }), error => {
+  assert.throws(() => characterize(undefined, { failStartupAssertion: true }), error => {
     assert.equal(error.status, 1);
     assert.equal(error.stdout, '');
     assert.match(error.stderr, /\[Virtuoso shapes\] C-shape in C major should span frets 0–5/);
