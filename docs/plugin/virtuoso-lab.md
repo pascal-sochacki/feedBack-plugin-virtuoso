@@ -1,7 +1,7 @@
 # Virtuoso (Lab) — experimental personal fork
 
 **Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,
-prepared to replace 0.2.11-lab.1 on the personal fork's `main`.
+published to replace 0.2.11-lab.1 on the personal fork's `main`.
 The experimental Ladder pilot additionally ships `chromatic-warmup-ladder.md`,
 format 3, stable progress ID `chromatic_warmup`: six variations/four tiers,
 standard-six-string guitar only. The existing format-2 Custom demo has the

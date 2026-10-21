@@ -6,8 +6,27 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Current source state
 
+- **Publication completed (2026-10-21):** experimental **0.2.13-lab.1** pushed
+  non-force over SSH to personal-fork `main` only, runtime revision
+  `6d8ede92c607eb14d3d175766258e405e134088d`, replacing `ac8fc44…`.
+  Generated SOURCE map pins local source
+  `03a0c04b44c0b413018e77f81b169a43b01a07fc`; this later documentation-only
+  handoff does not change that runtime provenance or require regeneration.
+  **302/302 source tests, zero skips; 110/110 actual publisher-tree packaging/
+  runtime tests, zero skips**. Offline npm ci, lint (18), strict core/content/
+  shell/renderer types, all module syntax, DAG, docs/brand/whitespace passed.
+  Knip exits 1 with exactly one full/two production intentional export findings.
+  Exact candidate/publisher inventory **552 files**, native entry graph **66
+  modules**; legal/vendor source and historical hashes/API40/debug91 retained,
+  developer tooling and withdrawn assets excluded. Remote fetch/ls-remote match
+  runtime SHA; **27 commit-pinned public resources HTTP 200, exact local bytes**,
+  including both lessons, nested modules, manifest and legal/source files.
+  Source/publication trees clean; dirty modules sibling untouched. No source/
+  upstream push, tag/release, host start/install or migration. Windows DI and
+  live-host MIME/cache/BFCache/navigation/render/audio/judging remain owed.
+
 - **Authorized publication candidate (2026-10-21):** reviewed source **0.2.13**
-  prepares experimental **0.2.13-lab.1** to replace personal-fork `main`'s
+  prepared experimental **0.2.13-lab.1** to replace personal-fork `main`'s
   `ac8fc44e2a3c0388dc5c936427dc6c85d492b802` / 0.2.11-lab.1. Includes complete
   modular core/content/renderer/Workout foundations, Custom format-2 variants,
   standard-six-only format-3 Ladder pilot (stable progress IDs), staff/beam and
@@ -394,7 +413,7 @@ Old upstream release stories, PR states and handoffs are preserved as
   transport/audio lifecycle; four rendering choices; procedural backing;
   presets/tunings, progression and host-consumed note_detect verdicts.
 - Generated personal-fork `main` is **Virtuoso (Lab)** / `virtuoso_lab` /
-   published **0.2.11-lab.1**, not this complete development checkout or upstream `main`.
+   published **0.2.13-lab.1**, not this complete development checkout or upstream `main`.
   Installation and isolation limits: [Lab guide](docs/plugin/virtuoso-lab.md).
   Candidate **0.2.9-lab.1** adds attribution/legal notices and preferred vendor
   source. **2026-10-20:** removed all 61 8ridgelite OGG recordings and the Deer Ink
@@ -402,7 +421,8 @@ Old upstream release stories, PR states and handoffs are preserved as
   Stored DI pins migrate to Shinyguitar; Metal uses the existing procedural cab.
    **2026-10-20: review fixes were experimentally published** at `5ca4f45`.
    Reviewed **0.2.11-lab.1** combines the extraction and Markdown practice update;
-   publication is complete at `ac8fc44`, with installed Windows acceptance outstanding.
+    prior publication was `ac8fc44`; latest is `6d8ede9` / 0.2.13-lab.1,
+    with installed Windows acceptance outstanding.
   See [third-party notices](THIRD_PARTY_NOTICES.md) / [pinned evidence](SOURCE.md).
    Source commits stay local on `dev/modular-source`; source `main`, upstream
    and the dirty modules sibling remain untouched. Publication does not install.
@@ -426,16 +446,17 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Next work
 
-1. User updates Lab and confirms installed **0.2.11-lab.1**. Test Custom → File
+1. User updates Lab and confirms installed **0.2.13-lab.1**. Test Custom → File
    practices → Chromatic warm-up on standard six-string guitar: low E frets 1–4,
-   tempos 30/60/120, Play/Pause/Stop/count-in/loop, incompatible tuning recovery,
+   both variants/Next, tempos 30/60/120, Play/Pause/Stop/count-in/loop, tuning recovery,
    Return/normal type/Jam/Workout/view/navigation transitions and host judging.
+   Ladder Warmup variations/tiers and Workout edit/navigation-return/BFCache.
    See the standalone [Lab guide](docs/plugin/virtuoso-lab.md). Windows DI remains owed.
 2. Complete installed Lab runtime acceptance and record host/detector versions
    and evidence before selecting a supported release floor.
-3. Continue move-only core extraction: seeded random utilities (tuning data done);
-   broader shapes later; globals/main last. Chord/diatonic and meter/rhythm leaves
-   are extracted, with startup guards still in entry. Preserve ordinary mutability,
+3. Review the remaining host-coupled entry after the completed exercise/session,
+   content, renderer and Workout foundations; do not repeat already completed
+   random/tuning/shape extraction. Startup guards stay in entry. Preserve ordinary mutability,
    core purity, no-unison, dependency direction and baseline behavior.
 4. Reconcile integration with current upstream and the separate Learn work only
    with authorization; do not touch dirty sibling branches as part of docs work.

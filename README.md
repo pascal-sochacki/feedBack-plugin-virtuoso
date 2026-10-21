@@ -35,8 +35,8 @@ fonts/DPR, live-host rendering/audio and Windows DI acceptance remain owed.
 The reserved **0.2.13** version covers this experimental testing candidate.
 
 The personal fork's **`main` is a different, generated installable runtime**:
-**Virtuoso (Lab)**, ID `virtuoso_lab`; authorized candidate **0.2.13-lab.1**
-(2026-10-21), prepared to replace published 0.2.11-lab.1. Confirm the installed manifest.
+**Virtuoso (Lab)**, ID `virtuoso_lab`; published experimental **0.2.13-lab.1**
+(2026-10-21), replacing 0.2.11-lab.1. Confirm the installed manifest.
 It is experimental, not
 an upstream stable update, and does not include the separate Learn-mode work.
 Use this URL in FeedBack's Git Plugin Manager (no branch selector required):
