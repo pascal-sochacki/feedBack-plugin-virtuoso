@@ -129,7 +129,7 @@ certification or installed-host/desktop/DI acceptance; those remain separate gat
 
 ## Generated runtime source map
 
-Original-identity local source revision: `d8ed5c6d7cb90bf08687ad60f9074d9332d9c448` on
+Original-identity local source revision: `20eb3b8875b3ccc22b5363c8c171bb84a35cec15` on
 `dev/modular-source`. This is provenance, not a promise of a remote source
 branch. The matching editable runtime and complete vendor preferred sources
 are the publication revision containing this file and its manifest.
