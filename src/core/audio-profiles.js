@@ -143,7 +143,7 @@ export function inferAudioFamily(cfg) {
 // Resolve the effective backing profile: GLOBAL ← family ← genre profile ←
 // brightness slider ← manual voice override. Never throws; always returns a
 // complete profile so the backing voice + brightness are always defined.
-/** @param {Pick<import('./generation-types.js').GenerationConfig, 'audio' | 'pathway' | 'chordOverride' | 'instrument'>} cfg */
+/** @param {Partial<Pick<import('./generation-types.js').GenerationConfig, 'audio' | 'pathway' | 'chordOverride' | 'instrument'>>} cfg @returns {import('./generation-types.js').ResolvedAudioProfile} */
 export function resolveAudioProfile(cfg) {
   const a = (cfg && cfg.audio) || {};
   const profDef = a.profile && AUDIO_PROFILES[a.profile];
@@ -160,7 +160,7 @@ export function resolveAudioProfile(cfg) {
     // Ensemble drums slot (Phase D): a kit id resolved profile ← family default;
     // resolveDrumKit() applies the mixer override + the unregistered→kit_909 fallback.
     drums:   { kit: (profDef && profDef.drums && profDef.drums.kit) || DRUM_KIT_FAMILY_DEFAULT[fam] || 'kit_909',
-               level: (profDef && profDef.drums && Number.isFinite(profDef.drums.level)) ? profDef.drums.level : 1 },
+               level: (profDef && profDef.drums && Number.isFinite(profDef.drums.level)) ? /** @type {number} */ (profDef.drums.level) : 1 },
     brightness: (profDef && profDef.brightness != null) ? profDef.brightness
               : (famDef.brightness != null) ? famDef.brightness
               : GLOBAL_AUDIO_DEFAULT.brightness,

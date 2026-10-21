@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { buildSingleChart } from './exercise-dispatch.js';
 import { measureSeconds } from './timing.js';
-import { buildBackingEvents } from './backing.js';
-import { buildDrumEvents, resolveGroove } from './drum-grooves.js';
+import { buildAccompanimentEvents } from './backing.js';
+import { appendChordGeometry } from './chart-assembly.js';
 import { swingNotesBacking } from './feel.js';
 import { appendTimelineOffset, compileChordTimeline } from './chord-timeline.js';
 
@@ -45,16 +45,14 @@ export function buildKeyCycleChart(cfg) {
     // Per-KEY backing on THIS key — the cycle changes key, so a single-cfg backing
     // would play the START key under every key. Build + swing in key-local time, then
     // offset by t (the chart carries it; consumers don't re-build/re-swing).
-    const rawBack = /** @type {import('./generation-types.js').AccompanimentEvent[]} */ (buildBackingEvents(kCfg, dur)).concat(buildDrumEvents(kCfg, dur, resolveGroove(kCfg)));
+    const rawBack = buildAccompanimentEvents(kCfg, dur);
     const sw = swingNotesBacking(chart.notes, rawBack, kCfg);
     // Per-KEY timeline too (same desync rule) — the cycle changes key, so a
     // single-key timeline would label every rung with the START key's harmony.
     appendTimelineOffset(timeline, compileChordTimeline(kCfg, dur), t, beatOff, barOff);
     sections.push({ name: key, number: sections.length + 1, time: Number(t.toFixed(6)) });
     sw.notes.forEach(n => notes.push(Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) })));
-    chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
-    chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
-    chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id: hs.chord_id + tplOffset, start_time: Number((hs.start_time + t).toFixed(6)), end_time: Number((hs.end_time + t).toFixed(6)) })));
+    appendChordGeometry({ chords, chordTemplates, handShapes }, chart, t, tplOffset);
     (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
     sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + t).toFixed(6)), end: Number((ev.end + t).toFixed(6)) })));
     tplOffset += chart.chordTemplates.length;

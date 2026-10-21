@@ -169,7 +169,7 @@ export function makeClassic2DHighwayRenderer() {
   /** @param {CanvasRenderingContext2D} ctx @param {import('./renderer-types.js').RenderBundle} bundle @param {number} now */
   function drawSustains(ctx, bundle, now) {
     for (const n of bundle.notes || []) {
-      if (!(n.sus > 0)) continue;
+      if (n.sus === undefined || !(n.sus > 0)) continue;
       const p0 = project(Math.max(-0.05, n.t - now)), p1 = project(Math.max(-0.05, n.t + n.sus - now));
       if (!p0 && !p1) continue;
       const yTop = (p1 ? p1.y : 0.0) * H, yBot = (p0 ? p0.y : 0.82) * H, sc = p0 ? p0.scale : 1.0;
@@ -231,11 +231,11 @@ export function makeClassic2DHighwayRenderer() {
   /** @param {CanvasRenderingContext2D} ctx @param {import('./renderer-types.js').RenderBundle} bundle @param {number} now @param {boolean} lefty */
   function drawNotes(ctx, bundle, now, lefty) {
     // Far notes first so nearer (bigger) gems paint over them.
-    const src = (bundle.notes || []).filter(n => { const dt = n.t - now; return dt <= VISIBLE_SECONDS && (dt > -0.05 || (n.sus > 0 && n.t + n.sus > now)); });
+    const src = (bundle.notes || []).filter(n => { const dt = n.t - now; return dt <= VISIBLE_SECONDS && (dt > -0.05 || (n.sus !== undefined && n.sus > 0 && n.t + n.sus > now)); });
     src.sort((a, b) => b.t - a.t);
     for (const n of src) {
       let tOff = n.t - now, p;
-      if (tOff < -0.05 && n.sus > 0 && n.t + n.sus > now) p = { y: 0.82, scale: 1.0 };
+      if (tOff < -0.05 && n.sus !== undefined && n.sus > 0 && n.t + n.sus > now) p = { y: 0.82, scale: 1.0 };
       else p = project(tOff);
       if (!p) continue;
       drawNote(ctx, bundle, n, fretX(n.f, p.scale), p.y * H, p.scale, lefty);

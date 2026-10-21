@@ -5,7 +5,7 @@
  * @property {number} t
  * @property {number} s
  * @property {number} f
- * @property {number} sus
+ * @property {number} [sus]
  * @property {boolean} [mt]
  * @property {boolean} [pm]
  * @property {boolean} [ho]
@@ -31,6 +31,7 @@
  * @property {number} [stringCount]
  * @property {boolean} [inverted]
  * @property {boolean} [lefty]
+ * @property {number} [renderScale]
  * @property {import('../../core/generation-types.js').GenerationConfig} [config]
  * @property {number[]} [openMidis]
  * @property {{title?: string, duration?: number, arrangement?: string}} [songInfo]
@@ -41,10 +42,12 @@
  * @property {(note: RenderNote) => string | {state: string} | null} [getNoteState]
  *
  * @typedef {Object} Renderer
- * @property {(canvas: HTMLCanvasElement, bundle?: RenderBundle) => void} init
+ * @property {(canvas: HTMLCanvasElement, bundle?: RenderBundle) => void} [init]
  * @property {(bundle: RenderBundle) => void} draw
- * @property {() => void} [resize]
+ * @property {(width?: number, height?: number) => void} [resize]
  * @property {() => void} [destroy]
+ * @property {PromiseLike<unknown>} [readyPromise]
+ * @property {(mode: string) => void} [setMode]
  *
  * @typedef {() => Renderer} RendererFactory
  * @typedef {{factory: RendererFactory, label: string, kind?: string}} RendererSelection

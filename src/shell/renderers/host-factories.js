@@ -1,11 +1,14 @@
 // Host globals are deliberately read at call time: plugins publish late and can
 // replace their factories without reloading this native module.
+/** @returns {import('../../types/host-interfaces.js').HostBus | null} */
 export function hostBus() { return hostGlobals().feedBack || hostGlobals().slopsmith || null; }
+/** @returns {import('../../types/host-interfaces.js').HostMinigames | null} */
 export function hostMinigames() { return hostGlobals().feedBackMinigames || hostGlobals().slopsmithMinigames || null; }
+/** @returns {import('../../types/host-interfaces.js').HostDesktop | null} */
 export function hostDesktop() { return hostGlobals().feedBackDesktop || hostGlobals().slopsmithDesktop || null; }
 
-/** @returns {Record<string, unknown>} */
-function hostGlobals() { return /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (window)); }
+/** @returns {Window & Record<string, unknown>} */
+function hostGlobals() { return /** @type {Window & Record<string, unknown>} */ (/** @type {unknown} */ (window)); }
 
 /** @param {string} id @param {string} src @returns {Promise<void>} */
 export function loadScriptOnce(id, src) {

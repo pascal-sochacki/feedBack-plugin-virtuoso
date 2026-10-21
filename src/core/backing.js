@@ -3,13 +3,25 @@ import { resolveArrangement, cfgAudioProfile } from './arrangement.js';
 import { resolveAudioProfile } from './audio-profiles.js';
 import { compCellForConfig, COMP_GROOVES, buildCompCellHits } from './comp-cells.js';
 import { bassFigureForConfig, buildBassFigureEvents } from './bass-figures.js';
-import { resolveGroove } from './drum-grooves.js';
+import { buildDrumEvents, resolveGroove } from './drum-grooves.js';
 import { progressionDegreesForConfig } from './harmony.js';
 import { NOTE_ALIASES } from './pitch.js';
 import { backingVoicingStyle, voiceBackingChord, voiceLeadBackingChord, voiceBackingPad, pcAtOrAbove } from './voicing.js';
 import { compileChordTimeline } from './chord-timeline.js';
 import { chartRng } from './random.js';
 import { measureSeconds } from './timing.js';
+
+/**
+ * Keep pitched tracks before drums, including their independent seeded rolls.
+ * Swing and Jam filtering must happen only after this ordered local-time build.
+ * @param {import('./generation-types.js').GenerationConfig} cfg
+ * @param {number} duration
+ * @returns {import('./generation-types.js').AccompanimentEvent[]}
+ */
+export function buildAccompanimentEvents(cfg, duration) {
+  return /** @type {import('./generation-types.js').AccompanimentEvent[]} */ (buildBackingEvents(cfg, duration))
+    .concat(buildDrumEvents(cfg, duration, resolveGroove(cfg)));
+}
 
 // DESUGAR a cfg's resolved arrangement → an ordered tracks[] (track-architecture engine
 // core, stage 1). Each track = {id, role, cell, bus}. The fixed comp/bass/drums/pad lanes

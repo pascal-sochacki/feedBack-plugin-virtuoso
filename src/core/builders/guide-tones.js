@@ -15,7 +15,8 @@ import { noteDefaults } from '../notes.js';
 // `cfg.voices`: 'thirds_only' | 'sevenths_only' | 'both_alternating'
 /** @param {import('../generation-types.js').GenerationConfig} cfg */
 export function buildGuideTonesExercise(cfg) {
-  const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+  // Preserve the original key/property reads, including accessor side effects.
+  NOTE_ALIASES[cfg.key] ?? 0;
   const scale = cfg.scale || 'major';
   const scaleInts = SCALE_INTERVALS[scale] || SCALE_INTERVALS.major;
   const chordDepth = cfg.chordDepth || 'seventh';

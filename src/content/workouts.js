@@ -1,4 +1,5 @@
 /** Passive starter workouts; the binding is fixed, nested data remains mutable. */
+/** @type {Record<string, import('../core/session-types.js').Session & {description: string, tags: string[], stringSetup: string}>} */
 export const BUILT_IN_SESSIONS = {
     // The soft-default workout arc: warm-up → technique → application. It's the
     // first key, so it's the default-selected session (and onLaunchSession's

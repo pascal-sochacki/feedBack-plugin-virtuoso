@@ -1,7 +1,13 @@
+import { createRunTransport } from './src/shell/run-transport.js';
 import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell/renderers/host-factories.js';
-import { selectRendererFactory } from './src/shell/renderers/selection.js';
+import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
 import { SEGMENT_TEMPLATES, SEGMENT_ROLES, SEGMENT_BANDS } from './src/content/segments.js';
-import { defaultFretboardSystem, resolveCurrentShape, stylePaletteConfig } from './src/core/config-defaults.js';
+import { stylePaletteConfig } from './src/core/config-defaults.js';
+import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
+import { createPracticePresets } from './src/shell/practice-presets.js';
+import { createPracticeSelection } from './src/shell/practice-selection.js';
+import { PRACTICE_APPLICABILITY, offerable } from './src/core/practice-selection.js';
+import { createPracticePresentation } from './src/shell/practice-presentation.js';
 import { countInSubTicks } from './src/core/count-in.js';
 import { rollSegment, refreshWorkout, materializeSegment, prettyKind, segmentEstDuration } from './src/core/segments.js';
 import { applyLengthPreset } from './src/core/workout-length.js';
@@ -53,8 +59,6 @@ import { CHROMATIC_PATTERN_LABELS } from './src/core/builders/chromatic.js';
 import {} from './src/core/practice-files.js';
 import { PATHWAYS } from './src/content/pathways.js';
 import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
-import { createPracticeCatalog, catalogPathwaySelection, catalogPathwayConfig, displayPracticeCatalog } from './src/shell/practice-catalog.js';
-import { createPracticeFileLoader, displayPracticeProse } from './src/shell/practice-files.js';
 
 (function () {
   'use strict';
@@ -105,7 +109,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.13-lab.1';
+  const VIRTUOSO_VERSION = '0.2.14-lab.1';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -135,30 +139,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the minigames SDK's YIN minHz — if the WEB SDK is still 70, sub-70 notes go
   // MISSED, not exempt, on the web path; the desktop/DI-rig contained verifier is 30.
   const DETECTOR_MIN_HZ = 30;
-  const FRETBOARD_SYSTEM_LABELS = {
-    caged:'CAGED (5 shapes)',
-    '3nps':'3 Notes Per String (7 positions)',
-    open:'Open position',
-    position:'Custom fret range',
-    single_string:'Single-string run',
-    full_neck:'Full-neck map'
-  };
-  // Diatonic-interval sequences index consecutive SCALE DEGREES, so the offset
-  // IS the diatonic interval (degree i + 3 = a diatonic 4th, i + 4 = a diatonic
-  // 5th — quality alternates to stay in key). The single-note skip-step drill
-  // ("1-3, 2-4, 3-5…"), distinct from the harmonized scale_thirds/scale_sixths
-  // double-stops. The classic ear/fretboard primitive (beyoki's Discord ask).
-  const SEQUENCE_LABELS = {
-    none:'straight',
-    fours:'fours (1-2-3-4)',
-    triplets:'triplets (1-2-3)',
-    thirds:'diatonic thirds',
-    fourths:'diatonic fourths',
-    fifths:'diatonic fifths',
-    sixths:'diatonic sixths',
-    broken_triads:'broken triads (1-3-5)',
-    yngwie_sixes:'sixes (1-2-3-4-3-2)'
-  };
   // Startup integrity guard (mirrors the no-unison / applicability / strum-grip guards):
   // a cell that doesn't close on a whole number of beats would desync the click, the
   // loop, and the count-in. Caught the panel's bad Scotch-snap [0.25,0.5] (¾ of a beat).
@@ -401,14 +381,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // ===========================================================================
   // §2 · CURATED PATHWAYS
   // label, goal, scales[], tempoTiers[], base config, vary[] (Next-Variation cycle).
-  // Passive definitions live in src/content/pathways.js; catalog hydration stays here.
+  // Passive definitions remain live through the selection owner's catalog hydration.
   // ===========================================================================
-  const PATHWAY_STORAGE_KEY = 'virtuoso_lab.lastPathway';
-  const MODE_STORAGE_KEY = 'virtuoso_lab.lastMode';   // resume-last-mode (data-mode token)
-  // First-ever launch lands on the first pathway (Chromatic Warmup, the root of
-  // the skill tree) on 6-string guitar — its base config sets guitar_6_standard.
-  // Only applies when nothing is stored; later launches restore the last pathway.
-  const PATHWAY_FIRST_VISIT_DEFAULT = 'chromatic_warmup';
 
   // ===========================================================================
   // §3 · BUILT-IN SESSIONS
@@ -466,6 +440,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       for (const q of Object.keys(tmpls)) {
         if (SKIP.has(`${shape}:${q}`)) continue;
         const ent = tmpls[q];
+        /** @type {Record<string, {s: number, fOff: number, iv: number, fg: number}[]>} */
         const byFg = {};
         for (const n of ent) { if (!n.fg) continue; (byFg[n.fg] = byFg[n.fg] || []).push(n); }
         for (const fg of Object.keys(byFg)) {
@@ -482,97 +457,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
   })();
-
-  // Default fretboard system per instrument profile (string-count fix, 2026-07-10;
-  // guitar-pedagogy + bass-pedagogy panel):
-  // - bass → 'position': bass NEVER uses the guitar shape systems (CAGED/Open/3NPS
-  //   are EADGBE artifacts; the movable position box is bass's system — the pathway
-  //   path already coded this at apply time, this aligns Custom/beginner + sessions).
-  // - guitar N>6 → '3nps': THE extended-range scale system — it tiles every string
-  //   uniformly, so a 7/8-string exercise actually uses the low B/F#. A caged
-  //   default anchors the top-six and leaves the extra strings dead (the
-  //   "switched to 8-string and nothing changed" bug). CAGED itself deliberately
-  //   stays a top-six system (no re-rooted mega-box — no method teaches one).
-  // - guitar 6 → 'caged' (unchanged).
-  // An EXPLICIT user/rung choice always wins — this is only the unset default.
-  // Human-facing position name for a fret window. "Open position" for any
-  // shape sitting at the nut (fretMin === 0); otherwise "Nth position" using
-  // the standard guitar convention that "Nth position" = index finger on
-  // fret N.
-  function positionLabel(fretMin) {
-    if (fretMin == null) return '';
-    if (fretMin === 0) return 'open position';
-    return `${fretMin}${fretMin === 1 ? 'st' : fretMin === 2 ? 'nd' : fretMin === 3 ? 'rd' : 'th'} position`;
-  }
-
-  // Human-facing label for a shape: name + position name. The fret range is
-  // exposed as a title (tooltip) for the advanced reader who needs the exact
-  // window — beginners read "E-shape (open position)" far faster than
-  // "E-shape (frets 0-3)".
-  function shapeLabel(system, shape, resolved) {
-    if (!resolved) return String(shape);
-    return `${resolved.displayName} (${positionLabel(resolved.fretMin)})`;
-  }
-  function shapeLabelTooltip(resolved) {
-    if (!resolved || resolved.fretMin == null) return '';
-    return `frets ${resolved.fretMin}–${resolved.fretMax}`;
-  }
-
-  // Populate the Shape dropdown for the current key + system. Preserves the
-  // currently-selected shape if it's still valid for the new system.
-  function syncShapeDropdown() {
-    const sel = (typeof document !== 'undefined') ? document.getElementById('virtuoso_lab-shape') : null;
-    if (!sel) return;
-    const sysEl = document.getElementById('virtuoso_lab-fretboard-system');
-    const keyEl = document.querySelector('#virtuoso_lab-controls [name="key"]');
-    const scaleEl = document.querySelector('#virtuoso_lab-controls [name="scale"]');
-    const system = sysEl ? sysEl.value : 'caged';
-    const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
-    const scale = scaleEl ? scaleEl.value : 'major';
-    const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
-
-    // Remember the current selection so we can preserve it across system changes.
-    const prev = sel.value;
-    sel.innerHTML = '';
-
-    if (!isShapeAwareSystem(system)) {
-      // Custom-range / single-string / full-neck — Shape dropdown is hidden by CSS
-      // when the parent label has no contents. Leave the select empty.
-      return;
-    }
-
-    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
-    if (!order.length) {
-      // No valid shapes (e.g., Open in Db major). Leave a single disabled option.
-      const opt = document.createElement('option');
-      opt.value = ''; opt.textContent = '(not available in this key)'; opt.disabled = true;
-      sel.appendChild(opt);
-      return;
-    }
-    for (const shape of order) {
-      const resolved = fretWindowForShape(keyPc, system, shape, scale, openMidis);
-      const opt = document.createElement('option');
-      opt.value = String(shape);
-      opt.textContent = shapeLabel(system, shape, resolved);
-      opt.title = shapeLabelTooltip(resolved);
-      sel.appendChild(opt);
-    }
-    // Restore the previous selection if still valid; otherwise pick the lowest shape.
-    if (order.map(String).includes(prev)) {
-      sel.value = prev;
-    } else {
-      sel.value = String(order[0]);
-    }
-
-    // Mirror the active shape into the legacy cagedShape hidden input so the
-    // chord-template helpers keep working. Only meaningful when system is CAGED.
-    const cagedHidden = document.getElementById('virtuoso_lab-caged-shape-value');
-    if (cagedHidden) {
-      if (system === 'caged') cagedHidden.value = sel.value || 'C';
-      // For 3NPS/Open, leave the hidden value alone — chord-template helpers
-      // aren't called in those shape contexts yet.
-    }
-  }
 
   // Resolve the shape selected in the form (or default) into fret range +
   // shape-note set. Called by readConfig. Returns null if the current system
@@ -605,15 +489,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // visible in DevTools but don't break the plugin.
   (function smokeTestShapeSystem() {
     const guitar = [40, 45, 50, 55, 59, 64];
+    /** @param {import('./src/core/fretboard-shapes.js').ResolvedShape | null} shape */
     function fretsByString(shape) {
+      /** @type {Record<string, number[]>} */
       const map = {};
-      for (const n of shape.notes) {
+      for (const n of (/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (shape)).notes) {
         if (!map[n.s]) map[n.s] = [];
         map[n.s].push(n.f);
       }
       for (const s of Object.keys(map)) map[s] = map[s].slice().sort((a, b) => a - b);
       return map;
     }
+    /** @param {(string | number)[] | null} a @param {(string | number)[] | null} b */
     function arraysEqual(a, b) {
       if (!a || !b || a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
@@ -621,15 +508,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     // CAGED C-shape in C major → frets 0–5, root at A-string fret 3
     const cShapeC = resolveCAGEDShape(0, 'C', 'major', guitar);
-    console.assert(cShapeC && cShapeC.fretMin === 0 && cShapeC.fretMax === 5,
+    console.assert((/** @type {boolean} */ (/** @type {unknown} */ (cShapeC && cShapeC.fretMin === 0 && cShapeC.fretMax === 5))),
       '[Virtuoso shapes] C-shape in C major should span frets 0–5', cShapeC);
-    console.assert(cShapeC.notes.some(n => n.s === 1 && n.f === 3 && n.isRoot),
+    console.assert((/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (cShapeC)).notes.some(n => n.s === 1 && n.f === 3 && n.isRoot),
       '[Virtuoso shapes] C-shape in C major should have root at s=1 f=3', cShapeC);
     // CAGED E-shape in G major → root on low E fret 3, span 2–7
     const eShapeG = resolveCAGEDShape(7, 'E', 'major', guitar);
-    console.assert(eShapeG && eShapeG.fretMin === 2 && eShapeG.fretMax === 7,
+    console.assert((/** @type {boolean} */ (/** @type {unknown} */ (eShapeG && eShapeG.fretMin === 2 && eShapeG.fretMax === 7))),
       '[Virtuoso shapes] E-shape in G major should span frets 2–7', eShapeG);
-    console.assert(eShapeG.notes.some(n => n.s === 0 && n.f === 3 && n.isRoot),
+    console.assert((/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (eShapeG)).notes.some(n => n.s === 0 && n.f === 3 && n.isRoot),
       '[Virtuoso shapes] E-shape in G major should have root at s=0 f=3', eShapeG);
     // 3NPS Position 1 (Ionian) in C major → low E starts at fret 8
     const pos1C = resolveThreeNPSPosition(0, 1, 'major', guitar);
@@ -669,6 +556,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // (openMidi + fret) on two strings. Roots in different octaves are distinct
     // midis and are kept; only true unisons are dropped. Regression guard for
     // the duplicate-root bug (fret-window blocks doubled pitches across strings).
+    /** @param {import('./src/core/fretboard-shapes.js').ResolvedShape | null} resolved */
     const shapeDupMidis = (resolved) => {
       if (!resolved) return ['unresolved'];
       const seen = new Set(), dups = [];
@@ -698,6 +586,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     for (const shapeKey of Object.keys(CAGED_SHAPES)) {
       const cts = CAGED_SHAPES[shapeKey].chordTemplates || {};
       for (const quality of Object.keys(cts)) {
+        /** @type {Record<string, Set<number>>} */
         const byFinger = {};
         for (const n of cts[quality]) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
         for (const fg of Object.keys(byFinger)) {
@@ -708,160 +597,46 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
   })();
 
-  let renderer = null, activeBundle = null, rafId = null, lastExercise = null;
-  let loadedPracticeFile = null, practiceLoadController = null, practiceLoadIdentity = 0;
-  let practiceVariantId = null;
-  let rendererAttachIdentity = 0;
-  let generationIdentity = 0;
-  let sessionLaunchIdentity = 0;
-  const destroyedRenderers = new WeakSet();
-  let loadPracticeFile = null;
-  let practiceCatalog = null;
-  let pendingInitialPathway = null;
-  let catalogVisitIdentity = 0, catalogVisitActive = true;
-  async function initializePracticeCatalog() {
-    if (!catalogVisitActive) return practiceCatalog?.state;
-    if (!loadPracticeFile) loadPracticeFile = createPracticeFileLoader(new URL('/api/plugins/virtuoso_lab/assets/practices/', window.location.href));
-    if (!practiceCatalog) practiceCatalog = createPracticeCatalog(loadPracticeFile, PATHWAYS, FORM_CUES, syncPracticeCatalog);
-    return practiceCatalog.initialize();
-  }
-  function syncPracticeCatalog() {
-    if (!catalogVisitActive) return;
-    displayPracticeCatalog(practiceCatalog?.state, PATHWAYS, PATHWAY_FIRST_VISIT_DEFAULT,
-      $('virtuoso_lab-file-select'), $('virtuoso_lab-pathway'), $('virtuoso_lab-file-load'), () => document.createElement('option'));
-    renderPathwayList();
-    const intended = pendingInitialPathway;
-    if (intended && intended.visit === catalogVisitIdentity && practiceCatalog.state.settled) {
-      pendingInitialPathway = null;
-      if ($('virtuoso_lab-pathway')?.value === intended.id && activePathwayId === intended.id && currentFamily() === 'guitar') {
-        if (PATHWAYS[intended.id]) {
-          applyPathwayById(intended.id);
-          try { localStorage.setItem(PATHWAY_STORAGE_KEY, intended.id); } catch (_) {}
-          onGenerate();
-        } else {
-          // Unavailable is a local UI state, never a replacement saved lesson.
-          applyPathwayById('custom');
-        }
-      }
-    }
-    refreshStatusFromState();
-  }
-  function hasActivePathwayFile() {
-    return !!PATHWAYS[activePathwayId]?.practiceFile && !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode');
-  }
-  let rendererFactoryProbe = null;
-  let playbackProbe = null, voicesProbe = null;
+  let /** @type {ReturnType<typeof makeBundle> | null} */ activeBundle = null, /** @type {number | null} */ rafId = null, /** @type {import('./src/types/entry-data.js').EntryExercise | null} */ lastExercise = null;
+  let sessionLaunch = null;
+  let /** @type {((bundle: import('./src/types/entry-data.js').EntryBundle | null) => void) | null} */ playbackProbe = null, /** @type {((bundle: import('./src/types/entry-data.js').EntryBundle | null) => Promise<void>) | null} */ voicesProbe = null;
+  const rendererLifecycle = createRendererLifecycle({
+    makeHighway:makeBuiltin2DRenderer, makeTab:makeBuiltin2DTabRenderer, makeNotation:makeBuiltin2DNotationRenderer,
+    onBeforeAttach:stopRendererPlayback,
+    prepareScene(exercise, cfg) {
+      syncPlayButton();
+      activeBundle = makeBundle(exercise); transport.moveCursor(0);
+      resetTransportLoop(); maybeResyncMixer(cfg); fretboardSyncRange();
+      return activeBundle;
+    },
+    onRendererCommitted(label) { const status = $('virtuoso_lab-renderer-status'); if (status) status.textContent = label; drawOnce(); },
+    onLayoutChanged:drawOnce, isPlaying:() => transport.playing, onWindowResized:ptDodgeOverlays
+  });
 
-  function cancelPracticeLoad() {
-    practiceLoadIdentity++;
-    practiceLoadController?.abort();
-    practiceLoadController = null;
-  }
-  function syncPracticeFileControls() {
-    const form = $('virtuoso_lab-controls');
-    if (!form) return;
-    syncAdvancedMode();
-    const fixed = ['key', 'scale', 'meter', 'subdivision', 'bars', 'direction', 'sequence', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'keyCycle', 'swing'];
-    for (const name of fixed) {
-      const el = form.elements[name];
-      if (!el) continue;
-      el.disabled = !!loadedPracticeFile || (!!el.closest('.virtuoso_lab-advanced-only') && !$('virtuoso_lab-advanced-toggle')?.checked);
-    }
-    const prose = $('virtuoso_lab-file-prose');
-    if (prose) displayPracticeProse(prose, loadedPracticeFile);
-    const unload = $('virtuoso_lab-file-unload');
-    if (unload) unload.hidden = !loadedPracticeFile;
-    const variants = $('virtuoso_lab-file-variants'), select = $('virtuoso_lab-file-variant'), next = $('virtuoso_lab-file-next');
-    if (variants) variants.hidden = !loadedPracticeFile;
-    if (select) {
-      select.replaceChildren();
-      for (const variant of loadedPracticeFile?.variants || []) {
-        const option = document.createElement('option');
-        option.value = variant.id; option.textContent = variant.title; select.appendChild(option);
-      }
-      select.value = practiceVariantId || '';
-      select.disabled = !loadedPracticeFile;
-    }
-    if (next) next.disabled = !loadedPracticeFile;
-    const hint = $('virtuoso_lab-file-hint');
-    if (hint) hint.textContent = loadedPracticeFile?.variants.find(variant => variant.id === practiceVariantId)?.hint || '';
-  }
-  function clearPracticeFile() {
-    generationIdentity++;
-    stopRenderer();
-    cancelPracticeLoad();
-    loadedPracticeFile = null;
-    practiceVariantId = null;
-    syncPracticeFileControls();
-  }
-  async function onPracticeVariant(id) {
-    if (!loadedPracticeFile?.variants.some(variant => variant.id === id)) return;
-    // Stop before rebuilding, including when incompatible Setup prevents a bundle.
-    generationIdentity++;
-    stopRenderer();
-    activeBundle = null; lastExercise = null; currentPracticeTime = 0;
-    resetTransportLoop();
-    practiceVariantId = id;
-    syncPracticeFileControls();
-    await onGenerate();
-  }
-  async function onLoadPracticeFile() {
-    if (pendingInitialPathway) applyPathwayById('custom');
-    if (hasActivePathwayFile()) applyPathwayById('custom');
-    clearPracticeFile();
-    activeBundle = null; lastExercise = null; currentPracticeTime = 0;
-    const identity = practiceLoadIdentity;
-    const controller = new AbortController();
-    practiceLoadController = controller;
-    const id = $('virtuoso_lab-file-select')?.value;
-    showStatus('Loading file practice…');
-    try {
-      if (!loadPracticeFile) loadPracticeFile = createPracticeFileLoader(new URL('/api/plugins/virtuoso_lab/assets/practices/', window.location.href));
-      const practice = await loadPracticeFile(id, controller.signal);
-      if (identity !== practiceLoadIdentity) return;
-      loadedPracticeFile = practice;
-      practiceVariantId = practice.variants[0].id;
-      syncPracticeFileControls();
-      await onGenerate();
-    } catch (e) {
-      if (identity === practiceLoadIdentity) showStatus(`File practice error: ${e.message || e}`);
-    }
-  }
-  // The bundle actually handed to the active renderer. Usually === activeBundle,
-  // but for the 3D Highway it's a chord-free clone so the host doesn't project
-  // chord-shape frames onto the note lane (see attachRenderer + drawOnce).
-  let rendererBundle = null;
-  let currentPracticeTime = 0, playAnchorMs = 0, playAnchorChartTime = 0, playing = false;
-  // Audio-clock play anchor (seconds on audioCtx.currentTime), set alongside
-  // playAnchorMs by anchorPlayClock(). While it's live, tick() derives the
-  // playback clock from the AUDIO clock — the timebase the scheduled notes
-  // actually play on — instead of performance.now(). The two clocks tick at
-  // slightly different rates (measured 63ppm ≈ 3.8ms/min on the dev box,
-  // 2026-06-07 A/V-sync audit), and the wall-clock version accumulated that
-  // drift across seamless loop passes (~113ms over an unbroken 30-min
-  // Workout): the gems slid off the audio, and the judging windows slid off
-  // what the player was hearing. playAnchorMs stays maintained as the
-  // fallback for the no-AudioContext path.
-  let playAnchorCtx = null;
-  // PAUSE is a sub-state of playing (playing stays true while paused) so every
-  // "transport break → stopPlayback()" call site keeps working unchanged. The
-  // clock freezes (tick skips the advance), audio + judgment stop, the session
-  // stays open; resume re-anchors from the frozen playhead (the seekTo pattern).
-  // Paused wall-time is excluded from the session duration so XP (time-based)
-  // and the "Practiced m:ss" readout never credit paused time.
-  let paused = false, _pausedAccumMs = 0, _pauseBeganMs = 0;
-  function sessionPausedMs() { return _pausedAccumMs + (paused ? Math.max(0, performance.now() - _pauseBeganMs) : 0); }
-  // Resume PRE-ROLL (Workout-love Tier 2): a chart time the playhead counts INTO
-  // on resume. While currentPracticeTime < _preRollUntil the runway plays — its
-  // notes muted, the count-in click forced, the judge silent — then normal play
-  // resumes at the re-entry bar. 0 = no pre-roll active.
-  let _preRollUntil = 0;
+  const practiceSelection = createPracticeSelection({
+    getContext: () => ({family:currentFamily(), hasBundle:!!activeBundle}),
+    bands:PATHWAY_BANDS,
+    applySelectedConfig, changeModeView,
+    stopAndInvalidatePlayback(reset) {
+      stopRenderer();
+      if (reset !== 'none') { activeBundle = null; lastExercise = null; transport.moveCursor(0); }
+      if (reset === 'loop') resetTransportLoop();
+    },
+    regenerateSelectedConfig:onGenerate,
+    presentation:{renderFile:() => practicePresentation.renderFile(), renderPosition:() => practicePresentation.renderPosition(), renderCatalog:renderPathwayList, refreshStatus:refreshStatusFromState}
+  });
+  const transport = createRunTransport({operation:rendererLifecycle, getBundle:()=>activeBundle,
+    prepareVoices:awaitVoices, startPlayback,
+    clockNow:()=>({wallMs:performance.now(), audioSeconds:audioCtx ? audioCtx.currentTime : null})});
+  // Pause remains a sub-state of playing; session duration excludes its wall time.
+  function sessionPausedMs() { return transport.sessionPausedMs(); }
   // Visible-rewind wrap animation (Workout-love Tier 2 polish): when the loop
   // wraps (whole-chart re-entry or an A–B loop), the overview playhead would just
   // teleport from the seam-out point back to the seam-in point. Instead we mirror
   // the host's animated loop-wrap with a brief draw-only "tape rewind" sweep of the
   // overview playhead. Draw-only — never touches the clock/audio (those already
   // wrapped seamlessly). { fromT, atMs } | null; reduced-motion + tiny loops skip it.
+  /** @type {{fromT: number, atMs: number} | null} */
   let _wrapAnim = null;
   const WRAP_ANIM_MS = 300;
   // Reached-tracking for the end-of-Workout recap (Tier 3): a chapter shows
@@ -874,33 +649,27 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // window this run → the recap can show "played ●" vs "scrolled past ○" honestly,
   // and the seam can drop a "done" claim on a block the player never sounded. Reset
   // per run; marked from the level path (the same gate that arms _ptHadInput).
+  /** @type {boolean[]} */
   let _blockHadInput = [];
   function markBlockInput() {
     const sb = activeBundle && activeBundle.segmentBounds;
     if (!sb || sb.length < 2) return;
-    const t = currentPracticeTime;
+    const t = transport.time;
     for (let i = 0; i < sb.length; i++) { if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) { _blockHadInput[i] = true; return; } }
   }
+  /** @param {number} fromT @param {number} toT */
   function triggerWrapRewind(fromT, toT) {
     if (Math.abs(fromT - toT) < 2.5) return;   // a short A–B loop would strobe — only animate a meaningful span
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     _wrapAnim = { fromT, atMs: performance.now() };
   }
-  // Chart time where the current/last playback began (Logic-style: Stop returns
-  // the playhead here). Unlike playAnchorChartTime, it does NOT drift on loop wrap.
-  let playStartChartTime = 0;
-  let _activeSession = null, _sessionStartMs = 0, _newlyUnlockedTier = null;
+  let /** @type {import('./src/types/results-data.js').SessionLog | null} */ _activeSession = null, _sessionStartMs = 0, /** @type {number | null} */ _newlyUnlockedTier = null;
+  /** @type {import('./src/types/results-data.js').RunSummary | null} */
   let _lastEndedSession = null;  // the just-finished session → the P-sheet "Last session" card
-  // A-B segment loop endpoints in chart-time seconds. Null = no loop.
-  // See docs/archive/section-looping.md for the design + phasing.
-  let segmentLoopA = null, segmentLoopB = null;
-  // Transport UI state: tpA/tpB are the user's chosen A/B loop points (either
-  // may be set before the other); the committed loop lives in segmentLoopA/B.
-  let tpA = null, tpB = null, _loopWraps = 0;
   // Session transport: index of the segment currently under the playhead, so
   // the highlight only touches the DOM when it actually changes.
   let _activeSegIdx = -1;
-  let audioCtx = null, audioNodes = [];
+  let /** @type {AudioContext | null} */ audioCtx = null, /** @type {import('./src/types/audio-graph.js').ScheduledResource[]} */ audioNodes = [];
   // Rolling-window scheduling bookkeeping (see maybeScheduleLoopAhead).
   // scheduledUntilCtx = absolute AudioContext time up to which audio has been
   // scheduled (the horizon; the next chunk begins here). schedChartPos = the
@@ -908,7 +677,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // seam). schedChunks tracks each scheduled chunk's nodes + real sound-end
   // time so finished chunks can be disconnected — keeps the live node count
   // bounded (~2-3 chunks) during extended practice.
-  let scheduledUntilCtx = 0, schedChartPos = 0, schedChunks = [];
+  let scheduledUntilCtx = 0, schedChartPos = 0, /** @type {{nodes: import('./src/types/audio-graph.js').ScheduledResource[], endCtx: number}[]} */ schedChunks = [];
   // highway_3d's _bgGetAnalyser() creates a fresh AudioContext every call
   // until setup succeeds, then calls ctx.close() in the catch block when
   // createMediaElementSource throws (stem_mixer already holds the element).
@@ -929,6 +698,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // highway into this path and `ctx.createGain()` throws "not a function".
     const makeFakeCtx = () => {
       const noopNode = new Proxy({}, { get: (_t, p) => ((p === 'connect' || p === 'disconnect') ? (() => noopNode) : (() => {})) });
+      /** @type {Record<PropertyKey, unknown>} */
       const base = {
         state: 'closed',
         currentTime: 0,
@@ -960,6 +730,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Scoping to the active screen keeps the highway-click fix (Virtuoso on
     // screen) while leaving the global pristine for everyone else.
     const virtuoso_labActive = () => { const r = document.getElementById('virtuoso_lab-root'); return !!(r && r.offsetParent); };
+    /** @param {ConstructorParameters<typeof AudioContext>} args */
     const Patched = function(...args) {
       // Only fake when there's NO scoring SDK. The fake exists solely to suppress the
       // borrowed highway's audio-reactive-bg AudioContext (an audible click) on OLD
@@ -977,7 +748,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (window.webkitAudioContext) Object.defineProperty(window, 'webkitAudioContext', { value: Patched, configurable: true, writable: true });
   }());
   // Notation renderer is notation-only — tab is its own renderer now.
-  const notationMode = 'notation';
 
   // Theme palette for the Tab and Notation renderers. The light theme is the
   // parchment-and-ink look we shipped for Tab; the dark theme mirrors it on a
@@ -998,14 +768,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // picking/strum/bass-RH drills → the STROKES are the lesson. Keyed off
   // bundle.config.mode (single drills); mixed sessions keep the default simile
   // decimation. Display-only — none of this ever feeds scoring/XP.
+  /** @param {string} name */
   function setRenderTheme(name) {
     if (name !== 'light' && name !== 'dark') return;
     currentRenderTheme = name;
     try { localStorage.setItem('virtuoso_lab.renderTheme', name); } catch (_) {}
-    if (renderer && activeBundle) drawOnce();
+    if (rendererLifecycle.renderer && activeBundle) drawOnce();
   }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
-  let _ptHandle = null, _ptNotes = [], _ptOpenMidis = [], _ptScored = new Set(), _ptByKey = new Map(), _ptHadInput = false, _ptLive = null;
+  let /** @type {import('./src/types/host-interfaces.js').ContinuousPitchHandle | null} */ _ptHandle = null, /** @type {import('./src/types/entry-data.js').EntryNote[]} */ _ptNotes = [], /** @type {number[]} */ _ptOpenMidis = [], /** @type {Set<string>} */ _ptScored = new Set(), /** @type {Map<string, import('./src/types/entry-data.js').EntryNote>} */ _ptByKey = new Map(), _ptHadInput = false, /** @type {{t: number, f: number, c: number} | null} */ _ptLive = null;
+  /** @type {import('./src/types/results-data.js').RunInfo | null} */
   let _ptRunInfo = null;        // results-modal diagnostics: judged universe + exemptions + which ear (set per run)
   let _ptSpanCount = 0;         // tremolo spans this run (unit-denominated)
   let _ptExempt = null;         // Slice-2 class counts { legato, fast, spanNotes, floorMs } (set per run)
@@ -1032,11 +804,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   const PT_LVL_FLOOR_MIN = 0.02;     // host's _ND_SILENCE_THRESHOLD (−34 dBFS on the host's 0..1 meter)
   const PT_LVL_RECENT_WIN = 0.2;     // a live (non-span) credit gates on the input level over the last 200ms (host's ±200ms), ending at the credit moment — NOT the note's future-extending window (which has no samples at its leading edge → would skip the veto)
   let _lvlMode = 'none';             // 'desktop' (getLevels) | 'web' (own analyser) | 'none' (gate inactive)
+  /** @type {{jt: number, L: number}[]} */
   let _lvlSamples = [];              // ring of { jt: judge-time, L } (bounded 512)
+  /** @type {ReturnType<typeof setInterval> | null} */
   let _lvlPoll = null;               // desktop getLevels interval
   let _lvlGen = 0;                   // bumped on every start/stop — an in-flight async getLevels resolving after teardown is ignored
   let _lvlRaf = 0;                   // web analyser RAF handle
-  let _lvlStream = null, _lvlAnalyser = null, _lvlData = null;   // web tap
+  let /** @type {MediaStream | null} */ _lvlStream = null, /** @type {AnalyserNode | null} */ _lvlAnalyser = null, /** @type {Float32Array<ArrayBuffer> | null} */ _lvlData = null;   // web tap
   // ── Timing model (2026-06-06 seven-lane panel; MIRRORS the host's grader) ──
   // The host's note_detect judges with PARALLEL per-note candidate windows
   // (early-strict ±100ms; late grace rides the sustain, capped 1s), disambiguates
@@ -1074,9 +848,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   })();
   function ptLatency() { return _ptLatencyS; }
   const PT_CAL_MAX = 6000;          // offset-free detection log cap (~4 min at meter cadence)
+  /** @type {{bt: number, m: number}[]} */
   let _ptCalLog = [];               // [{ bt: RAW practice time, m: float MIDI }] — reset per run
   // Cents to the NEAREST OCTAVE of the expected midi (host-mirror: octave-
   // tolerant matching keeps the sweep robust to 2nd-harmonic readings).
+  /** @param {number} m @param {number} em */
   function ptNearestOctaveCents(m, em) {
     const c = (m - em) * 100;
     return c - 1200 * Math.round(c / 1200);
@@ -1084,6 +860,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // The host-mirror sweep, pure: detections {bt, m} (bt RAW — our log carries
   // no latency subtraction, so the best offset ≈ −latency), single-pitch
   // windows from the run's table. Returns { offsetMs, matched, total } | null.
+  /** @param {{bt: number, m: number}[]} detections @param {import('./src/types/judgment-data.js').JudgmentWindow[]} windows @param {{loMs?: number, hiMs?: number, stepMs?: number, minMatched?: number, winS?: number, tolCents?: number}} [opts] */
   function ptCalibrateOffsetMs(detections, windows, opts) {
     opts = opts || {};
     const loMs = opts.loMs != null ? opts.loMs : -250, hiMs = opts.hiMs != null ? opts.hiMs : 250;
@@ -1117,7 +894,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return { offsetMs: Math.max(-1000, Math.min(1000, refinedMs)), matched: best.matched, total: exp.length };
   }
   const PT_WIN_EARLY = 0.100;       // DEFAULT window pad (host's shipped timingHitThreshold) — see ndTimingInherit
-  const PT_WIN_LATE  = 0.100;       // (kept as the no-host-settings fallback; the live values are _ptNdWin)
   const PT_RING_CAP  = 1.0;         // ring credit rides the sustain, capped (host: min(sus, 1s))
   // ── Inherited timing windows (2026-06-07, Christian's "still unforgiving") ──
   // The host's answer to strictness is PLAYER SLIDERS: note_detect persists
@@ -1187,12 +963,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // widen the timing tolerance as forgiveness). clamp(3·period+25, 35, 80)ms:
   // D2≈66ms, A2≈52ms, ≥G3≈35–40ms — drop-tuned guitar gets bass physics
   // automatically; a bassist high on the G string doesn't.
+  /** @param {number} f0 */
   function ptSpeakBudget(f0) {
     return Math.min(0.080, Math.max(0.035, 3 / f0 + 0.025));
   }
   // Per-note identity key for the #254 gem hook: the host highway calls
   // bundle.getNoteState(note, note.t) and matches notes by (s, f, t), so we judge on
   // that same composite — reference-independent (the highway may normalize our notes).
+  /** @param {import('./src/types/entry-data.js').EntryNote} n */
   const ptKey = (n) => n.s + '|' + n.f + '|' + Math.round((n.t || 0) * 1e4);
   // ── Precomputed window table — ONE source of truth for both ears ───────────
   // Built once per run in startPitchTracker from the judged set, grouped by
@@ -1203,22 +981,30 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // verifier's one-target-at-a-time owner and the passed denominator. The cursor
   // is monotonic; a backward seek ≥ 0.25s (loop wrap, overview click-seek)
   // re-searches from the top — mirrors the host's backward-seek note reopen.
+  /** @type {import('./src/types/judgment-data.js').JudgmentWindow[]} */
   let _ptWin = [];                 // [{ key, t, susEff, matchStart, matchEnd, exclStart, exclEnd, notes[], pcs, credited, span? }]
+  /** @type {Map<string, import('./src/types/judgment-data.js').JudgmentWindow>} */
   let _ptWinByKey = new Map();     // ptKey(note) → window entry (gem miss-arming)
   let _ptWinLo = 0;                // monotonic cursor: first entry with matchEnd > tJudge
   let _ptWinLastT = -Infinity;
+  /** @type {number[]} */
   let _ptWinPassedNotes = [];      // prefix sums of UNITS (span = 1, else notes.length) → passed denominator is O(1)
   let _ptScoredUnits = 0;          // unit-denominated hits (a tremolo span = 1 unit; a chord = its member count)
+  /** @type {import('./src/types/judgment-data.js').SpanWindow[]} */
   let _ptSpanPending = [];         // span windows awaiting end-of-span evaluation (time-sorted)
+  /** @type {{d: number, t: number, sb: number}[]} */
   let _ptDevs = [];                // first-evidence deviations vs onset (s) — the timing-tendency aggregate
   let _ptNearMiss = 0;             // in-pitch frames just OUTSIDE their window (the near-miss aggregate)
+  /** @type {{key: string | null, cents: number}} */
   let _ptMeterEma = { key: null, cents: NaN };  // display-only cents smoothing (scoring uses raw frames)
+  /** @param {import('./src/types/entry-data.js').EntryNote[]} notes @param {(note: import('./src/types/entry-data.js').EntryNote) => string} gk */
   function ptBuildWindows(notes, gk) {
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptCalLog = [];
     _ptMeterEma = { key: null, cents: NaN };
+    /** @type {Map<string, import('./src/types/entry-data.js').EntryNote[]>} */
     const groups = new Map();
-    for (const n of notes) { const k = gk(n); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(n); }
+    for (const n of notes) { const k = gk(n); if (!groups.has(k)) groups.set(k, []); (/** @type {import('./src/types/entry-data.js').EntryNote[]} */ (groups.get(k))).push(n); }
     const wins = [...groups.entries()].map(([key, gn]) => {
       const t = Math.min(...gn.map(n => n.t));
       // A tremolo SPAN (key 'tr@…', built by the Slice-2 classifier): one judged
@@ -1238,6 +1024,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // spread + FFT smear + anticipation; note_detect :1440). The same
       // threshold pads the LATE side past the ring (host: threshold + grace).
       const thr = gn.length > 1 ? _ptNdWin.chord : _ptNdWin.single;
+      /** @type {import('./src/types/judgment-data.js').JudgmentWindowBase & Partial<Pick<import('./src/types/judgment-data.js').SpanWindow, 'span' | 'spanEnd' | 'bktN' | 'bkts'>>} */
       const w = { key, t, susEff, matchStart: t - thr, matchEnd: t + susEff + thr + budget,
                exclStart: t - thr, exclEnd: t + susEff + thr + budget, notes: gn, pcs,
                // Speak-budget EXCESS over the 35ms floor (s) — the register-DEPENDENT
@@ -1250,7 +1037,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
                sbx: Math.max(0, budget - 0.035),
                credited: false };
       if (span) { w.span = true; w.spanEnd = ringEnd; w.bktN = Math.max(1, Math.ceil((ringEnd - t) / PT_SPAN_BUCKET)); w.bkts = new Set(); }
-      return w;
+      return /** @type {import('./src/types/judgment-data.js').JudgmentWindow} */ (w);
     }).sort((a, b) => a.t - b.t);
     for (let i = 0; i + 1 < wins.length; i++) {
       const a = wins[i], b = wins[i + 1], mid = (a.t + b.t) / 2;
@@ -1289,9 +1076,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return { timing: s.showTimingErrors !== false, pitch: s.showPitchErrors !== false };
     } catch (_) { return { timing: true, pitch: true }; }
   }
+  /** @param {string} type @param {import('./src/types/judgment-data.js').JudgmentWindow} w @param {import('./src/types/judgment-data.js').JudgmentInfo | null} info */
   function ptDispatchJudgment(type, w, info) {
     if (_ptJamRun) return;   // the mirror never judges — no events in Jam
     for (const n of w.notes) {
+      /** @type {import('./src/types/judgment-data.js').JudgmentInfo & {note: {s: number, f: number}, noteTime: number}} */
       const detail = { note: { s: n.s, f: n.f }, noteTime: n.t };
       if (info) {
         if (info.timingState && _ptLabelGates.timing) { detail.timingState = info.timingState; detail.timingError = info.timingError; }
@@ -1303,6 +1092,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Credit a window ONCE: gems light per member key; the accuracy counters are
   // unit-denominated (a span = 1; a chord = its member count, matching the
   // denominator's prefix sums).
+  /** @param {import('./src/types/judgment-data.js').JudgmentWindow} w */
   function ptCreditWindow(w) {
     if (w.credited) return false;
     if (!ptCreditGatePasses(w)) return false;   // independent absolute-level + onset evidence (host-mirror silence gate)
@@ -1315,12 +1105,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // End-of-span evaluation: a tremolo span is a hit when in-tune presence
   // covered ≥ PT_SPAN_RATIO of its 100ms buckets (the "rang in tune over the
   // run" rule) — evaluated once the span has fully passed on the judge clock.
+  /** @param {number} tJudge */
   function ptFinalizeSpans(tJudge) {
     while (_ptSpanPending.length && tJudge > _ptSpanPending[0].spanEnd + 0.05) {
       const w = _ptSpanPending.shift();
+      if (!w) continue;
       if (!w.credited && w.bkts.size / w.bktN >= PT_SPAN_RATIO) ptCreditWindow(w);
     }
   }
+  /** @param {number} tJudge */
   function ptWinSeek(tJudge) {   // advance (or re-search) the cursor; returns it
     if (tJudge < _ptWinLastT - 0.25) _ptWinLo = 0;
     _ptWinLastT = tJudge;
@@ -1343,10 +1136,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return _ptWinLo;
   }
+  /** @param {number} tJudge */
   function ptWinPassedCount(tJudge) {   // notes whose candidate window fully passed (the denominator)
     const lo = ptWinSeek(tJudge);
     return lo > 0 ? _ptWinPassedNotes[lo - 1] : 0;
   }
+  /** @param {number} tJudge */
   function ptWinOwnerAt(tJudge) {       // the one-target owner (midpoint-split exclusive bounds)
     for (let i = ptWinSeek(tJudge); i < _ptWin.length; i++) {
       const w = _ptWin[i];
@@ -1365,10 +1160,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // for the live pitch-strip readout + input-presence (_ptHadInput) only.
   // Doctrine unchanged: the host owns detection DSP, Virtuoso owns judgment.
   let _ndVerifyMode = false;        // verifier is the scoring ear this run
+  /** @type {import('./src/types/host-interfaces.js').VerifyContext | null} */
   let _ndVerifyCtx = null;          // { arrangement, openMidis } — player's real tuning
+  /** @type {import('./src/types/entry-data.js').EntryNote[]} */
   let _ndVerifyActive = [];         // note objects currently pushed as the target
+  /** @type {string | null} */
   let _ndVerifyActiveKey = null;    // group key of the pushed target (dedupe pushes)
+  /** @type {import('./src/types/judgment-data.js').JudgmentWindow | null} */
   let _ndVerifyActiveWin = null;    // the pushed target's WINDOW (span buckets + unit credit)
+  /** @type {EventListener | null} */
   let _ndVerifyListener = null;     // bound notedetect:verify handler
   let _ndWeEnabledNoteDetect = false; // did WE enable note_detect? (restore on stop)
   // ── Contained-playback verifier (notedetect #64+) ──────────────────────────
@@ -1395,6 +1195,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // analysis buffer is history), so anchoring the push on tJudge holds each
   // target through that arrival instead of swapping at the nominal boundary —
   // and midpoint-split exclusive bounds hand off promptly in dense runs.
+  /** @param {number} t */
   function _ndActiveGroupAt(t) {
     const w = ptWinOwnerAt(t - ptLatency());
     if (!w) return { key: null, notes: [], win: null };
@@ -1405,12 +1206,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the verifier never scores a stale note against live audio.
   function ndPushVerifyTarget() {
     if (!_ndVerifyMode || !ndVerifyAvailable()) return;
-    const { key, notes, win } = _ndActiveGroupAt(currentPracticeTime);
+    const { key, notes, win } = _ndActiveGroupAt(transport.time);
     if (key === _ndVerifyActiveKey) return;     // no change → nothing to do
     _ndVerifyActiveKey = key;
     _ndVerifyActive = notes;
     _ndVerifyActiveWin = win;
-    if (!notes.length) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} return; }
+    if (!notes.length) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(null); } catch (_) {} return; }
     // Identity-tone reduction (harmony lane, grading rebuild): a chord voicing
     // octave-doubles its consonant skeleton (root/5th), so pushing the FULL grip
     // lets the host's fixed 0.5 hit-ratio pass on the doublings alone — a
@@ -1432,7 +1233,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       seenPc.add(pc); reduced.push(n);
     }
     const tgt = (reduced.length ? reduced : notes).map(n => ({ s: n.s, f: n.f, b: !!n.bn }));
-    try { window.noteDetect.setVerifyTarget(tgt, _ndVerifyCtx); } catch (_) {}
+    try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(tgt, _ndVerifyCtx); } catch (_) {}
   }
   // notedetect:verify fires (every frame the target rings) with { isHit }. On a
   // hit, credit the whole pushed group into the SAME _ptScored/_ptByKey state
@@ -1443,12 +1244,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // case — it's bundled). In a verifier-ONLY run (no minigames) _ptHadInput
   // first flips on the opening hit; a zero-hit pass shows no miss gems —
   // lenient, consistent with Virtuoso's "scoring degrades, never blocks".
+  /** @param {(Event & {detail?: {isHit?: boolean}}) | null} ev */
   function ndOnVerify(ev) {
     // Paused: the last-pushed target survives the pause (tick stops refreshing
     // it), so live audio could keep crediting it against a frozen clock —
     // discard verify events while paused, mirroring ptOnPitch's paused guard.
-    if (paused) return;
-    if (_preRollUntil > 0 && currentPracticeTime < _preRollUntil) return;   // resume pre-roll runway — discard verify frames (re-orienting, not playing)
+    if (transport.paused) return;
+    if (transport.preRollUntil > 0 && transport.time < transport.preRollUntil) return;   // resume pre-roll runway — discard verify frames (re-orienting, not playing)
     const d = ev && ev.detail;
     if (!d || !d.isHit || !_ndVerifyActive.length) return;
     // Input-presence: with a host level source the level meter owns _ptHadInput
@@ -1460,7 +1262,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (w.span) {
       // Tremolo span: a verify hit marks its presence bucket; the credit
       // decision waits for end-of-span (ptFinalizeSpans, level-gated there).
-      const bi = Math.floor((currentPracticeTime - ptLatency() - w.t) / PT_SPAN_BUCKET);
+      const bi = Math.floor((transport.time - ptLatency() - w.t) / PT_SPAN_BUCKET);
       if (bi >= 0 && bi < w.bktN) w.bkts.add(bi);
     } else {
       // Credit only if the level gate also passes (raw isHit is not enough —
@@ -1468,7 +1270,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // real credit — feeds both the timing-tendency line and the bass felt-hold
       // verdict (t = onset, needed for gap/trend detection; sb = the window's
       // register-dependent speak-budget excess, subtracted by feltHoldAnalyze).
-      if (ptCreditWindow(w)) _ptDevs.push({ d: currentPracticeTime - ptLatency() - w.t, t: w.t, sb: w.sbx });
+      if (ptCreditWindow(w)) _ptDevs.push({ d: transport.time - ptLatency() - w.t, t: w.t, sb: w.sbx });
     }
   }
   function ndStopVerify() {
@@ -1480,16 +1282,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // no-op on the bridge when nothing is armed; it also cancels an in-flight
     // host-side arm (the host bumps its own generation), so that arm resolves
     // not-armed and can't outlive the run.
-    try { window.noteDetect.releaseContainedChart?.(); } catch (_) {}
+    try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).releaseContainedChart?.(); } catch (_) {}
     _ndContainedMode = false; _ndContainedFallback = false; _ndContainedPushInFlight = false;
     if (_ndVerifyListener) { window.removeEventListener('notedetect:verify', _ndVerifyListener); _ndVerifyListener = null; }
-    if (_ndVerifyMode) { try { window.noteDetect.setVerifyTarget(null); } catch (_) {} }
+    if (_ndVerifyMode) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(null); } catch (_) {} }
     // silent: Virtuoso shows its OWN results card — suppress note_detect's
     // end-of-song summary modal (nd disable() shows it by default), which would
     // otherwise fire with note_detect's OWN count (0/0, since the CONTAINED
     // verifier scored, not note_detect's own UI) — the "normal score card 0/0"
     // tester report, 2026-07-09. nd screen.js:13445 skips showSummary() on silent.
-    if (_ndWeEnabledNoteDetect) { try { window.noteDetect.disable?.({ silent: true }); } catch (_) {} _ndWeEnabledNoteDetect = false; }
+    if (_ndWeEnabledNoteDetect) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).disable?.({ silent: true }); } catch (_) {} _ndWeEnabledNoteDetect = false; }
     _ndVerifyMode = false; _ndVerifyCtx = null; _ndVerifyActive = []; _ndVerifyActiveKey = null; _ndVerifyActiveWin = null;
   }
   // Build the contained engine chart from the judged set. ptKey(n) is the stable
@@ -1524,18 +1326,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // time enable resolves, undo the enable we just did.
     let weEnabled = false;
     try {
-      if (!window.noteDetect.isEnabled?.()) { await window.noteDetect.enable?.(); weEnabled = true; }
+      if (!(/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).isEnabled?.()) { await (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).enable?.(); weEnabled = true; }
     } catch (_) {}
     if (weEnabled) _ndWeEnabledNoteDetect = true;
     if (superseded()) {
-      if (weEnabled) { try { window.noteDetect.disable?.({ silent: true }); } catch (_) {} _ndWeEnabledNoteDetect = false; }
+      if (weEnabled) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).disable?.({ silent: true }); } catch (_) {} _ndWeEnabledNoteDetect = false; }
       return;   // run stopped/restarted during enable() → don't arm
     }
     if (ndContainedAvailable()) {
       // Engine contained verifier (desktop): drive the SAME timing-aware
       // harmonic-comb NoteVerifier the 3D highway uses with OUR chart + playhead.
       let ok = null;
-      try { ok = await window.noteDetect.setContainedChart(_ndBuildContainedChart(), _ndVerifyCtx); }
+      try { ok = await (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setContainedChart(_ndBuildContainedChart(), _ndVerifyCtx); }
       catch (_) { ok = null; }
       // Stopped/restarted during the arm: ndStopVerify already released the slot
       // (which also cancels this in-flight arm host-side), so just bail — don't
@@ -1574,7 +1376,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const w = _ptWinByKey.get(v.id);
       // Already credited/missed → ignore (a late duplicate can't double-judge).
       if (!w || w.credited || w.missDispatched) continue;
-      const detT = Number.isFinite(v.detectedSongTime) ? v.detectedSongTime : currentPracticeTime;
+      const detT = Number.isFinite(v.detectedSongTime) ? v.detectedSongTime : transport.time;
       if (v.detected) {
         // The engine IS the timing-aware judge in contained mode (the SAME
         // NoteVerifier the 3D highway uses): its detected:true is the hit — we
@@ -1617,8 +1419,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // judge); subtracting ptLatency delayed every verdict — and so the host
       // hit-flare — by a stale ~123ms our YIN-fed sweep mis-tuned (it never hears
       // the DI). Consume the host judge; don't second-guess its clock (2026-06-21).
-      const t = currentPracticeTime;
-      const playing = !paused && !(_preRollUntil > 0 && currentPracticeTime < _preRollUntil);
+      const t = transport.time;
+      const playing = !transport.paused && !(transport.preRollUntil > 0 && transport.time < transport.preRollUntil);
       try {
         Promise.resolve(window.noteDetect.pushContainedPlayhead(t, playing))
           .catch(() => {})
@@ -1626,12 +1428,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       } catch (_) { _ndContainedPushInFlight = false; }
     }
   }
-  // Active pathway state — tracks which pathway is showing and which variation
-  // index we are on, so Next Variation rotates predictably.
-  let activePathwayId = null;
-  let activePathwayVariationIdx = 0;
-  let activeTempoTierIdx = 0;
-  let _activeBandId = null;   // which band the L2 pathway list is showing
   let jamFeel = 'straight';   // Jam-mode feel (straight / swing / shuffle)
   // Jam slice J-1 state (persisted; restored in bind alongside jamHighlight):
   // guide-line AUDIO is opt-in (D-J1 — the band plays, the player is the lead
@@ -1640,248 +1436,67 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   let jamGuideLine = false;       // audible generated line: OFF by default
   let jamBandMode = 'no_bass';    // bass players: 'no_bass' | 'drums_only' | 'full' (guitar always full)
   let _jamPending = false;        // J-2 (D-J3): a live panel change is queued for the next loop wrap
+  /** @type {string[]} */
   let _jamPendingParts = [];      // the queued-change summary currently shown in the Jam pending chip
+  /** @type {ReturnType<typeof jamPanelState> | null} */
   let _jamSnapshot = null;        // the panel state the CURRENT jam pass was built from (delta source)
   let _jamApplyToken = 0;         // Jam-UX reliability: monotonic guard so a stale async voice-swap apply can't win (the out-of-order race)
   let jamIntent = '';             // J-2 (D-J8): the picked intent — self-checked, shown, NEVER judged
+  /** @type {string | null} */
   let _jamDeviceIntent = null;    // J-2 (D-J10): the drill→Jam hand-off's device intent (chip injected first)
   let jamDepth = 'core';          // J-2 (D-J5b): Harmonic-Depth dial — 'simple' | 'core' | 'rich' (persisted)
   let jamEnergy = 'auto';         // J-3: band-intensity macro — 'chill'|'groove'|'drive' PIN density (1/2/3); 'auto' = the build→peak→breakdown section-arc across passes (persisted)
+  /** @type {{pc: number, midi: number, t: number, chartT: number}[]} */
   let _jamPlayed = [];            // J-3 played-note mirror: recent detected pitches {pc,midi,t(ms)} for the fading strip mark (Jam only)
+  /** @type {{noteCount: number, pcs: Set<number>, lastPc: number, lastMs: number} | null} */
   let _jamMirror = null;          // J-3: cumulative jam recap accumulator (reset each jamPlay; read at the deliberate jam stop)
   let jamSpotlight = false;       // J-3 Spotlight (trade-solos form): you↔band take turns per pass; persisted virtuoso_lab.jamSpotlight
+  /** @type {string | null} */
   let _spotlightCueTurn = null;   // last-shown spotlight turn — DOM-thrash guard for the cue banner
 
+  /**
+   * Fixed form/media IDs have markup-backed types, never a mounted-panel promise.
+   * @template {string} Id
+   * @overload
+   * @param {Id} id
+   * @returns {import('./src/types/dom-ids.js').ElementForId<Id>}
+   */
+  /** @param {string} id */
   function $(id) { return document.getElementById(id); }
+  /** @param {string} key @param {string} fallback */
   function storage(key, fallback) { try { const value = localStorage.getItem(key); return value === null ? fallback : value; } catch { return fallback; } }
   function readHighwayInverted() { return storage('invertHighway', 'false') === 'true'; }
   function readLefty() { return storage('lefty', '0') === '1'; }
   function readRenderScale() { const value = parseFloat(storage('renderScale', '1')); return Number.isFinite(value) && value > 0 ? value : 1; }
+  /** @param {{inverted?: boolean, lefty?: boolean, renderScale?: number} | null} bundle */
   function syncHighwaySettings(bundle) { if (!bundle) return; bundle.inverted = readHighwayInverted(); bundle.lefty = readLefty(); bundle.renderScale = readRenderScale(); }
 
+  /** @param {string} id */
   function goScreen(id) {
-    if (hostBus() && typeof hostBus().navigate === 'function') return hostBus().navigate(id);
+    const bus = hostBus();
+    if (bus && typeof bus.navigate === 'function') return bus.navigate(id);
     if (typeof window.showScreen === 'function') return window.showScreen(id);
     document.querySelector(`[data-screen="${id}"]`)?.click();
   }
 
-  function readConfig() {
-    const data = new FormData($('virtuoso_lab-controls'));
-    const stringSetup = data.get('stringSetup') || 'guitar_6_standard';
-    const setup = STRING_SETUPS[stringSetup] || STRING_SETUPS.guitar_6_standard;
-    // Effective open-string tuning: a custom per-string override (DADGAD, Drop A,
-    // baritone — comma-separated MIDI, low→high) when it's valid for this string
-    // count, else the stringSetup's standard midis. Computed HERE, before shape
-    // resolution, so CAGED/3NPS/Open shapes resolve against the tuning the player
-    // actually has — not the standard one (openMidisForConfig + the resolvers
-    // already honour it; this closes the gap for the pre-resolved shape path).
-    const customOpenMidis = (() => {
-      const raw = (data.get('customOpenMidis') || '').toString().trim();
-      if (!raw) return null;
-      const list = raw.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
-      return list.length === setup.openMidis.length ? list : null;
-    })();
-    const effectiveOpenMidis = customOpenMidis || setup.openMidis;
-    // HTML min/max on these inputs are advisory only — a crafted share link (or
-    // any FormData) can carry arbitrary values, and fretMin/fretMax drive
-    // generation loops (e.g. chordScalePositions). Hard-cap the window so a
-    // malicious link can't hang the tab with a giant fret range.
-    const MAX_FRET = 36;
-    // Read the fret window from the ELEMENT values, not FormData: the inputs sit
-    // in the advanced-only card, which is DISABLED under advancedMode:false — and
-    // a disabled input drops out of FormData, so every beginner-pane rung's
-    // pathway-set fret window silently reverted to 0/5 (the chromatic warmup's
-    // 5th/9th-fret vary steps were inert; surfaced by the 2026-06-12 spider
-    // build). Element value == FormData value whenever the card is enabled.
-    const _fretForm = $('virtuoso_lab-controls');
-    const _fretVal = (name, dflt) => { const el = _fretForm && _fretForm.elements[name]; return (el && el.value) || data.get(name) || dflt; };
-    let fretMin = Math.min(MAX_FRET - 1, Math.max(0, parseInt(_fretVal('fretMin', '0'), 10) || 0));
-    let fretMax = Math.min(MAX_FRET, Math.max(fretMin + 1, parseInt(_fretVal('fretMax', '5'), 10) || 5));
-    const practiceType = data.get('practiceType') || data.get('mode') || 'scale';
-    const advancedMode = data.get('advancedMode') === 'on';
-    // Default fretboard system is instrument/count-aware (defaultFretboardSystem:
-    // bass → position, guitar 7/8 → 3nps, guitar 6 → caged); an advanced-mode
-    // explicit pick wins. The shape-aware systems (caged/3nps/open) drive
-    // fretMin/fretMax via the resolved shape; raw fretMin/fretMax inputs only
-    // matter for the 'position' / 'single_string' / 'full_neck' legacy paths.
-    const fretboardSystem = (advancedMode && data.get('fretboardSystem'))
-      || defaultFretboardSystem(setup.instrument, setup.openMidis.length);
-    let shape = data.get('shape');
-    let shapeNotes = null, shapeDisplayName = null;
-    // Frame-window types (the chromatic warmup, the fingerstyle spider) take
-    // their fretMin/fretMax LITERALLY — the beginner-mode CAGED fallback above
-    // must not let a resolved shape clobber the window (it silently pinned the
-    // chromatic warmup's 5th/9th-fret vary steps to the C-shape window; found
-    // 2026-06-12 building the spider, whose whole walk rides the window).
-    const frameWindowType = practiceType === 'chromatic' || practiceType === 'spider';
-    if (isShapeAwareSystem(fretboardSystem) && !frameWindowType) {
-      const resolved = resolveCurrentShape({ fretboardSystem, instrument: setup.instrument, key: data.get('key') || 'C', scale: data.get('scale') || 'major', shape }, effectiveOpenMidis);
-      if (resolved) {
-        shape = resolved.shape;
-        shapeNotes = resolved.resolved.notes;
-        shapeDisplayName = resolved.resolved.displayName;
-        fretMin = resolved.resolved.fretMin;
-        fretMax = resolved.resolved.fretMax;
-      }
-    }
-    return {
-      mode: practiceType,
-      practiceType,
-      advancedMode,
-      fretboardSystem,
-      shape,
-      shapeNotes,
-      shapeDisplayName,
-      cagedShape: advancedMode ? (data.get('cagedShape') || 'C') : 'C',
-      // strum_comp voicing controls (pathway-driven hidden fields). voicingPosition
-      // 'movable' + a CAGED shape walks a barre up the neck; default 'open' = the
-      // most-open cowboy grip. strumPattern '' lets buildStrumCompExercise pick the
-      // style-based default. These were previously unread, so a movable-barre Chords
-      // rung silently fell back to open mode (degenerate F/B voicings).
-      voicingPosition: advancedMode ? (data.get('voicingPosition') || 'open') : 'open',
-      strumPattern: data.get('strumPattern') || '',
-      // Shape WALK (The Five CAGED Shapes): bar i voiced in the i-th CAGED shape
-      // low→high — see buildStrumCompExercise. Pathway-driven hidden field.
-      shapeWalk: advancedMode && String(data.get('shapeWalk') || '') === 'true',
-      renderer: data.get('renderer') || localStorage.getItem('virtuoso_lab.renderer') || 'highway_3d',
-      instrument: setup.instrument,
-      stringSetup,
-      setupLabel: setup.label,
-      // Custom per-string tuning override (comma-separated MIDI numbers in
-      // low → high order). When non-empty + length matches the stringSetup,
-      // openMidisForConfig prefers it over the stringSetup's defaults.
-      customOpenMidis,
-      stringCount: setup.openMidis.length,
-      // L1 tuning-adapt metadata (pathway uniform-offset rewrite): the rung's
-      // coded key + the player-tuning offset in semitones. `key` below is the
-      // CONCERT key (what sounds + what the detector expects); keyNominal is
-      // what Travel credits. Empty/0 everywhere outside an adapted rung.
-      keyNominal: (data.get('keyNominal') || '').toString() || null,
-      tuningOffset: parseInt(data.get('tuningOffset') || '0', 10) || 0,
-      // Anchor-rung station ('open'/'fret N') — set only when the active rung is
-      // anchor:'open_lowest'; Travel credits this token instead of a key name.
-      anchorStation: (data.get('anchorStation') || '').toString() || null,
-      key: data.get('key') || 'C',
-      scale: data.get('scale') || 'major',
-      bpm: Math.max(30, Math.min(260, parseFloat(data.get('bpm') || '100'))),
-      // Count-in bars before playback starts. 0 = no count-in (immediate
-      // play). 1/2/4 = that many bars of metronome clicks at the current
-      // bpm + meter, then the chart kicks in. See startPlayback below for
-      // how this is plumbed into the transport.
-      // Count-in: the form DEFAULT is 1 bar and the 0-bar "drop-in" option was
-      // removed (2026-06-09) — count-in is always-on for players (a 0-bar drop-in
-      // is a DAW recording convenience, not a practice need). 0 stays engine-
-      // reachable (the smoke harness sets it for a note[0]-at-t=0 fixture).
-      countInBars: (() => {
-        const v = parseInt(data.get('countIn'), 10);
-        let bars = Math.max(0, Math.min(8, Number.isFinite(v) ? v : 1));
-        // 16th-grid default bump (rhythm-meter spec 2026-06-12): a pulse bar THEN a
-        // gridded bar before fast notes — only when the player hasn't chosen a
-        // count-in (no saved default, field at the 1-bar default). An explicit
-        // player choice — saved default or a touched field — always wins.
-        try {
-          if (bars === 1 && !localStorage.getItem('virtuoso_lab.countInDefault')) {
-            const m = parseMeter(data.get('meter'));
-            if (m && countInSubTicks({ subdivision: String(data.get('subdivision') || ''), meter: m }) >= 4) bars = 2;
-          }
-        } catch (_) {}
-        return bars;
-      })(),
-      // Click subdivision: soft clicks per metric beat for BOTH the count-in and
-      // the in-chart metronome. 1 = on the beat only; 2/3/4 = duplet/triplet/
-      // quadruplet feel. This is a transport (click-track) setting, independent
-      // of the note `subdivision` (which controls generated note rhythm) — the
-      // standard DAW model where the metronome has its own click rate.
-      clickSubdiv: Math.max(1, Math.min(4, parseInt(data.get('clickSubdiv') || '1', 10) || 1)),
-      meter: parseMeter(data.get('meter')),
-      subdivision: data.get('subdivision') || 'eighth',
-      direction: advancedMode ? (data.get('direction') || 'up_down') : 'up_down',
-      repeatCount: advancedMode ? Math.max(1, Math.min(16, parseInt(data.get('repeatCount') || '1', 10))) : 1,
-      sequence: advancedMode ? (data.get('sequence') || 'none') : 'none',
-      harmonize: data.get('harmonize') === 'on',   // twin-guitar thirds/sixths (§2.4)
-      tremolo: data.get('tremolo') === 'on',        // mark generated notes tremolo-picked (melodeath/death)
-      chordScaleStrategy: advancedMode ? (data.get('chordScaleStrategy') || 'mode_of_moment') : 'mode_of_moment',
-      fretMin,
-      fretMax,
-      bars: Math.max(1, Math.min(32, parseInt(data.get('bars') || '4', 10))),
-      chordDepth: advancedMode ? (data.get('chordDepth') || 'triad') : 'triad',
-      tritoneSub: advancedMode ? (data.get('tritoneSub') || 'off') : 'off',
-      progression: practiceType === 'guide_tones'
-        ? (data.get('guideToneProgression') || 'ii-V-I')
-        : (advancedMode ? (data.get('progression') || 'diatonic') : 'diatonic'),
-      chordOverride: advancedMode ? (data.get('chordOverride') || 'auto') : 'auto',
-      // Backing comp style + feel. Pathway-driven (hidden fields); 'pad' + 'straight'
-      // preserve the original held-pad / no-swing behaviour for everything that
-      // doesn't opt in. 'boogie' walks a R-5-6-♭7 bass with off-beat shell stabs;
-      // 'shuffle'/'swing' bend the eighth grid (see applySwingToBundle).
-      backingStyle: data.get('backingStyle') || 'pad',
-      swing: data.get('swing') || 'straight',
-      // Drums suppression (beginner woodshed default): 'none' = no kit events
-      // (resolveGroove gates on it); '' = auto. Pathway-driven hidden field.
-      drums: (data.get('drums') || '').toString(),
-      chromaticPattern: data.get('chromaticPattern') || '1234',
-      voices: data.get('voices') || 'thirds_only',
-      keyCycle: data.get('keyCycle') || 'none',
-      keyCycleLength: Math.max(2, Math.min(12, parseInt(data.get('keyCycleLength') || '4', 10))),
-      bendTarget: data.get('bendTarget') || 'whole',
-      // Rhythm-pulse accent slot (0–3): which sub-pulse of each beat the single-string
-      // pulse accents — the Accent-Displacement axis (same notes, the accent moves).
-      // Pathway-driven hidden field (default 0). See buildRhythmPulseExercise.
-      pulseAccent: Math.max(0, Math.min(3, parseInt(data.get('pulseAccent') || '0', 10) || 0)),
-      // Reggae-skank flag: shift the single-string pulse onto the upbeats (the "&").
-      // Pathway-driven hidden field. See buildRhythmPulseExercise.
-      pulseOffbeat: data.get('pulseOffbeat') === 'on' || data.get('pulseOffbeat') === 'true',
-      // Stroke-policy school (hand-marks Slice 2): pathway-driven hidden field;
-      // '' = the builder's default (alternate on scale/chromatic/tremolo, none
-      // elsewhere). See applyStrokePolicy.
-      strokePolicy: (data.get('strokePolicy') || '').toString(),
-      // Backing engine step 3: the comp cell + density (authored-only —
-      // pathway base/vary or a palette; no player stepper yet) and the
-      // pad-vs-comp A/B dev flag (shell-side read; core never touches storage).
-      backingComp: (data.get('backingComp') || '').toString(),
-      backingBass: (data.get('backingBass') || '').toString(),
-      backingDensity: data.get('backingDensity') !== null && data.get('backingDensity') !== '' ? Math.max(0, Math.min(3, parseInt(data.get('backingDensity'), 10) || 0)) : undefined,
-      backingPadDev: (() => { try { return localStorage.getItem('virtuoso_lab.backingPad') === 'pad'; } catch (_) { return false; } })(),
-      // Herta accent slot (0–3) + walk flag: pathway-driven hidden fields. These
-      // were UNPLUMBED until hand-marks Slice 2 (the pick_herta vary steps wrote
-      // to a nonexistent field → the accent ladder was silently inert in the UI;
-      // smoke-herta drove cfg directly so it never saw the gap).
-      hertaAccent: Math.max(0, Math.min(3, parseInt(data.get('hertaAccent') || '0', 10) || 0)),
-      hertaWalk: data.get('hertaWalk') === 'on' || data.get('hertaWalk') === 'true',
-      // Riff-vocabulary cell + phase (pathway-driven hidden fields). motifCell
-      // names the MOTIF_CELLS entry ('' = the builder's default); motifPhase
-      // 'construct' flips the drill into call-and-answer (the construct step).
-      motifCell: (data.get('motifCell') || '').toString(),
-      motifPhase: (data.get('motifPhase') || '').toString(),
-      // Fingerstyle pack (pathway-driven hidden fields): the spider's string-pair
-      // spread + the p-i-m-a study's pattern. '' = builder defaults.
-      spiderPair: (data.get('spiderPair') || '').toString(),
-      pimaPattern: (data.get('pimaPattern') || '').toString(),
-      // sweepStrings (Sweep ladder entry rung): constrain a sweep to the top N
-      // strings. Pathway-driven hidden field; 0/absent = the full box. 2–6 clamp.
-      sweepStrings: Math.max(0, Math.min(6, parseInt(data.get('sweepStrings') || '0', 10) || 0)),
-      // tapArp (Tapping ladder): route practiceType 'tapping' through the tapped-
-      // arpeggio cascade builder (tap→pull→hammer per string) instead of the single-
-      // string tap→pull articulation drill. Pathway-driven hidden field; '' = drill.
-      tapArp: (data.get('tapArp') || '').toString() === 'true',
-      // rhTechMode (Bass Groove & Right-Hand ladder): pulse|crossing|rake|three_finger.
-      // Pathway-driven hidden field; absent = 'pulse' (the back-compatible default).
-      rhTechMode: data.get('rhTechMode') || 'pulse',
-      // rfoPattern (root_fifth_octave): 'r5o' (default R-5-8-5, the canonical box)
-      // | 'low5' (R–low5–5–8, the fifth-below reach — bass-pedagogy 2026-07-12).
-      // Pathway-driven hidden field; absent = the untouched default.
-      rfoPattern: data.get('rfoPattern') || 'r5o',
-      // walkApproach (Bass Lines & Changes ladder): how the walking line targets the
-      // NEXT chord on the bar's last beat — scale (current scale-walk) | chromatic
-      // (½-step into the next root) | dominant (the 5th of the next chord, V→I) |
-      // mixed (cycles the three). Pathway-driven hidden field; absent = 'scale'.
-      walkApproach: data.get('walkApproach') || 'scale',
-      // walkFeel (Bass Lines & Changes): 'four' = walking quarters (default) | 'two'
-      // = the "in 2" feel (root & 5th as half notes on 1 & 3) — the on-ramp rung.
-      walkFeel: data.get('walkFeel') || 'four',
-      audio: { notes: data.get('audioNotes') === 'on', metronome: data.get('audioMetronome') === 'on', harmony: data.get('audioHarmony') === 'on', profile: data.get('audioProfile') || '', brightness: Math.max(0, Math.min(1, parseFloat(data.get('brightness')))) }
-    };
+  /** @param {EventTarget | null} target @returns {Element | null} */
+  function eventElement(target) {
+    if (!target || !('nodeType' in target) || target.nodeType !== 1 || !('closest' in target) || typeof target.closest !== 'function') return null;
+    return /** @type {Element} */ (target);
   }
+
+  /** @param {EventTarget | null} target @returns {(Element & {value: string}) | null} */
+  function eventValueElement(target) {
+    const element = eventElement(target);
+    if (!element || !('value' in element) || typeof element.value !== 'string') return null;
+    return /** @type {Element & {value: string}} */ (element);
+  }
+
+  /** @template {keyof import('./src/types/event-dom.js').WidgetSelectors} S @param {EventTarget | null} target @param {S} selector @returns {import('./src/types/event-dom.js').WidgetSelectors[S] | null} */
+  function eventClosest(target, selector) {
+    return /** @type {import('./src/types/event-dom.js').WidgetSelectors[S] | null} */ (eventElement(target)?.closest(selector) || null);
+  }
+
 
   // ── Drum kits (audio-realism Phase D) ────────────────────────────────────────
   // A kit is a SOUND set; the groove (DRUM_GROOVES) is separate. Phase D1–D3 ship
@@ -1908,7 +1523,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     tom_hi:50, tom_mid:47, tom_low:43, tom_floor:41,
     clap:39,
   };
+  /** @param {number} note @param {string | undefined} font @param {number | undefined} variant */
   const drumFile = (note, font, variant) => `128${note}_${variant}_${font}_sf2_file.js`;
+  /** @param {number} note @param {string | undefined} font @param {number | undefined} variant @returns {`_virtuoso_lab_drum_${string}`} */
   const drumVar  = (note, font, variant) => `_virtuoso_lab_drum_${note}_${variant}_${font}_sf2_file`;
   // GM notes that ACTUALLY ship a committed FluidR3 one-shot under static/wafonts.
   // The step-5 extended pieces (snare_xstick 37, tom_floor 41, china 52, ride_bell
@@ -1924,6 +1541,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // harvested toms); `rr` is the take count per token; missing pieces (ride_bell/splash/
   // china/crash_r/bell/clap) fall through to FluidR3 then synth. Files dk_<token>_<n>.ogg
   // in static/samples (the /sample route). Provenance: static/samples/README.md.
+  /** @type {Record<string, import('./src/types/audio-graph.js').DrumBank>} */
   const DRUMKIT_BANKS = {
     virtuosity: {
       src: { kick:'kick', snare:'snare', snare_xstick:'xstick', hh_closed:'hhclosed',
@@ -1933,6 +1551,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       file: (token, n) => `dk_${token}_${n}.ogg`,
     },
   };
+  /** @type {Record<string, import('./src/types/audio-graph.js').DrumKit>} */
   const KIT_REGISTRY = {
     kit_909: { engine: 'synth', preset: '909' },   // tight/punchy default electronic
     kit_808: { engine: 'synth', preset: '808' },   // sub-heavy, long kick tail
@@ -1978,6 +1597,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // One per-style "try this" line (slice J-1 — the intent SEED, goal-card grammar:
   // a constraint to jam against, never a score). Draft prompts pending the
   // genre-idiom refinement sweep (logged in ROADMAP).
+  /** @type {Record<string, string>} */
   const JAM_PROMPTS = {
     blues:   'Try: say something in 2 bars, then leave 2 empty — the silence is the phrasing.',
     rock:    'Try: ride the pentatonic box, then land the chord’s root on every change.',
@@ -2015,6 +1635,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // musical aim the player picks before/while jamming — shown on the status line,
   // never judged, never scored (the mirror rule). Per-style guitar sets plus
   // style-specific bass sets (a bassist's job changes by idiom).
+  /** @type {Record<string, string[]>} */
   const JAM_INTENTS = {
     blues:   ['Say it in 2 bars, leave 2 empty', 'End every phrase on a chord tone', 'One bend per phrase — in tune'],
     rock:    ['Land the root on every change', 'Build a riff, repeat it ×4', 'Double-stops on the chorus'],
@@ -2048,6 +1669,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     western_swing: ['Chase chord tones — land the 6th', 'Take a hot solo, then "take it away"', 'Twin-fiddle it — harmonize in 3rds/6ths'],
     synthwave: ['Soar — one long held note per phrase', 'Land the ♭3, then lift to major', 'Ride the arp, answer the change'],
   };
+  /** @type {Record<string, string[]>} */
   const JAM_INTENTS_BASS = {
     default: ['Root on the one', 'Approach the next root', 'Lock with the kick'],
     blues: ['Walk the I-IV-V roots', 'Approach the turnaround from below', 'Leave space after the V'],
@@ -2082,6 +1704,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     western_swing: ['Two-feel roots and fifths', 'Walk the 6th into the change', 'Bounce behind the beat'],
     synthwave: ['Octave pulse under the arp', 'Hold the root through pad changes', 'Slide into the next bass note'],
   };
+  /** @param {string} styleId */
   function jamBassIntents(styleId) { return JAM_INTENTS_BASS[styleId] || JAM_INTENTS_BASS.default; }
 
   // ===========================================================================
@@ -2125,7 +1748,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // aren't the exotic/symmetric case the no-row gate targets. Exempt them so a
   // pentatonic/blues lead over a progression isn't false-flagged.
   const GATE_EXEMPT_SCALES = new Set(['minor_pentatonic','major_pentatonic','blues','bebop_major','bebop_dominant']);
+  /** @param {string | null | undefined} scale */
   function scaleHasQualityRow(scale){ return !!(scale && DIATONIC_QUALITIES && DIATONIC_QUALITIES[scale]); }
+  /** @param {string} kind @param {string | undefined} progression */
   function isSingleChordBacking(kind, progression){
     return kind === 'modal_vamp' || !progression || progression === 'none' || SINGLE_CHORD_BACKINGS.has(progression);
   }
@@ -2166,6 +1791,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   //     ("wrecked from ez mode") become a load-time error, not a beta report.
   (function assertTierLaddersValid() {
     const TIER_SUBDIV_OK = new Set(['quarter', 'eighth', 'triplet', 'eighth_triplet', 'sixteenth', 'sixteenth_triplet']);
+    /** @type {Record<string, number>} */
     const PER_BEAT = { quarter: 1, eighth: 2, triplet: 3, eighth_triplet: 3, sixteenth: 4, sixteenth_triplet: 6 };
     for (const [id, pw] of Object.entries(PATHWAYS)) {
       const tiers = pw.tempoTiers || [];
@@ -2184,7 +1810,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     for (const id of (beginner ? beginner.pathways : [])) {
       const pw = PATHWAYS[id]; if (!pw || !pw.tempoTiers || !pw.tempoTiers.length) continue;
       const sub0 = (pw.tempoTierSubdivs && pw.tempoTierSubdivs[0]) || (pw.base || {}).subdivision;
-      const perBeat = PER_BEAT[sub0];
+      const perBeat = PER_BEAT[String(sub0)];
       if (perBeat == null) continue;   // cell tokens (gallop etc.) aren't entry-tier material; nothing to check
       const nps = (pw.tempoTiers[0] / 60) * perBeat;
       if (nps > 2.4) throw new Error(`[Virtuoso tier-ladder] ${id}: core_beginner tier 0 is ${nps.toFixed(1)} notes/sec (${sub0}@${pw.tempoTiers[0]}) — over the ~2/sec beginner floor; ramp density before BPM`);
@@ -2227,36 +1853,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // lives in the generators + the goal-cards (e.g. bass legato = HO/PO only, bass
   // "sweep" = a raked broken arpeggio). Per-lane spec: agent-memory/
   // bass-pedagogy-expert/project_bass_offerable_tag_table.
-  const PRACTICE_APPLICABILITY = {
-    // Guitar-native, not offered on bass.
-    bending:          { bass:'n-a' },
-    tremolo_picking:  { bass:'n-a' },
-    hybrid_picking:   { bass:'n-a' },
-    strum_comp:       { bass:'n-a' },        // bass doesn't strum held chords — its comping is the groove primitives
-    // Transfer to bass but the generator must adapt the feel/register.
-    legato:           { bass:'adapted' },    // hammer/pull only, no wide runs
-    pedal_riff:       { bass:'adapted' },    // the s:0 pedal stream transfers; the power-chord stack on s:1-3 is guitar-coded (bass chug = rhythm_pulse, per bass-pedagogy)
-    vibrato:          { bass:'adapted' },     // slower, narrower
-    tapping:          { bass:'adapted' },     // single-line, advanced only
-    herta:            { bass:'adapted' },     // bass realizes the burst as a rake (or fretting trill), not pick-h-p-pick
-    motif:            { bass:'adapted' },     // single-line realization: the cell's lower voice IS the bass line (no dyads)
-    spider:           { bass:'adapted' },     // the crossing drill transfers (i/m instead of p+treble); pairs narrow on 4 strings
-    fingerstyle_arp:  { bass:'n-a' },         // held-grip arpeggiation is guitar-coded (same rationale as strum_comp)
-    pentatonic_super: { bass:'adapted' },     // low-mid register, stretch caveat
-    sweep_arpeggios:  { bass:'adapted' },     // a raked broken arpeggio, not a metal sweep
-    shell_voicings:   { bass:'adapted' },     // 2-note low-register, no clusters below ~fret 7
-    // Bass-native groove primitives, not offered on guitar (keep the guitar arc clean).
-    root_fifth_octave:    { guitar:'n-a' },
-    octave_groove:        { guitar:'n-a' },
-    dead_note_groove:     { guitar:'n-a' },
-    right_hand_technique: { guitar:'n-a' },
-    slap_pop:             { guitar:'n-a' },
-  };
-  function offerableTag(primitive, instrument) {
-    const e = PRACTICE_APPLICABILITY[primitive];
-    return (e && e[instrument]) || 'native';
-  }
-  function offerable(primitive, instrument) { return offerableTag(primitive, instrument) !== 'n-a'; }
   // Startup integrity guard (mirrors the no-unison / style-palette / segment guards):
   // every applicability value must be one of the three tags.
   (function validateApplicability() {
@@ -2285,6 +1881,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Symbolic voice id → General MIDI program. Bundled under static/wafonts/ and
   // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
   // clean electric (27); bass = fingered electric (33); upright = acoustic bass (32).
+  /** @type {Record<string, number>} */
   const TONE_GM = {
     piano: 0, epiano: 4, clav: 7, organ: 19, nylon: 24, guitar: 25, clean: 27,
     upright: 32, bass: 33, strings: 48, brass: 61, synthlead: 81, synthpad: 88, pad: 89,
@@ -2297,6 +1894,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // to kit_909 at play time. Throws on load, same as a bad progression token.
   (function validateAudioProfiles() {
     const PAD_ROLES = new Set(['sustain', 'comp', 'counter']);
+    /** @param {string} id @param {import('./src/core/generation-types.js').AudioVoice | null | undefined} slot @param {string} where */
     const chkTone = (id, slot, where) => {
       if (slot && (slot.engine == null || slot.engine === 'sample') && slot.tone != null && !(slot.tone in TONE_GM))
         throw new Error(`[Virtuoso audio-profile] ${id} ${where} tone "${slot.tone}" is not a TONE_GM voice`);
@@ -2309,10 +1907,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (p.family && !AUDIO_FAMILY_DEFAULTS[p.family]) throw new Error(`[Virtuoso audio-profile] ${id} family "${p.family}" unknown`);
     }
   })();
+  /** @param {number} gm */
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
-  const wafVar  = gm => '_virtuoso_lab_tone_' + wafFile(gm);
+  /** @param {number} gm */
+  const wafVar  = gm => /** @type {`_virtuoso_lab_tone_${string}`} */ ('_virtuoso_lab_tone_' + wafFile(gm));
+  /** @param {number} gm */
   const wafUrl  = gm => WAF_BASE + wafFile(gm) + '.js';
+  /** @type {import('./src/types/waf.js').WafPlayer | null} */
   let wafPlayer = null;
+  /** @type {Record<string, {state: string, preset: import('./src/types/waf.js').WavePreset | null, promise: Promise<void> | null}>} */
   const wafPresets = {}; // gm -> { state: 'loading'|'ready'|'failed', preset }
   // Audio assets and optional host visualization scripts share the imported
   // DOM-ID loader; a second cache would change existing in-flight semantics.
@@ -2321,10 +1924,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // oscillator→WAF swap mid-exercise. Concurrent calls share the in-flight promise.
   // Low-level loader: cache `key` → load `varName` from `url` (settles ready|failed).
   // Both the melodic GM path and the drum-preset path (Phase D4) go through this.
+  /** @param {string | number | null} key @param {`_virtuoso_lab_tone_${string}` | `_virtuoso_lab_drum_${string}`} varName @param {string} url */
   function loadWafPreset(key, varName, url) {
     if (key == null) return Promise.resolve();
     const prev = wafPresets[key];
     if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve(); // in-flight or done; RETRY on prior 'failed'
+    /** @type {{state: string, preset: import('./src/types/waf.js').WavePreset | null, promise: Promise<void> | null}} */
     const entry = { state: 'loading', preset: null, promise: null };
     wafPresets[key] = entry;
     entry.promise = (async () => {
@@ -2344,21 +1949,27 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     })();
     return entry.promise;
   }
+  /** @param {number | null} gm */
   function ensureWafPreset(gm) {
     if (gm == null) return Promise.resolve();
     return loadWafPreset(gm, wafVar(gm), wafUrl(gm));
   }
   // Load a drum one-shot preset (Phase D4). Keyed by its var name (no collision with
   // the melodic GM-number keys), served from static/wafonts/ by the /wafont route.
+  /** @param {`_virtuoso_lab_drum_${string}`} varName @param {string} file */
   function ensureDrumPreset(varName, file) { return loadWafPreset(varName, varName, WAF_BASE + file); }
+  /** @param {number | string | null} gm */
   function getReadyWafPreset(gm) { return (gm != null && wafPresets[gm] && wafPresets[gm].state === 'ready') ? wafPresets[gm].preset : null; }
   // Which sampled-voice GM presets the bundle's ENABLED audio actually needs.
+  /** @param {ReturnType<typeof makeBundle> | null} bundle */
   function resolveVoiceGms(bundle) {
     const cfg = readConfig();
     const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
     const prof = resolveAudioProfile({ ...cfg, audio });
+    /** @type {number[]} */
     const out = [];
-    const pick = (role, on, profRole) => { const pr = prof[profRole || role]; if (!on) return; const g = mixerInstrumentFor(role) ?? (pr && pr.engine === 'sample' ? TONE_GM[pr.tone] : null); if (g != null && out.indexOf(g) < 0) out.push(g); };
+    /** @param {'notes' | 'harmony' | 'pad' | 'bass'} role @param {boolean | undefined} on @param {'notes' | 'harmony' | 'pad' | 'bass'} [profRole] */
+    const pick = (role, on, profRole) => { const pr = prof[profRole || role]; if (!on) return; const g = mixerInstrumentFor(role) ?? (pr && pr.engine === 'sample' ? TONE_GM[String(pr.tone)] : null); if (g != null && out.indexOf(g) < 0) out.push(g); };
     // 'pad' (the Keys strip / sustained layer) preloads the profile's harmony
     // voice until profiles grow a dedicated pad slot.
     pick('notes', audio.notes); pick('harmony', audio.harmony); pick('pad', audio.harmony, 'harmony'); pick('bass', audio.harmony);
@@ -2379,6 +1990,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Kick the (async) load of every sampled voice the bundle needs, WITHOUT waiting —
   // call at generate time so the preset is usually warm by the time Play is pressed.
+  /** @param {ReturnType<typeof makeBundle> | null} bundle */
   function prewarmVoices(bundle) {
     resolveVoiceGms(bundle || activeBundle).forEach(gm => ensureWafPreset(gm));
     const dk = activeSampleDrumKit(bundle || activeBundle);
@@ -2386,6 +1998,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     sgPrewarm(bundle || activeBundle);                               // sampled-guitar buffers (lazy, cached)
   }
   // The active sample-engine drum kit for this bundle (or null: synth kit / drums off).
+  /** @param {ReturnType<typeof makeBundle> | null} bundle */
   function activeSampleDrumKit(bundle) {
     const cfg = readConfig();
     const audio = (bundle && bundle.config && bundle.config.audio) || cfg.audio;
@@ -2393,6 +2006,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const kit = resolveDrumKit(resolveAudioProfile({ ...cfg, audio }));
     return (kit && kit.engine === 'sample' && kit.pieces) ? kit : null;
   }
+  /** @param {Extract<import('./src/types/audio-graph.js').DrumKit, {engine: 'sample'}>} kit @param {string} piece */
   function ensureDrumPiece(kit, piece) {
     // REAL sampled kit: prewarm every round-robin take of this piece (buffer player).
     const b = kit.bank && DRUMKIT_BANKS[kit.bank];
@@ -2409,6 +2023,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // to WAF mid-exercise once the load lands. Falls through on timeout/failure (the
   // per-voice oscillator/synth fallback still covers it). Includes the core drum
   // pieces so the kit starts on samples, not the synth fallback.
+  /** @param {ReturnType<typeof makeBundle> | null} bundle @param {number} [capMs] */
   async function awaitVoices(bundle, capMs) {
     if (voicesProbe) return voicesProbe(bundle);
     const gms = resolveVoiceGms(bundle || activeBundle);
@@ -2445,8 +2060,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   const SG_VAR_CENTS = 4;     // ± cents micro-detune (sub-JND)
   const SG_VAR_GAIN  = 0.06;  // ± gain wobble (~±0.5 dB)
   const SG_VAR_START = 0.004; // up to N s buffer-start jitter (small — preserves the pick attack)
+  /** @type {Record<string, {state: string, buf: AudioBuffer | null, promise: Promise<void> | null}>} */
   const sgBuffers = {};      // file -> { state:'loading'|'ready'|'failed', buf, promise }
+  /** @type {Record<string, number>} */
   const sgRR = {};           // keycenter_layer -> alternating round-robin pick
+  /** @param {number} midi @param {number[]} kcs */
   function sgNearestKc(midi, kcs) {
     const list = kcs || SG_KEYCENTERS;
     let best = list[0];
@@ -2478,6 +2096,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // (soft→hard) let a hit pick the layer whose maxVel covers it; null = single layer.
   // Guitar artics (chuck/mutestr) are shiny-only; other banks fall back to WAF for those.
   // Adding an instrument = a row here (+ a SAMPLE_BANK_PINS flag + a mixer option).
+  /** @type {Record<string, import('./src/types/audio-graph.js').SampleBank>} */
   const SAMPLE_BANKS = {
     // `amped`: a raw electric-DI guitar that NEEDS an amp to sound right (auto-defaults to
     // the Clean amp when the profile names none). Acoustic/keys banks omit it — they're
@@ -2501,8 +2120,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
                   velLayers: [{ tag: 'mp', maxVel: 0.45 }, { tag: 'f', maxVel: 0.78 }, { tag: 'ff', maxVel: Infinity }],
                   file: (kc, layer) => `cp_${kc}_${layer}.ogg` },
   };
+  /** @param {string} bank */
   const bankDesc = bank => SAMPLE_BANKS[bank] || SAMPLE_BANKS.shiny;
   // The velocity-layer tag for a hit (string/number), or null for a single-layer bank.
+  /** @param {import('./src/types/audio-graph.js').SampleBank} desc @param {number | null | undefined} vel */
   function bankLayerTag(desc, vel) {
     if (!desc.velLayers) return null;
     const v = vel == null ? 1 : vel;
@@ -2514,6 +2135,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // less) — Christian's dogfood: "the guide's top two strings are quieter than the
   // rest." Lift the upper register to balance a run. Below MIDI 64 = no change, so
   // the metal comp's low power-5ths (root5 ≤ ~57) are untouched. By-ear tunable.
+  /** @param {number} midi */
   function sgSourceTrim(midi) {
     if (midi <= 64) return 1;
     const db = Math.min(4, ((midi - 64) / 17) * 4);   // +0 dB @64 → +4 dB @~81
@@ -2523,7 +2145,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // (a free-running counter below) so consecutive hits of the SAME note decorrelate;
   // a sine-hash keeps it reproducible within a run. Returns {cents, gainMul, startOff}.
   let sgVarCounter = 0;
+  /** @param {number} seed */
   function sampleHitVar(seed) {
+    /** @param {number} s */
     const h = s => { const x = Math.sin(s * 12.9898) * 43758.5453; return x - Math.floor(x); };
     return {
       cents: (h(seed) - 0.5) * 2 * SG_VAR_CENTS,
@@ -2531,9 +2155,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       startOff: h(seed + 19.7) * SG_VAR_START,
     };
   }
+  /** @param {string} file */
   function ensureSgBuffer(file) {
     const prev = sgBuffers[file];
     if (prev && (prev.state === 'loading' || prev.state === 'ready')) return prev.promise || Promise.resolve();
+    /** @type {{state: string, buf: AudioBuffer | null, promise: Promise<void> | null}} */
     const entry = { state: 'loading', buf: null, promise: null };
     sgBuffers[file] = entry;
     entry.promise = (async () => {
@@ -2552,26 +2178,31 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // The file(s) a pitched hit needs, per the bank descriptor — every round-robin take
   // (multi-RR banks prewarm both so the alternation never trips a cold buffer mid-run).
+  /** @param {number} midi @param {number} vel @param {string} bank */
   const sgFilesFor = (midi, vel, bank) => {
     const d = bankDesc(bank), kc = sgNearestKc(midi, d.kcs), layer = bankLayerTag(d, vel);
     const files = [];
     for (let r = 1; r <= d.rr; r++) files.push(d.file(kc, layer, r));
     return files;
   };
+  /** @param {number[] | undefined} midis @param {number} vel @param {string} bank */
   const sgReadyFor = (midis, vel, bank) =>
     (midis || []).every(m => sgFilesFor(m, vel, bank).every(f => sgBuffers[f] && sgBuffers[f].state === 'ready'));
   // Which sample BANK a strip resolves to: a bank id or null/false.
   // (Truthy where callers test "is the sampled guitar on"; the string also names WHICH
   // set to load/play.) Profile defaults are unchanged by removing the opt-in DI bank.
+  /** @type {Record<string, number>} */
   const SAMPLE_BANK_PINS = { shiny: 1, salamander: 1, emily: 1, wurli: 1, banjo: 1, cp80: 1 };
+  /** @param {string} key */
   const sgToneFor = key => {
     const pin = mixerState[key] && mixerState[key].instrument;
-    return SAMPLE_BANK_PINS[pin] ? pin : null;
+    return SAMPLE_BANK_PINS[String(pin)] ? pin : null;
   };
   // GUIDE (notes) voice resolution — the by-ear gate PASSED 2026-06-12, so the DI
   // sample is the profile DEFAULT for guitar instruments (notes.sg): an explicit mixer
   // pin wins both ways (pin a sample bank forces it, any other pin defeats it); with no
   // pin, the resolved profile's sg flag decides (→ the default 'shiny' bank).
+  /** @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   const sgNotesWanted = prof => {
     const pin = mixerState.notes && mixerState.notes.instrument;
     if (pin) return SAMPLE_BANK_PINS[pin] ? pin : false;
@@ -2581,6 +2212,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // RHYTHM (harmony) comp voice resolution — same contract (band-intel C3,
   // 2026-06-13): the distorted family's profile declares harmony.sg, so metal/
   // djent comp rides the DI through the Metal amp by default; a pin wins both ways.
+  /** @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   const sgHarmWanted = prof => {
     const pin = mixerState.harmony && mixerState.harmony.instrument;
     if (pin) return SAMPLE_BANK_PINS[pin] ? pin : false;
@@ -2589,6 +2221,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   };
   // KEYS (pad) voice resolution — a profile pad.bank makes a sampled instrument the Keys
   // default (e.g. the jazz piano comp → Salamander); a mixer pin still wins both ways.
+  /** @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   const sgPadWanted = prof => {
     const pin = mixerState.pad && mixerState.pad.instrument;
     if (pin) return SAMPLE_BANK_PINS[pin] ? pin : false;
@@ -2597,9 +2230,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   };
   // Kick the lazy loads for every buffer the bundle's shiny-pinned strips need.
   // Returns the in-flight promises (awaitVoices races them against its cap).
+  /** @param {ReturnType<typeof makeBundle> | null} bundle */
   function sgPrewarm(bundle) {
+    /** @type {string | false | null} */
     let wantPad = sgToneFor('pad');
-    let wantHarm = sgToneFor('harmony'), wantNotes = sgToneFor('notes');
+    let /** @type {string | false | null} */ wantHarm = sgToneFor('harmony'), /** @type {string | false | null} */ wantNotes = sgToneFor('notes');
     if (!wantHarm || !wantNotes || !wantPad) {
       try {
         const prof = resolveAudioProfile((bundle && bundle.config) || {});
@@ -2634,6 +2269,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // so L/R separation survives the WaveShaper/cab), a seeded onset offset, and
   // a small detune. The doubled voice naturally pulls the OTHER round-robin
   // take (sgRR increments per call) — real double-tracking is two takes.
+  /** @param {AudioContext} ctx @param {string} busName @param {number} when @param {number} midi @param {number} d @param {number} vol @param {(string & {mutestr?: never}) | {mutestr: number} | undefined} artic @param {number} vel @param {{pan?: number, delay?: number, cents?: number, bank?: string, bright?: number}} [opts] */
   function sgVoice(ctx, busName, when, midi, d, vol, artic, vel, opts) {
     if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) {
       const st = (globalThis.__virtuoso_lab_sgStats = globalThis.__virtuoso_lab_sgStats || { voices: 0, doubled: 0, chucks: 0, mutestr: 0 });
@@ -2685,7 +2321,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     let stopAt;
     if (unpitched) {
       // Recorded thunk — play it as-is, just bound the tail.
-      stopAt = when + Math.min(0.5, entry.buf.duration + 0.05);
+      stopAt = when + Math.min(0.5, (/** @type {AudioBuffer} */ (entry.buf)).duration + 0.05);
     } else if (artic === 'chug') {
       // Palm-mute: a short hold then an exponential tail — thump, not a gate.
       // (2026-06-13 dogfood: the rhythm chug "cut off too quickly to feel
@@ -2716,13 +2352,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
     src.connect(head);
+    /** @type {AudioNode} */
     let out = g;
     if (opts && opts.pan != null && typeof ctx.createStereoPanner === 'function') {
       const p = ctx.createStereoPanner(); p.pan.value = opts.pan;
       g.connect(p); out = p; audioNodes.push(p);
     }
     out.connect(trackBus(ctx, busName));
-    src.start(when, vary ? Math.min(vary.startOff, (entry.buf.duration || 1) * 0.25) : 0);
+    src.start(when, vary ? Math.min(vary.startOff, ((/** @type {AudioBuffer} */ (entry.buf)).duration || 1) * 0.25) : 0);
     src.stop(stopAt);
     audioNodes.push(src, g);
     return true;
@@ -2733,6 +2370,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // invariant breaks — a silently wrong stroke mark teaches a wrong habit,
   // worse than no mark at all.
   (function strokePolicyGuard() {
+    /** @param {Partial<import('./src/core/notes.js').Note>} [extra] */
     const mk = (extra) => [
       { t: 0.00, s: 0, f: 5 }, { t: 0.25, s: 0, f: 7 }, { t: 0.50, s: 1, f: 5 },
       { t: 0.75, s: 1, f: 7 }, { t: 1.00, s: 0, f: 7 }, { t: 1.25, s: 0, f: 5 },
@@ -2748,10 +2386,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!mtHi.some(n => n.pkd === 1)) throw new Error('[Virtuoso stroke-policy] metal above the ceiling must flip to alternate');
     // Bass plucking: ghosts COUNT in parity; a descending adjacent-string 16th
     // crossing rakes (same finger) instead of alternating.
-    const bp = applyBassPlucking([
+    const bp = applyBassPlucking(/** @type {import('./src/core/notes.js').Note[]} */ ([
       { t: 0.00, s: 1, f: 5 }, { t: 0.25, s: 1, f: 7 },
       { t: 0.50, s: 1, f: 5, mt: true }, { t: 0.75, s: 0, f: 5 },
-    ], { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'sixteenth' });
+    ]), { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'sixteenth' });
     if (bp[2].rh !== 1) throw new Error('[Virtuoso stroke-policy] bass ghost must count in i-m parity');
     if (bp[3].rh !== bp[2].rh) throw new Error('[Virtuoso stroke-policy] bass descending adjacent-string 16th crossing must rake (same finger)');
   })();
@@ -2766,7 +2404,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Seconds per metric beat (the meter's denominator unit) for a rendered
   // bundle. Used to size the Tab/Notation view window in beats rather than
   // fixed seconds, so note density stays comfortable across tempos.
-  function fretboardSystemLabel(value) { return FRETBOARD_SYSTEM_LABELS[value] || FRETBOARD_SYSTEM_LABELS.position; }
+
+  /** @type {Record<string, string>} */
   const FUNCTION_HUE = { tonic: '#3b82f6', subdominant: '#06b6d4', dominant: '#f59e0b' };
   function isJamMode() { const r = $('virtuoso_lab-root'); return !!(r && (r.classList.contains('virtuoso_lab_vir-mode-jam') || r.classList.contains('virtuoso_lab-jam-mode'))); }
   // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
@@ -2776,6 +2415,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const c = COMP_GROOVES[id];
       const expect = (c.bars || 1) * 4 * c.div;
       if (!c.label) throw new Error(`[Virtuoso comp-groove] ${id} has no player-facing label`);
+      /** @param {import('./src/core/generation-types.js').CompCell['grid']} g @param {string} tag */
       const chkGrid = (g, tag) => {
         if (g.length !== expect) throw new Error(`[Virtuoso comp-groove] ${id} ${tag} has ${g.length} steps, expected ${expect}`);
         for (const s of g) {
@@ -2841,6 +2481,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
     const BN_OK = new Set([0, 0.25, 0.5, 1, 1.5, 2]);
     for (const [id, cell] of Object.entries(MOTIF_CELLS)) {
+      /** @param {string} [k] */
       const tag = (k) => `[Virtuoso motif-cell] ${id}${k ? ' @ ' + k : ''}`;
       if (cell.bars !== 1 && cell.bars !== 2) throw new Error(`${tag()}: bars must be 1 or 2`);
       if (cell.pickup) throw new Error(`${tag()}: pickup/anacrusis is not supported yet (D4 — batch 2)`);
@@ -2872,7 +2513,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           }
           ok = true;
         }
-        if (!ok) throw new Error(`${tag(key)}: no 6-fret position window resolves within maxSpan ${cell.maxSpan || 4}${lastErr ? ' — ' + lastErr.message : ''}`);
+        if (!ok) throw new Error(`${tag(key)}: no 6-fret position window resolves within maxSpan ${cell.maxSpan || 4}${lastErr ? ' — ' + (/** @type {Error} */ (lastErr)).message : ''}`);
       }
     }
   })();
@@ -2907,6 +2548,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // ONE fret, never two different frets. `fg` is a display hint (does not affect
         // pitch, so the pc checks below can't catch this) — but a chord box that draws
         // an impossible fingering misteaches. (guitar-pedagogy Phase-B review.)
+        /** @type {Record<string, Set<number>>} */
         const byFinger = {};
         for (const n of grip.notes) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
         for (const fg of Object.keys(byFinger)) {
@@ -2939,6 +2581,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // per-block targetSec is untouched. See project_depth_ladder_and_run_length.
   //
   // Base target seconds per practiceType. Default ~50 for anything unlisted.
+  /** @type {Record<string, number>} */
   const RUN_TARGET_SEC = {
     // Pass-bounded (short): scale boxes, chromatic, single-technique drills.
     scale:40, chromatic:40,
@@ -2974,10 +2617,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Speed-tier length modifier (the only ladder axis built today): on the Pathways
   // Climb the "groove" Slow tier gets a LONGER run (×1.5) and the "prove it" Fast/Push
   // tiers a SHORTER one (×0.75); Med = ×1.0. The Climb tier is the module-level
-  // activeTempoTierIdx (0=Slow,1=Med,2=Fast,3=Push, mirroring TIER_LABELS). Only applies
+  // selected tier index (0=Slow,1=Med,2=Fast,3=Push, mirroring TIER_LABELS). Only applies
   // on a Pathway (Custom has no Climb) — keyed off cfg carrying the pathway's BPM tier
   // when present, else the live index when a pathway is active. Returns 1 otherwise.
   const RUN_TIER_MOD_BY_IDX = [1.5, 1.0, 0.75, 0.75];
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function runTierMod(cfg) {
     // Explicit tier on the cfg wins (forward-compat / Workout blocks that carry one).
     const named = cfg && (cfg.bpmTier || cfg.tempoTier || cfg.tier);
@@ -2987,8 +2631,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     // Live Pathways Climb tier — only meaningful while a pathway is the active mode.
     const pathwayMode = !!($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode'));
-    if (pathwayMode && activePathwayId && activePathwayId !== 'custom') {
-      return RUN_TIER_MOD_BY_IDX[activeTempoTierIdx] || 1;
+    if (pathwayMode && practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom') {
+      return RUN_TIER_MOD_BY_IDX[practiceSelection.tierIndex] || 1;
     }
     return 1;
   }
@@ -2998,6 +2642,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // overshoots to a whole cell, so the cycle-completion guarantee (≥1 whole rep) is
   // already covered. Returns null when no sensible target applies (then the run is
   // bars-driven, i.e. unchanged behaviour).
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function resolveRunTargetSec(cfg) {
     if (!cfg) return null;
     const type = cfg.practiceType || cfg.mode || 'scale';
@@ -3016,6 +2661,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // targetSec (a Workout block, a saved preset, or a share link owns its own length) —
   // we never override an explicit one. NOT called on the Jam path (jamPlay builds its
   // own endless config) or for Workout (generateSession), so this stays drill-only.
+  /** @template {import('./src/types/entry-data.js').EntryConfig | null} Config @param {Config} cfg */
   function withRunTarget(cfg) {
     if (cfg?.practiceFile && !cfg.practicePathwayId) return cfg;
     if (!cfg || blockTargetSec(cfg) != null) return cfg;
@@ -3030,6 +2676,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // §10 · EXERCISE TITLE + makeBundle()
   // wraps an exercise into the renderer-ready bundle (activeBundle).
   // ===========================================================================
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function exerciseTitle(cfg) {
     try {
       if (!cfg) return 'Virtuoso';
@@ -3044,8 +2691,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // draw rests and the highway flows notes in), and extend the duration. The
   // music then lives at [lead, duration]; the loop cycles only that (see the
   // loop scheduler), so the count-in plays once. Bar numbers stay sequential.
+  /** @param {import('./src/types/entry-data.js').EntryChart} chart @param {import('./src/types/entry-data.js').EntryConfig} cfg @param {number} lead @param {number} bars */
   function applyCountIn(chart, cfg, lead, bars) {
+    /** @param {number | undefined} t */
     const sh = t => +(((t || 0)) + lead).toFixed(6);
+    /** @template {{t?: number}} Note @param {Note[] | undefined} arr */
     const shiftNotes = arr => (arr || []).map(n => Object.assign({}, n, { t: sh(n.t) }));
     const notes = shiftNotes(chart.notes);
     const chords = (chart.chords || []).map(ch => Object.assign({}, ch, { t: sh(ch.t), notes: shiftNotes(ch.notes) }));
@@ -3064,18 +2714,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // grid). Sessions are swung per-block at assembly instead, so makeBundle skips
   // this when the chart carries pre-assembled backingEvents. Clicks stay on the
   // grid — they're the steady reference you shuffle against.
+  /** @param {ReturnType<typeof makeBundle>} bundle @param {import('./src/types/entry-data.js').EntryConfig} cfg */
   function applySwingToBundle(bundle, cfg) {
     if ((SWING_RATIOS[cfg.swing] || 0.5) === 0.5) return;
     const r = swingNotesBacking(bundle.notes, bundle.backingEvents, cfg);
     bundle.notes = r.notes;
     bundle.backingEvents = r.backing;
   }
+  /** @param {import('./src/types/entry-data.js').EntryExercise} exercise */
   function makeBundle(exercise) {
     const cfg = exercise.session;
     // Count-in is baked here (not at generation) so the stored chart + LCD stay
     // count-in-free, and toggling count-in is a cheap re-attach, not a re-gen.
-    const lead = (cfg.countInBars > 0) ? cfg.countInBars * measureSeconds(cfg) : 0;
-    const c = lead > 0 ? applyCountIn(exercise.chart, cfg, lead, cfg.countInBars) : exercise.chart;
+    const lead = (cfg.countInBars !== undefined && cfg.countInBars > 0) ? cfg.countInBars * measureSeconds(cfg) : 0;
+    const c = lead > 0 ? applyCountIn(exercise.chart, cfg, lead, (/** @type {number} */ (cfg.countInBars))) : exercise.chart;
     // Seamless-loop tail: the loop cycles the music [lead, duration], but every
     // renderer draws a forward lookahead window — near the loop end that window
     // runs past `duration` into emptiness, so notes stop flowing before the
@@ -3095,6 +2747,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (tailNotes.length) notesWithTail = c.notes.concat(tailNotes);
       if (tailBeats.length) beatsWithTail = (c.beats || []).concat(tailBeats);
     }
+    /** @type {import('./src/types/entry-data.js').EntryBundle} */
     const bundle = {
       currentTime:0,
       songInfo:{ title:exerciseTitle(cfg), artist:'Virtuoso', arrangement:cfg.instrument === 'bass' ? 'Bass' : 'Lead', tuning:tuningOffsetsForConfig(cfg), capo:0, duration:c.duration, format:'virtuoso_lab-practice', fretboardSystem:cfg.fretboardSystem },
@@ -3119,11 +2772,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // already swung). Single exercises (Pathways/Custom/Jam): one cfg, synthesize
         // here as before. Either way, shift past the count-in lead.
         const cl = Math.max(0, c.duration - lead);
+        /** @type {import('./src/types/entry-data.js').EntryAccompaniment[]} */
         const src = c.backingEvents
           ? c.backingEvents
           // backingDensity 0 = click only (step 3): no comp, no bass, no drums.
           : cfg.backingDensity === 0 ? []
-          : buildBackingEvents(cfg, cl).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
+          : /** @type {import('./src/types/entry-data.js').EntryAccompaniment[]} */ (buildBackingEvents(cfg, cl)).concat(buildDrumEvents(cfg, cl, resolveGroove(cfg)));
         return lead ? src.map(ev => Object.assign({}, ev, { t:+(ev.t + lead).toFixed(6), end:+(ev.end + lead).toFixed(6) })) : src;
       })(),
       stringCount:cfg.stringCount, tuning:tuningOffsetsForConfig(cfg), openMidis:openMidisForConfig(cfg), capo:0,
@@ -3134,7 +2788,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // scorer is actually running, which is the host's "detect mode active" signal
       // (drives the verdict cull-window + chord-rim). No scorer (no SDK / not playing)
       // → both inert → no gems, unchanged behavior. See ptGetNoteState.
-      getNoteState: function(note){ return ptGetNoteState(note); }, getNoteStateProvider: function(){ return (_ptHandle || _ndVerifyMode) ? ptGetNoteState : null; }
+      getNoteState: function(/** @type {import('./src/types/entry-data.js').EntryNote} */ note){ return ptGetNoteState(note); }, getNoteStateProvider: function(){ return (_ptHandle || _ndVerifyMode) ? ptGetNoteState : null; }
     };
     syncHighwaySettings(bundle);
     if (!c.backingEvents) applySwingToBundle(bundle, cfg);   // sessions are swung per-block at assembly; single exercises swing here
@@ -3156,7 +2810,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
   // Label for each open-string MIDI: shows tuning instead of "S1..Sn"
   function makeBuiltin2DRenderer() {
-    let canvas = null, ctx = null, W = 0, H = 0;
+    let /** @type {HTMLCanvasElement | null} */ canvas = null, /** @type {CanvasRenderingContext2D | null} */ ctx = null, W = 0, H = 0;
     const LEFT_PAD = 64, RIGHT_PAD = 28, TOP_PAD = 96, BOTTOM_PAD = 52;
     const AHEAD = 8, BEHIND = 1.5;
 
@@ -3164,28 +2818,32 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (!canvas) return;
       const box = canvas.parentElement || $('virtuoso_lab-render-host');
       const r = box ? box.getBoundingClientRect() : { width: canvas.width, height: canvas.height };
+      if (!canvas) return;
       W = Math.max(640, Math.round(r.width || 1280));
       H = Math.max(420, Math.round(r.height || 720));
       canvas.width = W;
       canvas.height = H;
     }
+    /** @param {number} s @param {number} count @param {boolean} inverted */
     function laneY(s, count, inverted) {
       const top = TOP_PAD, bottom = H - BOTTOM_PAD;
       const visualIndex = inverted ? s : (count - 1 - s);
       return bottom - (visualIndex * ((bottom - top) / Math.max(1, count - 1)));
     }
+    /** @param {number} dt */
     function xForDt(dt) {
       return LEFT_PAD + ((dt + BEHIND) / (AHEAD + BEHIND)) * (W - LEFT_PAD - RIGHT_PAD);
     }
-    function inWindow(t, now) { const dt = t - now; return dt >= -BEHIND && dt <= AHEAD; }
 
-    function drawBackground() {
+    /** @param {CanvasRenderingContext2D} ctx */
+    function drawBackground(ctx) {
       const grad = ctx.createLinearGradient(0, 0, 0, H);
       grad.addColorStop(0, '#08111f'); grad.addColorStop(1, '#050711');
       ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
     }
 
-    function drawAnchorZones(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawAnchorZones(ctx, bundle, now) {
       // Anchor zones: subtle highlighted vertical bands showing the current fret window
       const anchors = bundle.anchors || [];
       for (let i = 0; i < anchors.length; i++) {
@@ -3206,7 +2864,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
-    function drawStringLanes(nStr, inverted, openMidis) {
+    /** @param {CanvasRenderingContext2D} ctx @param {number} nStr @param {boolean} inverted @param {number[] | null} openMidis */
+    function drawStringLanes(ctx, nStr, inverted, openMidis) {
       ctx.lineWidth = 1;
       for (let s = 0; s < nStr; s++) {
         const y = laneY(s, nStr, inverted);
@@ -3222,7 +2881,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
-    function drawBeatsAndPlayhead(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawBeatsAndPlayhead(ctx, bundle, now) {
       for (const b of bundle.beats || []) {
         const dt = b.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
@@ -3250,7 +2910,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       ctx.fill();
     }
 
-    function drawBackingChords(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawBackingChords(ctx, bundle, now) {
       for (const ev of bundle.backingEvents || []) {
         if (!ev.name) continue; // boogie emits many nameless hits per bar — one label/bar
         const dt = ev.t - now;
@@ -3268,7 +2929,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
-    function drawChordTiles(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawChordTiles(ctx, bundle, now) {
       for (const ch of bundle.chords || []) {
         const dt = ch.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
@@ -3286,7 +2948,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
-    function drawSectionMarkers(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawSectionMarkers(ctx, bundle, now) {
       for (const sec of bundle.sections || []) {
         const dt = sec.time - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
@@ -3302,6 +2965,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     function techniqueGlyph(n) {
       if (n.ho) return 'h';
       if (n.po) return 'p';
@@ -3316,7 +2980,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return '';
     }
 
-    function drawNotes(bundle, now, nStr, inverted) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now @param {number} nStr @param {boolean} inverted */
+    function drawNotes(ctx, bundle, now, nStr, inverted) {
       for (const n of bundle.notes || []) {
         const dt = n.t - now;
         if (dt < -BEHIND || dt > AHEAD) continue;
@@ -3331,7 +2996,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         if (dimmed) ctx.globalAlpha = 0.45;
 
         // sustain bar
-        if ((n.sus || 0) > 0) {
+        if (n.sus !== undefined && (n.sus || 0) > 0) {
           const x2 = xForDt(dt + n.sus);
           ctx.strokeStyle = col;
           ctx.globalAlpha = dimmed ? 0.2 : (st === 'hit' || st === 'active') ? 0.85 : 0.4;
@@ -3395,7 +3060,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
 
-    function drawHud(bundle, now) {
+    /** @param {CanvasRenderingContext2D} ctx @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle @param {number} now */
+    function drawHud(ctx, bundle, now) {
       ctx.fillStyle = '#e5e7eb';
       ctx.font = '700 14px system-ui';
       ctx.fillText(bundle.songInfo?.title || 'Virtuoso', 14, 22);
@@ -3405,27 +3071,29 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       ctx.fillText(`${now.toFixed(2)}s / ${dur.toFixed(2)}s`, 14, 42);
     }
 
+    /** @param {import('./src/types/entry-data.js').JumpingTabBundle} bundle */
     function draw(bundle) {
       if (!ctx || !bundle) return;
       resize();
+      if (!ctx) return;
       const now = bundle.currentTime || 0;
       const nStr = Math.max(1, bundle.stringCount || 6);
       const inverted = !!bundle.inverted;
       const openMidis = bundle.openMidis || null;
 
-      drawBackground();
-      drawAnchorZones(bundle, now);
-      drawStringLanes(nStr, inverted, openMidis);
-      drawBeatsAndPlayhead(bundle, now);
-      drawBackingChords(bundle, now);
-      drawChordTiles(bundle, now);
-      drawSectionMarkers(bundle, now);
-      drawNotes(bundle, now, nStr, inverted);
-      drawHud(bundle, now);
+      drawBackground(ctx);
+      drawAnchorZones(ctx, bundle, now);
+      drawStringLanes(ctx, nStr, inverted, openMidis);
+      drawBeatsAndPlayhead(ctx, bundle, now);
+      drawBackingChords(ctx, bundle, now);
+      drawChordTiles(ctx, bundle, now);
+      drawSectionMarkers(ctx, bundle, now);
+      drawNotes(ctx, bundle, now, nStr, inverted);
+      drawHud(ctx, bundle, now);
     }
 
     return {
-      init(c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); },
+      init(/** @type {HTMLCanvasElement} */ c) { canvas = c; ctx = c.getContext('2d'); resize(); window.addEventListener('resize', resize); },
       draw,
       resize,
       destroy() { window.removeEventListener('resize', resize); canvas = null; ctx = null; }
@@ -3435,22 +3103,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function makeBuiltin2DTabRenderer() { return makeTabRenderer({ getRenderTheme, handMarksOn }); }
   function makeBuiltin2DNotationRenderer() { return makeNotationRenderer({ getRenderTheme, handMarksOn }); }
 
-  // Piano Roll is groundwork only: gated to a future piano pathway and kept
-  // disabled in the UI for now. When a piano pathway/instrument ships, return
-  // true here (and reveal the Piano Roll view button) to enable it.
-  function pianoPathwayActive() { return false; }
 
   // ===========================================================================
   // §12 · RENDERER FACTORY + BORROWED HOST VIZ
   // Selection/loading live in src/shell/renderers; the probe and attachment
   // ownership stay here with launch cancellation, bundle and clock writers.
   // ===========================================================================
+  /** @param {string} kind */
   async function resolveRendererFactory(kind) {
-    if (rendererFactoryProbe) return rendererFactoryProbe(kind);
-    return selectRendererFactory(kind, makeBuiltin2DRenderer, makeBuiltin2DTabRenderer, makeBuiltin2DNotationRenderer);
+    return rendererLifecycle.resolveFactory(kind);
   }
 
-  function replaceCanvas() { const host = $('virtuoso_lab-render-host'), old = $('virtuoso_lab-canvas'), canvas = document.createElement('canvas'); canvas.id = 'virtuoso_lab-canvas'; canvas.style.width = '100%'; canvas.style.height = '100%'; if (old && old.parentElement) old.replaceWith(canvas); else if (host) host.appendChild(canvas); const rect = (host || canvas).getBoundingClientRect(); canvas.width = Math.max(640, Math.round(rect.width || 1280)); canvas.height = Math.max(420, Math.round(rect.height || 720)); return canvas; }
   function stopAudio() { for (const n of audioNodes) { try { n.stop && n.stop(0); } catch {} try { n.disconnect && n.disconnect(); } catch {} } audioNodes = []; scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; }
 
   // ── Rolling-window loop scheduling ───────────────────────────────────────────
@@ -3472,22 +3135,23 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Schedule the first chunk starting at the live playhead and (re)set the
   // window baseline. Used on play, seek, and re-anchor. Captures the nodes this
   // call created so the chunk can later be pruned. Caller stops prior audio.
+  /** @param {number} delaySeconds */
   function scheduleCurrentPassAndAnchor(delaySeconds) {
     const dur = activeBundle?.songInfo?.duration || 0;
     const lead = activeBundle?.leadIn || 0;
-    const from = currentPracticeTime;
+    const from = transport.time;
     // Bound the first chunk at the active loop's high edge — B when an A-B
     // segment loop is engaged (Jam / section looping), else the chart duration —
     // so a loop's first lap never schedules dead audio past B; the seam refill
     // (scheduleNextChunk) takes over and wraps B→A from there.
-    const hi = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopB : dur;
+    const hi = (transport.loopA != null && transport.loopB != null) ? transport.loopB : dur;
     // The first chunk covers at least the full count-in: its clicks must all
     // land even when the lead-in outruns the window (slow-tempo 2-bar count-in),
     // and with all audio off no refill ever runs (loopAudioEnabled gates it) —
     // a handful of click nodes, so scheduling them upfront costs nothing.
     const winEnd = Math.min(hi, Math.max(from + SCHED_WINDOW_SECONDS, from < lead ? lead + 0.01 : 0));
     const before = audioNodes.length;
-    const ret = schedulePreviewAudio(activeBundle, from, delaySeconds, winEnd);
+    const ret = schedulePreviewAudio((/** @type {import('./src/types/entry-data.js').EntryBundle} */ (activeBundle)), from, delaySeconds, winEnd);
     if (ret == null) { scheduledUntilCtx = 0; schedChartPos = 0; schedChunks = []; return; }
     schedChunks = [{ endCtx: ret.end, nodes: audioNodes.slice(before) }];
     scheduledUntilCtx = ret.base + (winEnd - from);
@@ -3506,8 +3170,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // engaged (Jam, section looping), else the whole-chart music region. The
     // wrapped chunk is scheduled on the same ctx clock as the chunk before it,
     // so the B→A (or duration→leadIn) seam is gapless — no stopAudio.
-    const lo = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopA : lead;
-    const hi = (segmentLoopA != null && segmentLoopB != null) ? segmentLoopB : dur;
+    const lo = (transport.loopA != null && transport.loopB != null) ? transport.loopA : lead;
+    const hi = (transport.loopA != null && transport.loopB != null) ? transport.loopB : dur;
     let from = schedChartPos;
     if (from >= hi - 1e-6) {
       if (finiteRunActive()) return;   // play-once drill: no audio past the end
@@ -3515,8 +3179,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     const winEnd = Math.min(hi, from + SCHED_WINDOW_SECONDS);
     const before = audioNodes.length;
-    const ret = schedulePreviewAudio(activeBundle, from,
-      Math.max(0, scheduledUntilCtx - audioCtx.currentTime), winEnd, /*onsetOnly*/ true);
+    const ret = schedulePreviewAudio((/** @type {import('./src/types/entry-data.js').EntryBundle} */ (activeBundle)), from,
+      Math.max(0, scheduledUntilCtx - (/** @type {AudioContext} */ (audioCtx)).currentTime), winEnd, /*onsetOnly*/ true);
     if (ret == null) return;
     schedChunks.push({ endCtx: ret.end, nodes: audioNodes.slice(before) });
     scheduledUntilCtx = ret.base + (winEnd - from);
@@ -3529,7 +3193,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function pruneSchedChunks() {
     if (!audioCtx || schedChunks.length <= 1) return;
     if (schedChunks[0].endCtx + 0.5 >= audioCtx.currentTime) return; // keep ring-out tails
-    const dead = schedChunks.shift();
+    const dead = (/** @type {{nodes: import('./src/types/audio-graph.js').ScheduledResource[], endCtx: number}} */ (schedChunks.shift()));
     const set = new Set(dead.nodes);
     for (const n of dead.nodes) { try { n.disconnect(); } catch {} }
     audioNodes = audioNodes.filter(n => !set.has(n));
@@ -3541,7 +3205,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // whole-chart, finite (which needs the refill too — its initial chunk no
   // longer covers the whole drill), AND the A-B segment loop (Jam / section
   // looping), whose seam is now gapless via the B→A wrap in scheduleNextChunk.
-  function maybeScheduleLoopAhead(nowMs) {
+  function maybeScheduleLoopAhead() {
     if (!audioCtx || !activeBundle || !loopAudioEnabled()) return;
     const dur = activeBundle.songInfo?.duration || 0;
     if (dur <= 0) return;
@@ -3556,20 +3220,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // (e.g. clearing an A-B loop), never at the steady-state chunk seam.
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
-      anchorPlayClock(currentPracticeTime);
+      anchorPlayClock(transport.time);
       return;
     }
     if (ctxNow + SCHED_REFILL_AHEAD >= scheduledUntilCtx) scheduleNextChunk();
     pruneSchedChunks();
   }
-  function destroyRenderer(instance) {
-    if (!instance || destroyedRenderers.has(instance)) return;
-    destroyedRenderers.add(instance);
-    try { instance.destroy?.(); } catch (e) { console.warn('[Virtuoso] renderer destroy failed', e); }
-  }
-  function stopRenderer() {
-    rendererAttachIdentity++;
-    cancelPracticeLoad();
+  function stopRendererPlayback() {
+    practiceSelection.cancelLoad();
     // "Sideways" stops land here while still playing (a setting change mid-play
     // regenerates; the Library/Plugins nav buttons leave the screen) — close the
     // practice-session log NOW (while the scorer state is alive, so hit/miss
@@ -3577,83 +3235,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // exactly like stopPlayback does. Skipping these leaked the screen-awake
     // lock + let an abandoned run flush later as a fake clean pass (dev-ops
     // e2e audit, 2026-06-05; guarded in smoke-renderers' play/stop cycle).
-    if (playing) { sessionEnd(); releaseWakeLock(); }
-    playing = false; paused = false; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } destroyRenderer(renderer); renderer = null; syncPlayButton(); }
+    if (transport.playing) { sessionEnd(); releaseWakeLock(); }
+    transport.stop(); stopRunAudio(); }
+  function stopRunAudio() {
+    stopAudio(); stopPitchTracker();
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+  }
+  function stopRenderer() { stopRendererPlayback(); rendererLifecycle.reset(); syncPlayButton(); }
 
+  /** @param {import('./src/types/entry-data.js').EntryExercise} exercise */
   async function attachRenderer(exercise) {
-    const cfg = { ...exercise.session };
-    // Honour saved renderer preference when the form hasn't been explicitly changed
-    if (!cfg.renderer || cfg.renderer === 'highway_3d') {
-      const saved = localStorage.getItem('virtuoso_lab.renderer');
-      if (saved) cfg.renderer = saved;
-    }
-    // The host 3D Highway renders 4–8 strings (resolveStringCount + an 8-entry
-    // palette), so guitar AND bass use it. Only fall back for counts it can't
-    // handle (>8 — not currently producible in Virtuoso, but defensive).
-    if (cfg.renderer === 'highway_3d' && (cfg.stringCount || 6) > 8) cfg.renderer = 'builtin_2d';
-    exercise.session.renderer = cfg.renderer;
-    // Keep the view row in sync with what's ACTUALLY being rendered (including
-    // the saved-pref restore and the bass/extended force above) so the
-    // highlighted view button always matches the render.
-    syncViewSwitcher(cfg.renderer);
-    stopRenderer(); activeBundle = makeBundle(exercise); currentPracticeTime = 0;
-    resetTransportLoop();
-    maybeResyncMixer(cfg);   // genre switch → the mixer follows the new style's band
-    fretboardSyncRange();
-    // The host 3D Highway projects chord-shape FRAMES onto the note lane (plus a
-    // corner diagram + lane chord-name labels) straight from the chord data —
-    // visually noisy, and it covers the first note of the upcoming bar. Hand the
-    // highway a chord-free view of the bundle so the lane stays clean; Virtuoso
-    // draws its own small chord box (drawChordBoxFrame) on every view, including
-    // 3D, for the chord reference. Other renderers get the full bundle.
-    // bgReactive:false opts the highway out of its audio-reactive background
-    // (feedback#650). Virtuoso doesn't route audio through the host <audio>
-    // element, so that analyser only ever fails + click-on-close for us. On a
-    // host with #650 this disables it cleanly (the proper fix); on older hosts
-    // the field is ignored (the screen-scoped patchAudioContextForSharing stub
-    // still suppresses the click — Stage 2 removes that once #650 is the baseline).
-    rendererBundle = (cfg.renderer === 'highway_3d')
-      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [], bgReactive: false })
-      : activeBundle;
-    const attachingBundle = activeBundle;
-    const attachingIdentity = rendererAttachIdentity;
-    const attachingGeneration = generationIdentity;
-    // Resolve the factory FIRST (a borrowed host viz can take up to ~3s to load),
-    // THEN create the canvas — so the fresh canvas isn't sitting in the DOM through
-    // that await window, where the just-torn-down prior renderer can detach it
-    // (which left the fallback renderer's resize() reading a null parentElement).
-    // Resolver and renderer readiness can both outlive a view switch or Return.
-    const ownsAttachment = () => activeBundle === attachingBundle && attachingIdentity === rendererAttachIdentity && attachingGeneration === generationIdentity;
-    let instance = null;
-    try {
-      const resolved = await resolveRendererFactory(cfg.renderer);
-      if (!ownsAttachment()) return false;
-      if (resolved.kind && resolved.kind !== cfg.renderer) {
-        cfg.renderer = resolved.kind;
-        exercise.session.renderer = resolved.kind;
-        activeBundle.config.renderer = resolved.kind;
-        const preference = document.querySelector('[name="renderer"]'); if (preference) preference.value = resolved.kind;
-        localStorage.setItem('virtuoso_lab.renderer', resolved.kind);
-        syncViewSwitcher(resolved.kind);
-      }
-      const canvas = replaceCanvas();
-      instance = resolved.factory();
-      renderer = instance;
-      if (!instance || typeof instance.draw !== 'function') throw new Error('Selected renderer did not return a FeedBack-compatible renderer object.');
-      if (typeof instance.init === 'function') instance.init(canvas, rendererBundle);
-      if (instance.readyPromise && typeof instance.readyPromise.then === 'function') await instance.readyPromise;
-      if (!ownsAttachment() || renderer !== instance) { destroyRenderer(instance); return false; }
-      if (cfg.renderer === 'notation_2d') instance.setMode?.(notationMode);
-      const rect = (canvas.parentElement || $('virtuoso_lab-render-host'))?.getBoundingClientRect() || { width: canvas.width, height: canvas.height };
-      if (typeof instance.resize === 'function') instance.resize(Math.round(rect.width || canvas.width), Math.round(rect.height || canvas.height));
-      const rendererStatus = $('virtuoso_lab-renderer-status'); if (rendererStatus) rendererStatus.textContent = resolved.label; drawOnce();
-      return true;
-    } catch (e) {
-      destroyRenderer(instance);
-      if (!ownsAttachment()) return false;
-      if (renderer === instance) renderer = null;
-      throw e;
-    }
+    return rendererLifecycle.attach(exercise);
   }
 
   function syncPlayButton() {
@@ -3664,55 +3256,26 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // The button keeps the primary accent throughout; the danger red lives on
     // the dedicated Stop button (it was only ever red here because this button
     // used to BE the stop).
-    btn.classList.toggle('is-playing', !!(playing && !paused));
-    btn.classList.toggle('is-paused', !!(playing && paused));
-    btn.textContent = (playing && !paused) ? '⏸' : '▶';
+    btn.classList.toggle('is-playing', !!(transport.playing && !transport.paused));
+    btn.classList.toggle('is-paused', !!(transport.playing && transport.paused));
+    btn.textContent = (transport.playing && !transport.paused) ? '⏸' : '▶';
     const stopBtn = $('virtuoso_lab-stop');
-    if (stopBtn) stopBtn.disabled = !playing;   // enabled while running OR paused
-    updateStartCta();
-  }
-  async function preparePlayback(exercise) {
-    // An attached chart is not permission to start after voice warming if the
-    // user has since stopped, changed modes, navigated or generated another run.
-    const pending = attachRenderer(exercise);
-    const attachment = rendererAttachIdentity, generation = generationIdentity, bundle = activeBundle;
-    const ownsPlayback = () => attachment === rendererAttachIdentity && generation === generationIdentity && bundle === activeBundle;
-    try {
-      if (!await pending || !ownsPlayback()) return false;
-      await awaitVoices(bundle);
-      return ownsPlayback();
-    } catch (e) {
-      if (!ownsPlayback()) return false;
-      throw e;
-    }
+    if (stopBtn) stopBtn.disabled = !transport.playing;   // enabled while running OR paused
+    practicePresentation.renderStart();
   }
   // First-run primed START CTA (Pathways mode): names the exercise + a short skill
   // hook from the goal, and mirrors the transport (START ⇄ STOP). The one lit primary
   // action on first paint; the preview stays static until pressed (no auto-play).
-  function startSkillHook(pw) {
-    if (!pw || !pw.goal) return '';
-    const seg = pw.goal.split(/[—:.]/)[0].trim();
-    return seg.length > 52 ? seg.slice(0, 50).trim() + '…' : seg;
-  }
-  function updateStartCta() {
-    const cta = $('virtuoso_lab-start-cta'); if (!cta) return;
-    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
-    const verb = $('virtuoso_lab-start-verb'), name = $('virtuoso_lab-start-name'), skill = $('virtuoso_lab-start-skill');
-    if (verb) verb.textContent = (playing && !paused) ? '⏸ PAUSE' : (paused ? '▶ RESUME' : '▶ START');
-    if (name) name.textContent = pw ? pw.label : 'this exercise';
-    if (skill) skill.textContent = pw ? startSkillHook(pw) : '';
-    cta.classList.toggle('playing', !!playing);
-    cta.classList.toggle('paused', !!(playing && paused));
-  }
   // ── Live fretboard strip ──────────────────────────────────────────────────
   // A horizontal neck diagram docked under the highway that lights up the
   // currently-sounding notes — the highway shows WHEN, this shows WHERE the
   // shape sits on the neck. Ported + generalised from the host Fretboard View
   // plugin: any string count, Virtuoso string colours, driven by our own clock.
-  let fbCtx = null, fretboardOn = false;  // off by default; per-view toggle in JT + Notation
+  let /** @type {CanvasRenderingContext2D | null} */ fbCtx = null, fretboardOn = false;  // off by default; per-view toggle in JT + Notation
   let panelCollapsed = false;  // left settings panel show/hide (persisted)
+  /** @type {CanvasRenderingContext2D | null} */
   let rulerCtx = null;  // unified DAW timeline ruler (bars/beats + playhead + A–B loop)
-  let fbFretLo = 0, fbFretHi = 12, fbPattern = [];  // zoomed fret window + unique pattern positions
+  let fbFretLo = 0, fbFretHi = 12, /** @type {{s: number, f: number, fg?: number}[]} */ fbPattern = [];  // zoomed fret window + unique pattern positions
   const FB_DOT_FRETS = [3, 5, 7, 9, 12, 15, 17, 19, 21, 24];
   const FB_DOUBLE_DOT = [12, 24];
 
@@ -3743,6 +3306,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Jam target-highlight: the current teaching mirror on the strip. Guitar =
   // chord / guide / scale / off; bass reuses the SAME 4-step ladder but teaches the
   // bassist's job: roots / next root / approach / off. One control path, two jobs.
+  /** @type {{guitar: Record<string, string>, bass: Record<string, string>}} */
   const JAM_HL_LABELS = {
     guitar: { chord:'Chord tones — most support', guide:'Guide tones (3rd & 7th)', scale:'Scale', off:'Off — bare neck' },
     bass:   { chord:'Roots — most support', guide:'Next root — see the change coming', scale:'Approach tones', off:'Off — bare neck' },
@@ -3752,6 +3316,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Spotlight (J-3): which turn the playhead is in — even pass = you solo, odd =
   // band solos. Derived from the per-pass sections (one per pass) so it tracks the
   // chart. null when not a spotlight jam.
+  /** @param {number} t */
   function jamSpotlightTurn(t) {
     const b = activeBundle;
     if (!b || !b.config || !b.config.jamSpotlight) return null;
@@ -3763,18 +3328,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function jamCurrentCfg() { return (activeBundle && activeBundle.config) || readConfig(); }
   function jamInstrumentKind() {
     const cfg = jamCurrentCfg() || {};
-    return ((STRING_SETUPS[cfg.stringSetup] || {}).instrument || cfg.instrument || 'guitar');
+    return ((STRING_SETUPS[String(cfg.stringSetup)] || {}).instrument || cfg.instrument || 'guitar');
   }
   function jamIsBassContext() { return jamInstrumentKind() === 'bass'; }
   function jamFretboardEligible() { const inst = jamInstrumentKind(); return inst === 'guitar' || inst === 'bass'; }
   // The fretboard highlight in effect right now: Spotlight OVERRIDES per turn (your
   // solo → SCALE sandbox / bass approaches; band solo → CHORD roots or chord tones),
   // else the user's pick.
+  /** @param {number} t */
   function jamEffectiveHighlight(t) {
     const turn = jamSpotlightTurn(t);
     if (turn) return turn === 'band' ? 'chord' : 'scale';
     return jamHighlightMode;
   }
+  /** @param {number} t */
   function jamCarrierInfo(t) {
     if (!activeBundle) return null;
     const beatSec = chartBeatSeconds(activeBundle) || 0.5;
@@ -3796,7 +3363,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
             : lead + (next.startSec != null ? next.startSec : (next.t || 0)))
           : (activeBundle.songInfo?.duration || lead);
         const sameChord = !!(next && cur.cpcs && next.cpcs
-          && next.cpcs.length === cur.cpcs.length && next.cpcs.every(pc => cur.cpcs.includes(pc)));
+          && next.cpcs.length === cur.cpcs.length && next.cpcs.every((/** @type {number} */ pc) => cur.cpcs.includes(pc)));
         return { cur, next, beatSec, timeToNext: Math.max(0, nextAt - t), sameChord };
       }
     }
@@ -3816,13 +3383,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const next = nextIdx >= 0 ? evs[nextIdx] : (firstCar != curIdx ? evs[firstCar] : null);
     const timeToNext = nextIdx >= 0 ? evs[nextIdx].t - t : Math.max(0, (activeBundle.songInfo?.duration || 0) - t);
     const sameChord = !!(next && cur.cpcs && next.cpcs
-      && next.cpcs.length === cur.cpcs.length && next.cpcs.every(pc => cur.cpcs.includes(pc)));
+      && next.cpcs.length === cur.cpcs.length && next.cpcs.every(pc => (/** @type {number[]} */ (cur.cpcs)).includes(pc)));
     return { cur, next, beatSec, timeToNext, sameChord };
   }
+  /** @param {number} rootPc */
   function bassApproachPcs(rootPc) {
     const pc = ((rootPc % 12) + 12) % 12;
     return [pc, (pc + 11) % 12, (pc + 1) % 12];
   }
+  /** @param {number} t */
   function jamTargetPcs(t) {
     const mode = jamEffectiveHighlight(t);
     if (mode === 'off' || !activeBundle) return null;
@@ -3857,6 +3426,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // strip can pre-light them as dashed ghosts in their own STRING colors ~1.5
   // beats early — the same anticipation grammar as the Jam next-chord ghost
   // (which stays amber/harmony-only; one grammar, two colors, two questions).
+  /** @param {number} t */
   function fretboardShiftGhosts(t) {
     if (!handMarksOn() || !activeBundle) return null;
     const notes = activeBundle.notes || []; if (!notes.length) return null;
@@ -3884,6 +3454,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // target is ghosted amber on the strip so the player preps the change before it
   // lands. Guitar = next guide tones; bass = next root / approach pocket. Wraps to
   // the top of the loop.
+  /** @param {number} t */
   function jamNextGuidePcs(t) {
     const mode = jamEffectiveHighlight(t);
     if (mode === 'off' || !activeBundle) return null;
@@ -3910,6 +3481,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return pcs.length ? new Set(pcs) : null;
   }
   // Notes sounding within ~80ms of the playhead, with a sustain-based fade.
+  /** @param {number} t */
   function fretboardActiveNotes(t) {
     const out = [], win = 0.08, notes = activeBundle?.notes || [];
     for (const n of notes) {
@@ -3917,7 +3489,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const end = n.t + (n.sus || 0);
       if (n.t <= t + win && end >= t - win) {
         let alpha = 1;
-        if (n.sus > 0 && t > n.t) alpha = Math.max(0.3, 1 - (t - n.t) / n.sus * 0.7);
+        if (n.sus !== undefined && n.sus > 0 && t > n.t) alpha = Math.max(0.3, 1 - (t - n.t) / n.sus * 0.7);
         out.push({ s: n.s, f: n.f, alpha, n });   // n rides for the hit-paint state lookup
       }
     }
@@ -3979,6 +3551,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-pane-collapse-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
     $('virtuoso_lab-pane-expand-btn')?.setAttribute('aria-expanded', String(!panelCollapsed));
   }
+  /** @param {boolean} v */
   function setPanelCollapsed(v) {
     panelCollapsed = !!v;  // session-only; startup/selection always resets to expanded
     syncPanelToggle();
@@ -4002,13 +3575,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-root')?.classList.toggle('virtuoso_lab-focused', on);
     $('virtuoso_lab-focus-btn')?.setAttribute('aria-pressed', String(on));
     // Re-fit the renderer to the resized stage on the next frame (after layout settles).
-    requestAnimationFrame(() => {
-      if (renderer && typeof renderer.resize === 'function') {
-        const host = $('virtuoso_lab-render-host');
-        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-      }
-      drawOnce();
-    });
+    rendererLifecycle.refitNextFrame();
   }
 
   // ===========================================================================
@@ -4045,9 +3612,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const neckW = spaceW * nSpaces;
     const x0 = padL + Math.max(0, (usableW - neckW) / 2);
     const rowH = (H - padT - padB) / Math.max(1, nStrings - 1);
+    /** @param {number} s */
     const rowY = s => padT + (nStrings - 1 - s) * rowH;        // s=0 (lowest) at the bottom
     const midRow = (nStrings - 1) / 2;
+    /** @param {number} f */
     const xLine = f => x0 + (f - lo) * spaceW;                 // fret-line x
+    /** @param {number} f */
     const xNote = f => f === 0 ? Math.max(x0 + 4, xLine(0)) : xLine(f - 0.5);  // notehead x
 
     // Fret lines + nut (only the windowed frets)
@@ -4091,7 +3661,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (p.s < 0 || p.s >= nStrings) continue;
       ctx.strokeStyle = STRING_COLORS[p.s % STRING_COLORS.length]; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.85;
       ctx.beginPath(); ctx.arc(xNote(p.f), rowY(p.s), 7, 0, 6.2832); ctx.stroke();
-      if (fingersOn && p.fg >= 1) {
+      if (fingersOn && p.fg !== undefined && p.fg >= 1) {
         ctx.globalAlpha = 0.75; ctx.fillStyle = STRING_COLORS[p.s % STRING_COLORS.length];
         ctx.font = '700 8px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText(String(p.fg), xNote(p.f), rowY(p.s));
@@ -4122,7 +3692,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     // Anticipation ghost: the NEXT chord's guide tones (amber dashed) as the change
     // nears — prep the target before it lands. Drawn UNDER the current target.
-    const nextPcs = jamOn ? jamNextGuidePcs(currentPracticeTime) : null;
+    const nextPcs = jamOn ? jamNextGuidePcs(transport.time) : null;
     if (nextPcs) {
       ctx.setLineDash([2, 2]); ctx.lineWidth = 1.5; ctx.strokeStyle = '#f59e0b';
       for (const p of fbPattern) {
@@ -4137,13 +3707,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // no prescriptions (the panel constitution), and its ghost slot is the
     // harmony anticipation above. Fade-in ~150ms, gated by reduced-motion.
     if (!jamOn) {
-      const tg = fretboardShiftGhosts(currentPracticeTime);
+      const tg = fretboardShiftGhosts(transport.time);
       if (tg) {
         const rm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
         ctx.setLineDash([3, 2]); ctx.lineWidth = 1.5;
         for (const g of tg.ghosts) {
           if (g.s < 0 || g.s >= nStrings) continue;
-          const sinceQ = tg.lead - (g.at - currentPracticeTime);   // seconds since this ghost qualified
+          const sinceQ = tg.lead - (g.at - transport.time);   // seconds since this ghost qualified
           const a = rm ? 0.4 : 0.4 * Math.max(0, Math.min(1, sinceQ / 0.15));
           if (a <= 0.01) continue;
           ctx.globalAlpha = a; ctx.strokeStyle = STRING_COLORS[g.s % STRING_COLORS.length];
@@ -4152,7 +3722,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         ctx.setLineDash([]); ctx.globalAlpha = 1;
       }
     }
-    const targetPcs = jamOn ? jamTargetPcs(currentPracticeTime) : null;
+    const targetPcs = jamOn ? jamTargetPcs(transport.time) : null;
     if (targetPcs) {
       for (const p of fbPattern) {
         if (p.s < 0 || p.s >= nStrings) continue;
@@ -4184,7 +3754,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       ctx.globalAlpha = 1;
     }
     // Currently-sounding notes glow (filled) on top of their hollow markers.
-    for (const n of fretboardActiveNotes(currentPracticeTime)) {
+    for (const n of fretboardActiveNotes(transport.time)) {
       if (n.s < 0 || n.s >= nStrings) continue;
       const y = rowY(n.s), x = xNote(n.f);
       const col = STRING_COLORS[n.s % STRING_COLORS.length];
@@ -4258,18 +3828,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function rulerMap() {
     const g = rulerGeom(); if (!g) return null;
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const now = Math.max(0, Math.min(g.dur || 0, currentPracticeTime));
+    const now = Math.max(0, Math.min(g.dur || 0, transport.time));
     if (reduce || g.dur <= 0) {
       return { g, scroll: false, now,
-        xAt: t => g.padX + (g.dur ? (t / g.dur) : 0) * g.usableW,
-        tAt: cx => Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)),
+        xAt: (/** @type {number} */ t) => g.padX + (g.dur ? (t / g.dur) : 0) * g.usableW,
+        tAt: (/** @type {number} */ cx) => Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)),
         inView: () => true };
     }
     const win = rulerWindow();
     return { g, scroll: true, now,
-      xAt: t => g.padX + ((t - now + win.BEHIND) / win.span) * g.usableW,
-      tAt: cx => Math.max(0, Math.min(g.dur, now + ((cx - g.rect.left - g.padX) / g.usableW) * win.span - win.BEHIND)),
-      inView: t => t >= now - win.BEHIND - 0.06 && t <= now + win.AHEAD + 0.06 };
+      xAt: (/** @type {number} */ t) => g.padX + ((t - now + win.BEHIND) / win.span) * g.usableW,
+      tAt: (/** @type {number} */ cx) => Math.max(0, Math.min(g.dur, now + ((cx - g.rect.left - g.padX) / g.usableW) * win.span - win.BEHIND)),
+      inView: (/** @type {number} */ t) => t >= now - win.BEHIND - 0.06 && t <= now + win.AHEAD + 0.06 };
   }
   // Are we mid-count-in / inter-block breath / resume pre-roll RIGHT NOW, and how
   // many beats until the next downbeat? The head count-in, the inter-block break,
@@ -4282,9 +3852,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const b = activeBundle; if (!b) return null;
     const beats = b.beats || []; if (!beats.length) return null;
     const lead = b.leadIn || 0, dur = b.songInfo?.duration || 0;
-    const now = currentPracticeTime;
+    const now = transport.time;
     let target = null, kind = null;
-    if (_preRollUntil > 0 && now < _preRollUntil) { target = _preRollUntil; kind = 'resume'; }
+    if (transport.preRollUntil > 0 && now < transport.preRollUntil) { target = transport.preRollUntil; kind = 'resume'; }
     else if (lead > 0 && now < lead - 1e-4) { target = lead; kind = 'countin'; }
     else {
       // Inside a run of `brk` beats (inter-block break or trailing loop-wrap)?
@@ -4320,6 +3890,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // breath card (the NAMES) and the ruler's "NEXT ▸ <name>" label. Excludes the
   // head count-in / resume runway (kind != 'break'), the trailing loop-wrap break
   // (target = the loop point, ≥ dur), Jam, and single-drill charts (< 2 blocks).
+  /** @param {ReturnType<typeof seamCountInfo>} [seam] */
   function seamVerdictInfo(seam) {
     seam = seam || seamCountInfo();
     if (!seam || seam.kind !== 'break' || isJamMode()) return null;
@@ -4346,7 +3917,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     ctx.clearRect(0, 0, W, H);
     const dur = activeBundle?.songInfo?.duration || 0;
     if (!activeBundle || dur <= 0) return;
-    const padX = 2, usableW = W - padX * 2, lz = Math.min(RULER_LOOP_ZONE, H * 0.4);
+    const padX = 2, lz = Math.min(RULER_LOOP_ZONE, H * 0.4);
     const map = rulerMap(); if (!map) return;
     const xAt = map.xAt;
     // Jam: bar numbers are LOOP-RELATIVE (1…N each cycle), not 1…∞ — "where am I in
@@ -4381,8 +3952,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
     // A–B loop band (clipped to the visible window) + off-screen edge chevrons so
     // you always know which way an off-screen loop boundary lies.
-    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
-      const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
+    if (transport.markerA != null && transport.markerB != null && Math.abs(transport.markerA - transport.markerB) > 0.02) {
+      const ax = xAt(Math.min(transport.markerA, transport.markerB)), bx = xAt(Math.max(transport.markerA, transport.markerB));
       const cax = Math.max(0, Math.min(W, ax)), cbx = Math.max(0, Math.min(W, bx));
       if (cbx > cax) {
         ctx.fillStyle = 'rgba(64,128,224,0.20)'; ctx.fillRect(cax, lz, cbx - cax, H - lz);
@@ -4436,12 +4007,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // click = seek anywhere in the session. Degrades to one band for a single drill
   // (the progressive-disclosure "simplest transport"). Never meter-green (bands are
   // categorical role tints; green = cleared-only). Memory: project_transport_two_lane_redesign.
+  /** @param {string} hex @param {number} a */
   function hexA(hex, a) {
     const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
     if (!m) return hex || 'rgba(100,116,139,0.3)';
     const n = parseInt(m[1], 16);
     return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
   }
+  /** @returns {import('./src/types/entry-data.js').OverviewBand[]} */
   function overviewBands() {
     const b = activeBundle; if (!b) return [];
     const dur = b.songInfo?.duration || 0; if (dur <= 0) return [];
@@ -4454,12 +4027,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const evs = (b.backingEvents || []).filter(e => e.cpcs);
       if (evs.length) return evs.map((e, i) => ({ name: e.name || '', rn: e.rn || '', start: e.t,
         end: (i + 1 < evs.length ? evs[i + 1].t : dur),
-        color: FUNCTION_HUE[e.fn] || '#3b82f6', chord: true }));
+        color: FUNCTION_HUE[String(e.fn)] || '#3b82f6', chord: true }));
     }
     const sb = Array.isArray(b.segmentBounds) ? b.segmentBounds : null;
     if (sb && sb.length) {
       return sb.map(s => ({ name: s.name || s.kind || '', start: s.start, end: s.end,
-        color: ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b' }));
+        color: ROLE_COLORS[String(s.role)] || KIND_COLORS[String(s.kind)] || '#64748b' }));
     }
     const secs = Array.isArray(b.sections) ? b.sections : null;
     if (secs && secs.length > 1) {
@@ -4468,6 +4041,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return [{ name: b.songInfo?.title || '', start: 0, end: dur, color: '#3b82f6' }];   // single drill
   }
+  /** @type {CanvasRenderingContext2D | null} */
   let overviewCtx = null;
   function drawOverviewFrame() {
     const canvas = $('virtuoso_lab-overview-canvas');
@@ -4482,9 +4056,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const dur = activeBundle?.songInfo?.duration || 0;
     if (!activeBundle || dur <= 0) return;
     const padX = 2, usableW = W - padX * 2;
+    /** @param {number} t */
     const xAt = t => padX + (t / dur) * usableW;
     const jam = isJamMode();
-    const now = Math.max(0, Math.min(dur, currentPracticeTime));
+    const now = Math.max(0, Math.min(dur, transport.time));
     const bands = overviewBands();
     // Jam: which chord is playing now + which is next (the play-the-changes cue).
     let curIdx = -1;
@@ -4521,6 +4096,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!jam) {
       const sb = Array.isArray(activeBundle.segmentBounds) ? activeBundle.segmentBounds : [];
       if (sb.length > 1) {
+        /** @type {[number, number, boolean][]} */
         const gaps = [];
         for (let i = 0; i + 1 < sb.length; i++) if (sb[i + 1].start - sb[i].end > 0.05) gaps.push([sb[i].end, sb[i + 1].start, false]);
         const lastEnd = sb[sb.length - 1].end;
@@ -4535,8 +4111,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
     // A–B loop / focus overlay (the authoring view).
-    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
-      const ax = xAt(Math.min(tpA, tpB)), bx = xAt(Math.max(tpA, tpB));
+    if (transport.markerA != null && transport.markerB != null && Math.abs(transport.markerA - transport.markerB) > 0.02) {
+      const ax = xAt(Math.min(transport.markerA, transport.markerB)), bx = xAt(Math.max(transport.markerA, transport.markerB));
       ctx.fillStyle = 'rgba(64,128,224,0.24)'; ctx.fillRect(ax, 0, Math.max(1, bx - ax), H);
       ctx.fillStyle = '#9ec1ff'; ctx.fillRect(ax - 1, 0, 2, H); ctx.fillRect(bx - 1, 0, 2, H);
     }
@@ -4584,11 +4160,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // is one consistent box everywhere. Shown only when the chart has chord
   // templates (chord/arpeggio exercises); scales carry none, so it stays hidden
   // for them with no extra gating.
+  /** @type {CanvasRenderingContext2D | null} */
   let chordBoxCtx = null;
   function currentChordTemplate() {
     const b = activeBundle;
     if (!b || !b.chords || !b.chords.length || !b.chordTemplates || !b.chordTemplates.length) return null;
-    const t = currentPracticeTime;
+    const t = transport.time;
     let chord = b.chords[0];
     for (const ch of b.chords) { if (ch.t <= t + 1e-3) chord = ch; else break; }
     const tmpl = b.chordTemplates[chord.id];
@@ -4623,6 +4200,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const padTop = 32, padBot = 13, padL = 15, padR = 15;
     const gx0 = padL, gx1 = W - padR, gy0 = padTop, gy1 = H - padBot;
     const colW = (gx1 - gx0) / Math.max(1, nS - 1), rowH = (gy1 - gy0) / SPAN;
+    /** @param {number} s */
     const xS = s => gx0 + s * colW;  // s=0 (low E) on the left — standard orientation
     // Strings (vertical) + frets (horizontal)
     ctx.strokeStyle = '#52617a'; ctx.lineWidth = 1;
@@ -4653,7 +4231,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   let _seamCapKey = '';
   function updateSeamCaption() {
     const el = $('virtuoso_lab-seam-caption'); if (!el) return;
-    const v = (playing && !paused) ? seamVerdictInfo() : null;
+    const v = (transport.playing && !transport.paused) ? seamVerdictInfo() : null;
     if (!v) { if (_seamCapKey) { el.classList.remove('is-on'); _seamCapKey = ''; } return; }
     const key = `${v.idx}/${v.total}`;
     if (key !== _seamCapKey) {
@@ -4684,9 +4262,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // vs comp-behind-the-band. Only touches the DOM on a turn change (thrash guard).
   function updateSpotlightCue() {
     const el = $('virtuoso_lab-jam-cue'); if (!el) return;
-    const on = playing && isJamMode() && !!(activeBundle && activeBundle.config && activeBundle.config.jamSpotlight);
+    const on = transport.playing && isJamMode() && !!(activeBundle && activeBundle.config && activeBundle.config.jamSpotlight);
     if (!on) { if (!el.hidden) { el.hidden = true; _spotlightCueTurn = null; } return; }
-    const turn = jamSpotlightTurn(currentPracticeTime);
+    const turn = jamSpotlightTurn(transport.time);
     if (turn === _spotlightCueTurn) return;
     _spotlightCueTurn = turn;
     el.hidden = false;
@@ -4694,23 +4272,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     el.classList.toggle('is-band', turn === 'band');
     el.textContent = turn === 'band' ? '🎸 Band solo — comp the chords' : '🎤 Your turn — take a solo';
   }
-  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); updateSeamCaption(); drawChordBoxFrame(); updateSpotlightCue(); if (!renderer || !activeBundle) return; const vb = rendererBundle || activeBundle; vb.currentTime = currentPracticeTime; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[Virtuoso] renderer draw failed', e); } syncTransportTime(); }
+  function drawOnce() { drawFretboardFrame(); drawRulerFrame(); drawOverviewFrame(); updateSeamCaption(); drawChordBoxFrame(); updateSpotlightCue(); const renderer = rendererLifecycle.renderer; if (!renderer || !activeBundle) return; const vb = rendererLifecycle.bundle || activeBundle; vb.currentTime = transport.time; syncHighwaySettings(vb); try { renderer.draw(vb); } catch (e) { console.warn('[Virtuoso] renderer draw failed', e); } syncTransportTime(); }
   // Re-fit the borrowed renderer + redraw ACROSS a layout SLIDE (the fretboard strip /
   // left pane now animate over ~0.3s). Doing this once synchronously used the PRE-slide
   // size — the fretboard didn't render until a lane switch + the highway didn't re-fit
   // on hide. Runs immediately (correct for reduced-motion/instant) then each frame for
   // `ms`, so both canvases track the changing stage size and settle correct.
+  /** @param {number} ms */
   function refitStageDuring(ms) {
-    const t0 = performance.now();
-    const step = () => {
-      if (renderer && typeof renderer.resize === 'function') {
-        const host = $('virtuoso_lab-render-host');
-        if (host) { const r = host.getBoundingClientRect(); renderer.resize(Math.round(r.width), Math.round(r.height)); }
-      }
-      drawOnce();
-      if (performance.now() - t0 < (ms || 0)) requestAnimationFrame(step);
-    };
-    step();
+    rendererLifecycle.refitDuring(ms);
   }
   // "Keep looping" — when on, a finite drill restores the old infinite loop (open
   // practice). Default off (finite). Persisted; loaded in bind(). An A–B loop and Jam
@@ -4733,12 +4303,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // A finite run completing is a DELIBERATE end → results modal eligible.
     _deliberateStop = true;
     try { sessionEnd(); } finally { _deliberateStop = false; }   // flush the session → presentSessionSummary (closure)
-    playing = false; paused = false;
-    currentPracticeTime = playStartChartTime;
-    playAnchorChartTime = playStartChartTime;
-    stopAudio();
-    stopPitchTracker();
-    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    transport.stop(true);
+    stopRunAudio();
     drawOnce();
     syncPlayButton();
     refreshStatusFromState();
@@ -4749,14 +4315,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // with the wall anchor. The ctx anchor intentionally tolerates a suspended
   // context: its currentTime freezes exactly as the scheduled audio does, so
   // visuals wait WITH the audio instead of running ahead on the wall clock.
-  function anchorPlayClock(chartTime) {
-    playAnchorChartTime = chartTime;
-    playAnchorMs = performance.now() + AUDIO_LOOKAHEAD_SECONDS * 1000;
-    playAnchorCtx = audioCtx ? audioCtx.currentTime + AUDIO_LOOKAHEAD_SECONDS : null;
-  }
+  /** @param {number} chartTime */
+  function anchorPlayClock(chartTime) { transport.anchor(chartTime, AUDIO_LOOKAHEAD_SECONDS); }
+  /** @param {number} nowMs */
   function tick(nowMs) {
-    if (!renderer || !activeBundle) return;
-    if (playing) {
+    if (!rendererLifecycle.renderer || !activeBundle) return;
+    if (transport.playing) {
       // If the host navigated away from the Virtuoso screen, its container goes
       // display:none (offsetParent becomes null) — stop playback so the audio
       // doesn't keep running in the background. Covers the host top-nav and
@@ -4766,18 +4330,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (screenRoot && !screenRoot.offsetParent) { stopPlayback(); return; }
       // Paused: keep the RAF alive (the nav-guard above + redraws stay armed)
       // but freeze the clock — no advance, no loop wraps, no finite-run end.
-      if (paused) { drawOnce(); rafId = requestAnimationFrame(tick); return; }
+      if (transport.paused) { drawOnce(); rafId = requestAnimationFrame(tick); return; }
       // Single clock domain: while an AudioContext is live, elapsed time comes
       // from the audio clock the notes are scheduled on (drift-free vs what
       // the player hears); the wall clock is the fallback when there's no ctx.
-      const elapsedMs = (audioCtx && playAnchorCtx != null)
-        ? Math.max(0, (audioCtx.currentTime - playAnchorCtx) * 1000)
-        : Math.max(0, nowMs - playAnchorMs);
-      currentPracticeTime = playAnchorChartTime + elapsedMs / 1000;
+      transport.advance(nowMs);
       if (_jamPending && isJamMode()) syncJamPendingChip();
-      if (currentPracticeTime > _runMaxChartTime) _runMaxChartTime = currentPracticeTime;   // recap reached-tracking (furthest this pass)
-      if (_preRollUntil > 0 && currentPracticeTime >= _preRollUntil) _preRollUntil = 0;   // resume pre-roll done → normal play (notes audible, judge live)
-      if (_preRollUntil === 0) maybeOfferDownshift();   // beginner mid-run offer (cheap: gated flags first, evaluates once per run)
+      if (transport.time > _runMaxChartTime) _runMaxChartTime = transport.time;
+      transport.finishPreRoll();
+      if (transport.preRollUntil === 0) maybeOfferDownshift();   // beginner mid-run offer (cheap: gated flags first, evaluates once per run)
       const duration = activeBundle.songInfo.duration || 1;
       // A-B segment loop wins over the whole-chart wrap when both endpoints are
       // set (Jam pins [leadIn, duration]; section looping pins a sub-region).
@@ -4785,9 +4346,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // lap's audio ahead of B (scheduleNextChunk wraps B→A on the same ctx
       // clock — no stopAudio, no ~200 ms re-schedule gap), and the visual clock
       // wraps by phase-carry, exactly like the whole-chart seam below.
-      if (segmentLoopA != null && segmentLoopB != null) {
-        maybeScheduleLoopAhead(nowMs);   // keep the audio horizon refilled past B (wraps B→A)
-        if (currentPracticeTime >= segmentLoopB) {
+      if (transport.loopA != null && transport.loopB != null) {
+        maybeScheduleLoopAhead();   // keep the audio horizon refilled past B (wraps B→A)
+        if (transport.time >= transport.loopB) {
           // J-2 (D-J3): the wrap is the change-quantum. A queued jam change lands
           // IN-PLACE here — jamHotSwapAtWrap rebuilds the chart from the live
           // panel and swaps the bundle WITHOUT tearing down the renderer (it
@@ -4798,22 +4359,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
             if (jamHotSwapAtWrap()) rafId = requestAnimationFrame(tick);
             return;
           }
-          triggerWrapRewind(segmentLoopB, segmentLoopA);   // visible rewind tell on the overview
+          triggerWrapRewind(transport.loopB, transport.loopA);   // visible rewind tell on the overview
           _runLooped = true;                               // recap: a wrap means the loop region was fully reached
           // Phase-carry the clock (drift-free), no audio touch — the next lap is
           // already scheduled on the ctx clock by maybeScheduleLoopAhead above.
-          const loopLen = segmentLoopB - segmentLoopA;
-          playAnchorChartTime -= loopLen;
-          currentPracticeTime -= loopLen;
-          if (hostBus() && typeof hostBus().emit === 'function') {
-            hostBus().emit('virtuoso_lab:loop:wrap', { a: segmentLoopA, b: segmentLoopB, time: currentPracticeTime });
+          const loopLen = transport.loopB - transport.loopA;
+          transport.wrap(loopLen);
+          const bus = hostBus();
+          if (bus && typeof bus.emit === 'function') {
+            bus.emit('virtuoso_lab:loop:wrap', { a: transport.loopA, b: transport.loopB, time: transport.time });
           }
-          _loopWraps++;
+          transport.countWrap();
           const lc = $('virtuoso_lab-loop-count');
           if (lc) {
             const showLoopCount = !isJamMode();
             lc.hidden = !showLoopCount;
-            if (showLoopCount) lc.textContent = 'Loop ' + _loopWraps;
+            if (showLoopCount) lc.textContent = 'Loop ' + transport.wraps;
           }
         }
       } else if (finiteRunActive()) {
@@ -4822,9 +4383,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // rolling window still refills (the initial chunk no longer covers the
         // whole drill) but scheduleNextChunk never wraps for a finite run, so
         // audio still stops cleanly at the end. Let the run reach it, then end.
-        maybeScheduleLoopAhead(nowMs);
-        if (currentPracticeTime >= duration) {
-          currentPracticeTime = duration;
+        maybeScheduleLoopAhead();
+        if (transport.time >= duration) {
+          transport.moveCursor(duration);
           drawOnce();
           endFiniteRun();
           return;   // run over — no further rAF; endFiniteRun cancels playback
@@ -4835,16 +4396,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // clock wraps by phase-carry — subtract one loop length and keep
         // ticking, so the playhead never freezes or snaps. Carrying the
         // remainder also keeps the loop phase drift-free over long sessions.
-        maybeScheduleLoopAhead(nowMs);
-        if (currentPracticeTime >= duration) {
+        maybeScheduleLoopAhead();
+        if (transport.time >= duration) {
           // Wrap to the music start (after the count-in lead-in), not 0, so the
           // count-in plays once and each loop is music. contentLen carries the
           // phase so the loop stays drift-free.
           const contentLen = duration - (activeBundle.leadIn || 0);
-          triggerWrapRewind(currentPracticeTime, currentPracticeTime - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
+          triggerWrapRewind(transport.time, transport.time - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
           _runLooped = true;                              // recap: a whole-chart wrap = every block reached
-          playAnchorChartTime -= contentLen;
-          currentPracticeTime -= contentLen;
+          transport.wrap(contentLen);
           // NOTE — this branch is now keepLooping-only (a Workout is FINITE, see
           // makeBundle's finiteRun). Credit is one-shot per window, so on a manual
           // loop the re-walked windows stay credited → they paint a STALE "hit" and
@@ -4863,14 +4423,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       else if (_ndContainedFallback) ndPushVerifyTarget();
       // Settle tremolo spans whose end has passed (both ears; cheap — pops at
       // most the front of a short time-sorted list).
-      ptFinalizeSpans(currentPracticeTime - ptLatency());
+      ptFinalizeSpans(transport.time - ptLatency());
       // Advance the window cursor at frame rate, detector-independent: expiry
       // is where the miss EVENT dispatches (the borrowed-highway marks) and
       // the passed denominator grows — neither may stall if the detector's
       // frame stream goes quiet mid-run.
-      ptWinSeek(currentPracticeTime - ptLatency());
+      ptWinSeek(transport.time - ptLatency());
       // Dwell chip: name the exempt class under the playhead (disclosure UX).
-      ptUpdateJudgeChip(currentPracticeTime);
+      ptUpdateJudgeChip(transport.time);
     }
     drawOnce(); rafId = requestAnimationFrame(tick);
   }
@@ -4880,7 +4440,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // (2 semitones), 1.5 = 1½ steps (3), 2 = two whole steps (4). The synth ramps
   // the played pitch up by this many semitones so a bend sounds bent, reaching
   // the same target pitch the player sees notated above the note.
+  /** @type {Record<string, number>} */
   const BEND_SEMITONES = { 0: 0, 0.5: 1, 1: 2, 1.5: 3, 2: 4 };
+  /** @param {number | undefined} bn */
   function bendSemitones(bn) {
     const v = Number(bn) || 0;
     return BEND_SEMITONES[v] != null ? BEND_SEMITONES[v] : v * 2;
@@ -4906,6 +4468,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the actual bug. Never blocks or breaks playback.
   let _sinkResolved = Object.create(null); // device name → matched deviceId (successes only)
   const _sinkWarned = Object.create(null); // device name → true (one warn per name)
+  /** @type {string | null} */
   let _sinkAppliedId = null;               // sinkId currently applied to audioCtx
   let _sinkMismatch = '';                  // non-empty: host is on a device we couldn't follow
   // Informative-token filter: generic audio/driver words that appear in device
@@ -4915,6 +4478,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     'pipewire', 'analog', 'analogue', 'stereo', 'mono', 'speakers', 'speaker', 'headphones', 'headphone',
     'output', 'out', 'device', 'default', 'sound', 'card', 'interface', 'hw', 'plughw', 'front', 'direct',
     'hardware', 'conversions', 'digital', 'hdmi', 'displayport', 'mapper', 'driver', 'high', 'definition']);
+  /** @param {string | null} s */
   function sinkTokens(s) {
     return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(' ')
       .filter((t) => t && !SINK_STOPWORDS.has(t));
@@ -4923,7 +4487,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // browser's audiooutput devices, or null. Exact → substring → token-overlap
   // (≥0.5 of the JUCE name's informative tokens, unique winner). Any ambiguity
   // (sibling outputs like "Line 1/2" vs "Line 3/4") bails to default.
+  /** @param {string} name @param {{label: string, deviceId: string}[]} outs */
   function pickSinkMatch(name, outs) {
+    /** @param {string} s */
     const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const nNorm = norm(name);
     if (!nNorm) return null;
@@ -4942,7 +4508,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (hits.length !== 1) return null;
     return { deviceId: hits[0].d.deviceId, label: hits[0].d.label };
   }
+  /** @type {string[]} */
   let _sinkLastOuts = [];                  // last-enumerated audiooutput labels (diagnostics — one paste shows both name spaces)
+  /** @param {string} name */
   async function resolveSinkId(name) {
     if (_sinkResolved[name]) return _sinkResolved[name];
     let devices;
@@ -4963,7 +4531,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // Only follow while the host engine is actually RUNNING — when it's
       // stopped the main game itself plays HTML5 → OS default, and following
       // the saved device would make us diverge from it.
-      const bridge = hostDesktop() && hostDesktop().audio;
+      const bridge = hostDesktop()?.audio;
       // Diagnostic (2026-06-07, the Arch+Focusrite "it did not" follow-up): a
       // desktop host WITHOUT the audio bridge API previously fell through
       // identically to a web host — silent, nothing for the user to paste.
@@ -5025,7 +4593,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         _sinkMismatch = `audio on system default — output switch to “${name}” was blocked`;
         if (!_sinkWarned['blocked:' + name]) {
           _sinkWarned['blocked:' + name] = true;
-          console.warn(`[Virtuoso] Matched the host engine device "${name}" to a browser output, but setSinkId was refused (${(e && e.name) || e}). On feedback-desktop this means the 'speaker-selection' permission isn't handled by the host. Playing to the system default output.`);
+          console.warn(`[Virtuoso] Matched the host engine device "${name}" to a browser output, but setSinkId was refused (${(e && (/** @type {Error} */ (e)).name) || e}). On feedback-desktop this means the 'speaker-selection' permission isn't handled by the host. Playing to the system default output.`);
         }
         refreshStatusFromState();
         return;
@@ -5073,8 +4641,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the distorted track, a sampler on the acoustic track, FX sends owned by
   // sound-design. Built once per AudioContext; the bus nodes persist across note
   // stop/start (they are deliberately NOT pushed into audioNodes).
+  /** @type {import('./src/types/audio-graph.js').AudioBus | null} */
   let audioBus = null;
   const MASTER_TRIM = 0.85;                          // headroom into the limiter (the Mixer's MASTER fader multiplies it)
+  /** @param {AudioContext} ctx @returns {import('./src/types/audio-graph.js').AudioBus} */
   function ensureAudioBus(ctx) {
     if (audioBus && audioBus.ctx === ctx) return audioBus;
     const master = ctx.createGain();
@@ -5100,6 +4670,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // and master without touching the voice code below.
   // The one shared short reverb (zero-asset noise-decay IR), built lazily so the
   // FIRST backing bus to need it (drums OR harmony/bass, any creation order) wins.
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').AudioBus} bus */
   function ensureSharedReverb(ctx, bus) {
     if (!bus.reverb) {
       const conv = ctx.createConvolver();
@@ -5118,6 +4689,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // synth branches feed them (the band's other voices stay dry of this long room). Mirrors
   // ensureSharedReverb: the FX nodes live on the bus (persistent, NOT in audioNodes); only
   // the per-call send gains prune with the scheduler window.
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').AudioBus} bus */
   function ensureSynthPlate(ctx, bus) {
     if (!bus.synthPlate) {
       const pre = ctx.createDelay(0.1); pre.delayTime.value = 0.025;   // pre-delay: the dry attack reads before the bloom
@@ -5131,10 +4703,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return bus.synthPlate;
   }
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').AudioBus} bus */
   function ensureSynthChorus(ctx, bus) {
     if (!bus.synthChorus) {
       const inG = ctx.createGain(), wet = ctx.createGain(); wet.gain.value = 0.5;
       const canPan = typeof ctx.createStereoPanner === 'function';
+      /** @param {number} baseMs @param {number} rateHz @param {number} panv */
       const voice = (baseMs, rateHz, panv) => {
         const dl = ctx.createDelay(0.05); dl.delayTime.value = baseMs / 1000;
         const lfo = ctx.createOscillator(), lg = ctx.createGain();
@@ -5151,6 +4725,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return bus.synthChorus;
   }
   // Per-call sends from a synth voice's master into the shared chorus + plate (0 = skip).
+  /** @param {AudioContext} ctx @param {AudioNode} master @param {number} chorusAmt @param {number} plateAmt */
   function synthFx(ctx, master, chorusAmt, plateAmt) {
     const bus = ensureAudioBus(ctx);
     if (chorusAmt > 0) { const s = ctx.createGain(); s.gain.value = chorusAmt; master.connect(s); s.connect(ensureSynthChorus(ctx, bus)); audioNodes.push(s); }
@@ -5172,6 +4747,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Makeup gains are loudness-matched by design (clipping raises RMS, so higher
   // drive = lower makeup) and the master limiter still backstops — by-ear trim
   // welcome (the SS_AMP levels are the knobs).
+  /** @type {Record<string, import('./src/types/audio-graph.js').AmpPreset>} */
   const AMP_PRESETS = {
     // Clean: warm + sparkle, barely driven — what a DI line into a clean combo
     // does. The default Auto pick for the sampled DI guitar voice.
@@ -5203,6 +4779,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
              makeup: 0.6, noCab: true },
   };
   const AMP_OPTIONS = [['', 'Amp: Auto'], ['off', 'No amp'], ['clean', 'Clean'], ['drive', 'Overdrive'], ['metal', 'Metal']];
+  /** @param {string} kind @param {number} drive */
   function ampCurve(kind, drive) {
     const n = 2048, c = new Float32Array(n);
     const norm = Math.tanh(drive);
@@ -5234,7 +4811,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // wireTrackAmp builds a chain once + caches it (not per-pass), so when an IR
   // decodes after the chain was built, swap the buffer on the waiting convolver.
   const IR_BASE = '/api/plugins/virtuoso_lab/ir/';
-  let _irBufs = {}, _irBufCtx = null;       // name -> { state, buf }  (reset per ctx)
+  let /** @type {Record<string, {state: string, buf: AudioBuffer | null}>} */ _irBufs = {}, /** @type {AudioContext | null} */ _irBufCtx = null;       // name -> { state, buf }  (reset per ctx)
+  /** @type {Record<string, ConvolverNode[]>} */
   const _irPending = {};                    // name -> [convolver nodes awaiting the buffer]
   // ── Rig: user cab IRs + per-amp output trim (the Mixer's "Rig" view, 2026-06-13)
   // A power user LOADs their own cab IR per amp (Clean/Overdrive/Metal) and trims
@@ -5245,8 +4823,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // reset are all identical. A user upload is THEIR licensing problem (never
   // committed); a bad file decode-fails → the procedural cab stays (never silent).
   const RIG_AMPS = ['clean', 'drive', 'metal'];
-  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso_lab.rig')) || {}; } catch (_) { return {}; } })();
+  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso_lab.rig') ?? 'null') || {}; } catch (_) { return {}; } })();
   function rigSave() { try { localStorage.setItem('virtuoso_lab.rig', JSON.stringify(rigState)); } catch (_) {} }
+  /** @type {Promise<IDBDatabase> | null} */
   let _rigDbP = null;
   function rigDb() {
     if (_rigDbP) return _rigDbP;
@@ -5257,14 +4836,19 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
     return _rigDbP;
   }
+  /** @param {string} id @param {ArrayBuffer} ab @returns {Promise<void>} */
   function rigIdbPut(id, ab) { return rigDb().then(db => new Promise((res, rej) => { const tx = db.transaction('irs', 'readwrite'); tx.objectStore('irs').put(ab, id); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); })); }
+  /** @param {string} id @returns {Promise<ArrayBuffer | null>} */
   function rigIdbGet(id) { return rigDb().then(db => new Promise((res, rej) => { const tx = db.transaction('irs', 'readonly'); const rq = tx.objectStore('irs').get(id); rq.onsuccess = () => res(rq.result || null); rq.onerror = () => rej(rq.error); })); }
+  /** @param {string} id @returns {Promise<void>} */
   function rigIdbDel(id) { return rigDb().then(db => new Promise((res) => { const tx = db.transaction('irs', 'readwrite'); tx.objectStore('irs').delete(id); tx.oncomplete = () => res(); tx.onerror = () => res(); })); }
+  /** @param {AudioContext} ctx @param {string} name */
   function ensureCabIr(ctx, name) {
     if (_irBufCtx !== ctx) { _irBufs = {}; _irBufCtx = ctx; }
     const e = _irBufs[name];
     if (e) return e.state === 'ready' ? e.buf : null;
     _irBufs[name] = { state: 'loading', buf: null };
+    /** @param {AudioBuffer} buf */
     const ok = buf => {
       _irBufs[name] = { state: 'ready', buf };
       const list = _irPending[name] || []; _irPending[name] = [];
@@ -5278,7 +4862,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return null;
   }
-  let _cabIr = null, _cabIrCtx = null;
+  let /** @type {AudioBuffer | null} */ _cabIr = null, /** @type {AudioContext | null} */ _cabIrCtx = null;
+  /** @param {AudioContext} ctx */
   function cabIrBuffer(ctx) {
     if (_cabIr && _cabIrCtx === ctx) return _cabIr;
     const sr = ctx.sampleRate, len = Math.floor(sr * 0.05);
@@ -5295,11 +4880,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _cabIr = buf; _cabIrCtx = ctx;
     return buf;
   }
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').AmpPreset} p @param {string} ampId */
   function buildAmpChain(ctx, p, ampId) {
     const ov = (ampId && rigState[ampId]) || {};   // user cab IR + output override (Rig view)
+    /** @type {AudioNode[]} */
     const nodes = [];
+    /** @template {AudioNode} Node @param {Node} n @returns {Node} */
     const mk = (n) => { nodes.push(n); return n; };
     const preHp = mk(ctx.createBiquadFilter()); preHp.type = 'highpass'; preHp.frequency.value = p.preHp; preHp.Q.value = 0.7;
+    /** @type {AudioNode} */
     let head = preHp;
     if (p.preMid) {
       const pm = mk(ctx.createBiquadFilter()); pm.type = 'peaking';
@@ -5329,6 +4918,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (irName && !irBuf) (_irPending[irName] = _irPending[irName] || []).push(cab);
       head.connect(cab); cab.connect(makeup);
     }
+    /** @type {AudioNode} */
     let out = makeup;
     if (p.comp) {
       const c = mk(ctx.createDynamicsCompressor());
@@ -5343,7 +4933,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // and leaves every other voice (EP/organ/WAF guitars/synths) un-amped.
   // _ampWant is set by the scheduler each pass (it knows the resolved voices);
   // wireTrackAmp is idempotent on the wanted id, so re-calls are free.
+  /** @type {Record<string, string | null | undefined>} */
   const _ampWant = { notes: null, harmony: null, bass: null };
+  /** @param {string} name @param {string | false | null | undefined} voiceBank @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   function resolveAmpId(name, voiceBank, prof) {
     const sel = (mixerState[name] && mixerState[name].amp) || '';
     if (sel === 'off') return null;
@@ -5352,33 +4944,36 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // else ONLY a raw electric-DI bank (SAMPLE_BANKS[bank].amped: shiny) takes
     // Clean — acoustic/keys banks (emily/salamander/wurli) get no forced guitar-cab insert.
     const slot = prof && (name === 'harmony' ? prof.harmony : name === 'bass' ? prof.bass : prof.notes);
-    if (slot && AMP_PRESETS[slot.amp]) return slot.amp;
+    if (slot && AMP_PRESETS[String(slot.amp)]) return slot.amp;
     return (voiceBank && SAMPLE_BANKS[voiceBank] && SAMPLE_BANKS[voiceBank].amped) ? 'clean' : null;
   }
+  /** @param {AudioContext} ctx @param {string} name */
   function wireTrackAmp(ctx, name) {
     const bus = audioBus;
     if (!bus || !bus.voiceIn || !bus.voiceIn[name]) return;
     const want = _ampWant[name] || '';
-    const cur = bus.amps[name];
+    const cur = (/** @type {NonNullable<import('./src/types/audio-graph.js').AudioBus['amps']>} */ (bus.amps))[name];
     if (cur && cur.id === want) return;
     const entry = bus.voiceIn[name], fader = bus.tracks[name];
     try { entry.disconnect(); } catch (_) {}
     if (cur) for (const n of cur.nodes) { try { n.disconnect(); } catch (_) {} }
-    if (!want || !AMP_PRESETS[want]) { entry.connect(fader); bus.amps[name] = { id: '', nodes: [] }; return; }
+    if (!want || !AMP_PRESETS[want]) { entry.connect(fader); (/** @type {NonNullable<import('./src/types/audio-graph.js').AudioBus['amps']>} */ (bus.amps))[name] = { id: '', nodes: [] }; return; }
     const chain = buildAmpChain(ctx, AMP_PRESETS[want], want);
     entry.connect(chain.input); chain.output.connect(fader);
-    bus.amps[name] = { id: want, nodes: chain.nodes, makeup: chain.makeup };
+    (/** @type {NonNullable<import('./src/types/audio-graph.js').AudioBus['amps']>} */ (bus.amps))[name] = { id: want, nodes: chain.nodes, makeup: chain.makeup };
   }
   // ── Rig actions (the Mixer "Rig" view) ──────────────────────────────────────
   // Force a rebuild of every live amp chain using ampId (a cab IR change/reset is
   // a user action, infrequent — rebuilding beats hand-swapping the convolver). The
   // sentinel id defeats wireTrackAmp's idempotence so it re-reads the (new) cab.
+  /** @param {string} ampId */
   function rigRewireAmp(ampId) {
     const bus = audioBus, ctx = audioCtx; if (!bus || !bus.amps || !ctx) return;
     for (const name in bus.amps) { const a = bus.amps[name]; if (a && a.id === ampId) { a.id = '__rig_force__'; wireTrackAmp(ctx, name); } }
   }
   // Live output trim — set the makeup gain on every live chain using ampId (ramped,
   // no rebuild; the slider is dragged). The master limiter still backstops loud.
+  /** @param {string} ampId */
   function rigApplyOutput(ampId) {
     const bus = audioBus, ctx = audioCtx; if (!bus || !bus.amps) return;
     const ov = rigState[ampId] || {}, v = (ov.output != null ? ov.output : (AMP_PRESETS[ampId] ? AMP_PRESETS[ampId].makeup : 1));
@@ -5386,6 +4981,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   } }
   // Load a user cab IR onto an amp: validate by decoding, store the bytes in
   // IndexedDB + the name in localStorage, invalidate the decode cache, rewire.
+  /** @param {string} ampId @param {File | null} file */
   function rigLoadIr(ampId, file) {
     if (!file) return Promise.resolve(false);
     return file.arrayBuffer().then(ab => {
@@ -5399,6 +4995,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       });
     }).catch(() => { renderRig('bad'); return false; });   // decode failed → keep the current cab, flag it
   }
+  /** @param {string} ampId */
   function rigResetIr(ampId) {
     return rigIdbDel(ampId).then(() => {
       if (rigState[ampId]) { delete rigState[ampId].irName; if (!Object.keys(rigState[ampId]).length) delete rigState[ampId]; rigSave(); }
@@ -5406,10 +5003,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       rigRewireAmp(ampId); renderRig();
     });
   }
+  /** @param {string} ampId @param {number} v */
   function rigSetOutput(ampId, v) {
     rigState[ampId] = Object.assign({}, rigState[ampId], { output: v }); rigSave();
     rigApplyOutput(ampId);
   }
+  /** @param {string} ampId */
   function rigResetOutput(ampId) {
     if (rigState[ampId]) { delete rigState[ampId].output; if (!Object.keys(rigState[ampId]).length) delete rigState[ampId]; rigSave(); }
     rigApplyOutput(ampId); renderRig();
@@ -5428,7 +5027,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Fields: level{bus→gain mult over the fader} · pan{bus→abs} · carve{harmonyHP/padHP/
   // bassLP Hz} · send{bus→reverb} · drumkit{loShelf{f,dB},hiShelf{dB},compRatio,compThr} ·
   // masterTrim. Full matrix + the other genres are the P1 roll-out; P0 ships the 3 exemplars.
+  /** @type {import('./src/types/audio-graph.js').MixRecipe} */
   const MIX_BASE = { level: {}, pan: {}, carve: {}, send: {}, drumkit: null, masterTrim: 1 };
+  /** @type {Record<string, import('./src/types/audio-graph.js').MixRecipe>} */
   const MIX_RECIPES = {
     blues:   { level: { bass: 1.08, drums: 0.92, pad: 0.88 }, pan: { harmony: 0.18, pad: -0.14 },
                carve: { harmonyHP: 145, bassLP: 2100 }, send: { harmony: 0.24, pad: 0.22, bass: 0.06, drums: 0.16 },
@@ -5461,6 +5062,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
                  carve: { harmonyHP: 210, padHP: 240, bassLP: 2400 }, send: { harmony: 0.12, pad: 0.18, bass: 0.05, drums: 0.07 },
                  drumkit: { loShelf: { f: 80, dB: 0.5 }, hiShelf: { dB: 4 }, compRatio: 3.2, compThr: -18 }, masterTrim: 0.88 },
   };
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function resolveMix(cfg) {
     const style = cfgAudioProfile(cfg || {});
     return (style && MIX_RECIPES[style]) || MIX_BASE;
@@ -5470,9 +5072,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // per-bus level (over the user fader) / pan / carve / send + the drum kit voicing +
   // the backing-group loudness trim. Restores the house drum voicing for un-recipe'd
   // styles so a prior genre's tilt never lingers.
+  /** @param {AudioContext | null} ctx @param {import('./src/types/entry-data.js').EntryConfig} cfg */
   function applyMixRecipe(ctx, cfg) {
     const bus = audioBus; if (!bus || !ctx) return;
     const mix = resolveMix(cfg), now = ctx.currentTime, R = 0.25;
+    /** @param {AudioParam | undefined} param @param {number} v */
     const ramp = (param, v) => { if (!param) return; try { param.setTargetAtTime(v, now, R); } catch (_) { try { param.value = v; } catch (__) {} } };
     for (const name of ['harmony', 'pad', 'bass', 'drums']) trackBus(ctx, name);   // ensure buses + FX exist
     // masterTrim folds into the per-bus faders (NOT backingGroup — the break-envelope
@@ -5488,7 +5092,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (fx && name !== 'drums') {
         if (mix.send[name] != null) ramp(fx.send.gain, mix.send[name]);
         const cv = name === 'bass' ? mix.carve.bassLP : (name === 'harmony' ? mix.carve.harmonyHP : mix.carve.padHP);
-        if (cv != null) ramp(fx.carve.frequency, cv);
+        if (cv != null) ramp((/** @type {import('./src/types/audio-graph.js').MelodicBusEffects} */ (fx)).carve.frequency, cv);
       }
     }
     const dfx = bus.fx && bus.fx.drums, dk = mix.drumkit;
@@ -5504,6 +5108,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
     }
   }
+  /** @param {AudioContext} ctx @param {string} name */
   function trackBus(ctx, name) {
     const bus = ensureAudioBus(ctx);
     if (!bus.tracks[name]) {
@@ -5520,6 +5125,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const mkPan = () => { const p = ctx.createStereoPanner(); p.pan.value = mixerPanFor(name); bus.panners[name] = p; return p; };
       // Post-fader meter tap (a passive AnalyserNode — drawn only while the
       // Mixer is open, zero scheduling cost otherwise).
+      /** @param {AudioNode} node */
       const mkTap = (node) => { const an = ctx.createAnalyser(); an.fftSize = 256; node.connect(an); bus.analysers[name] = an; };
       if (name === 'drums') {
         // Drum sub-bus (Phase D): a dedicated compressor BEFORE the master limiter
@@ -5538,6 +5144,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // The default pan sets the kit slightly off-centre so the dry/centered
         // player pops forward; a touch of the shared room glues the kit to the band.
         g.connect(loShelf); loShelf.connect(comp); comp.connect(shelf);
+        /** @type {AudioNode} */
         let drumOut = shelf;
         if (canPan) { const pan = mkPan(); shelf.connect(pan); drumOut = pan; }
         drumOut.connect(groupOut); mkTap(drumOut);
@@ -5555,6 +5162,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         const carve = ctx.createBiquadFilter();
         if (name === 'bass') { carve.type = 'lowpass'; carve.frequency.value = 2200; carve.Q.value = 0.5; }
         else { carve.type = 'highpass'; carve.frequency.value = 180; carve.Q.value = 0.5; }
+        /** @type {AudioNode} */
         let chainOut = carve;
         if (canPan) { const pan = mkPan(); carve.connect(pan); chainOut = pan; }
         g.connect(carve); chainOut.connect(groupOut); mkTap(chainOut);
@@ -5566,6 +5174,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // click / notes stay DRY (the time reference); pan defaults centered but
         // the pot works — panning the player apart from the band is a real
         // practice aid (hear yourself on one side, the backing on the other).
+        /** @type {AudioNode} */
         let out = g;
         if (canPan) { const pan = mkPan(); g.connect(pan); out = pan; }
         out.connect(groupOut); mkTap(out);
@@ -5596,6 +5205,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // 'pad' (the Keys strip) is the sustain layer split out of the comp lane:
   // cell-driven comping (COMP_GROOVES hits) plays on 'harmony' (Rhythm), the
   // legacy coalesced sustained pad plays on 'pad' (Keys) — articulation-routed.
+  /** @type {import('./src/types/audio-graph.js').MixerChannel[]} */
   const MIXER_CHANNELS = [
     // 'notes' is labeled Guide, NOT "Player": it's the tool's rendition of the
     // exercise line (the guide voice), not the player's own input — that's the
@@ -5619,6 +5229,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Per-channel kit options for the Drums channel (Phase D). Values are KIT_REGISTRY
   // ids; '' = Auto (use the style profile's kit). Sampled kits join in D4.
   const MIXER_KITS = [['','Auto'],['kit_rock','Acoustic rock'],['kit_acoustic_soft','Acoustic soft'],['kit_jazz','Jazz kit'],['kit_909','Synth 909'],['kit_808','Synth 808']];
+  /** @type {Record<string, import('./src/types/audio-graph.js').MixerChannelState>} */
   const mixerState = {};
   let mixerBackingDim = false;
   let mixerMasterLevel = 1;   // multiplier over MASTER_TRIM (the headroom trim stays the engine's)
@@ -5628,20 +5239,27 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // lanes (the bluegrass guitar on bus 'comp2'). They're derived from the active
   // band's recipeTracks each render; mixerState + the audio bus are created lazily.
   // allChannels / channelFor make the solo/gain/pan/meter machinery see them too.
+  /** @type {import('./src/types/audio-graph.js').MixerChannel[]} */
   let _dynChannels = [];   // [{key,label,instr:'melodic',group:'band',pan,dynamic,role,trackLabel}]
+  /** @type {Record<string, string> | null} */
+  /** @type {Record<string, string | null> | null} */
   let _mixerRevealSig = null;   // last VISIBLE band signature {key:headline} — the band-reveal baseline
   const allChannels = () => MIXER_CHANNELS.concat(_dynChannels);
+  /** @param {string} key */
   const channelFor = (key) => MIXER_CHANNELS.find(c => c.key === key) || _dynChannels.find(c => c.key === key);
+  /** @param {string} key @param {number} [pan] */
   function ensureChannelState(key, pan) {
     if (!mixerState[key]) mixerState[key] = { level:1, pan: pan || 0, mute:false, solo:false, instrument:null, kit:null, amp:null };
   }
   // instrument token → its dropdown display label (so a strip headline matches the
   // dropdown option when picked); falls back to a Title-cased token.
-  const _INSTR_LABEL = (() => { const m = {}; for (const [v, l] of [...MIXER_INSTRUMENTS.melodic, ...MIXER_INSTRUMENTS.bass]) if (v) m[v] = l; for (const [v, l] of MIXER_KITS) if (v) m[v] = l; return m; })();
+  const _INSTR_LABEL = (() => { const /** @type {Record<string, string>} */ m = {}; for (const [v, l] of [...MIXER_INSTRUMENTS.melodic, ...MIXER_INSTRUMENTS.bass]) if (v) m[v] = l; for (const [v, l] of MIXER_KITS) if (v) m[v] = l; return m; })();
+  /** @param {string | null | undefined} tok */
   const instLabel = (tok) => tok ? (_INSTR_LABEL[tok] || (tok[0].toUpperCase() + tok.slice(1))) : null;
   // A band strip's INSTRUMENT headline (the ratified label policy): a user pin wins;
   // else a dynamic lane's declared label; else the style profile's resolved voice for
   // the role; else the role name. "Banjo"/"Guitar"/"Upright", never "Rhythm/Keys".
+  /** @param {import('./src/types/audio-graph.js').MixerChannel} ch @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   function stripInstrumentLabel(ch, prof) {
     const st = mixerState[ch.key];
     if (st && st.instrument) return instLabel(st.instrument);
@@ -5655,7 +5273,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function deriveMixerChannels() {
     const cfg = (activeBundle && activeBundle.config) || readConfig();
     let prof = null; try { prof = resolveAudioProfile(cfg); } catch (_) {}
+    /** @type {ReturnType<typeof recipeTracks>} */
     let tracks = []; try { tracks = recipeTracks(cfg); } catch (_) {}
+    /** @overload @param {'notes' | 'click' | 'harmony' | 'pad' | 'bass' | 'drums'} key @returns {import('./src/types/audio-graph.js').MixerChannel} */
+    /** @overload @param {string} key @returns {import('./src/types/audio-graph.js').MixerChannel | undefined} */
+    /** @param {string} key */
     const fixed = (key) => MIXER_CHANNELS.find(c => c.key === key);
     const liveBus = new Set();
     _dynChannels = [];
@@ -5682,15 +5304,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // throw reads in dB like a DAW fader (−∞ at the bottom, unity ≈ 0.79, +6 dB
   // at the top). Stored mixerState levels stay LINEAR gain (back-compat with
   // saved states; the engine consumes gain, only the slider speaks positions).
+  /** @param {number} p */
   const faderGainFromPos = p => 2 * p * p * p;
+  /** @param {number} g */
   const faderPosFromGain = g => Math.cbrt(Math.max(0, Math.min(2, g)) / 2);
+  /** @param {number} g */
   const faderDb = g => g <= 0.001 ? '−∞' : ((g >= 1.0005 ? '+' : '') + (20 * Math.log10(g)).toFixed(1));
   // The GM preset a channel's instrument override resolves to, or null = use the profile.
+  /** @param {string} key */
   function mixerInstrumentFor(key) {
     const tone = mixerState[key] && mixerState[key].instrument;
     return tone ? (TONE_GM[tone] ?? null) : null;
   }
   // The kit id a channel's kit override is pinned to, or null = use the profile.
+  /** @param {string} key */
   function mixerKitFor(key) {
     const k = mixerState[key] && mixerState[key].kit;
     return (k && KIT_REGISTRY[k]) ? k : null;
@@ -5709,6 +5336,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Is a channel's pinned WAF instrument decoded? The DI sample bank (shiny),
   // synth voices, and Auto have their own readiness/fallback — only a cold WAF sample swap
   // would land on the thin oscillator, so gate ONLY that case (never tear down a good voice).
+  /** @param {string} k */
   function liveInstrumentReady(k) {
     const tone = mixerState[k] && mixerState[k].instrument;
     if (!tone || SAMPLE_BANK_PINS[tone]) return true;
@@ -5723,7 +5351,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // this dip is the contained Stage-1 de-click.)
   function liveSwapReschedule() {
     const ctx = audioCtx, g = audioBus && audioBus.backingGroup && audioBus.backingGroup.gain;
-    const doSwap = () => { anchorPlayClock(currentPracticeTime); stopAudio(); scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS); };
+    const doSwap = () => { anchorPlayClock(transport.time); stopAudio(); scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS); };
     if (!ctx || !g) { doSwap(); return; }
     const DIP = 0.05;
     try { g.cancelScheduledValues(ctx.currentTime); g.setValueAtTime(Math.max(0.0001, g.value || 1), ctx.currentTime); g.exponentialRampToValueAtTime(0.0001, ctx.currentTime + DIP); } catch (_) {}
@@ -5736,12 +5364,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the "Your band" strip's per-row voice menu, so a swap from either place is identical:
   // token-guarded against the async race, ready-gated, and ducked (not hard-cut). Assumes
   // mixerState[k] is already set + saved by the caller.
+  /** @param {string} k @param {boolean} isKit */
   async function commitLiveVoiceSwap(k, isKit) {
     if (!activeBundle) return;
     const tok = ++_jamApplyToken;
     await awaitVoices(activeBundle);
     if (tok !== _jamApplyToken) return;          // superseded by a newer swap (the race guard)
-    if (!playing || paused) return;              // paused/stopped: state is set; resume schedules on it
+    if (!transport.playing || transport.paused) return;              // paused/stopped: state is set; resume schedules on it
     if (!isKit && !liveInstrumentReady(k)) return;
     liveSwapReschedule();
   }
@@ -5760,6 +5389,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function mixerSave() { try { localStorage.setItem('virtuoso_lab.mixer', JSON.stringify({ ch: mixerState, dim: mixerBackingDim, master: mixerMasterLevel })); } catch (_) {} }
   // Effective gain for a bus given the mixer state (1.0 = no change). Solo on any
   // channel mutes the un-soloed; Backing dim ducks the backing buses.
+  /** @param {string} name */
   function mixerGainFor(name) {
     const st = mixerState[name]; if (!st) return 1;
     const anySolo = allChannels().some(c => mixerState[c.key] && mixerState[c.key].solo);
@@ -5771,6 +5401,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // The strip's pan-pot value for a bus — the channel default (the sound-design
   // stage offset) until the user moves the pot.
+  /** @param {string} name */
   function mixerPanFor(name) {
     const st = mixerState[name];
     const ch = channelFor(name);
@@ -5784,17 +5415,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // instrument per role + amp/cab + drum kit — wiping manual VOICING tweaks (levels/pan
   // stay the user's mix). Fires ONCE per actual style change (not every regenerate), and
   // not on the first build, so a saved mixer state survives app load.
+  /** @type {string | null} */
   let _mixerStyleApplied = null;
   // A role's default voice: a sample bank if the profile names one, else 'shiny' (the sg
   // flag), else the WAF tone — all valid mixer-instrument dropdown values.
+  /** @param {string} role @param {import('./src/core/generation-types.js').AudioProfile | null} prof */
   function styleVoiceFor(role, prof) {
-    const r = prof && prof[role];
+    const r = prof && (/** @type {Record<string, import('./src/core/generation-types.js').AudioVoice | null>} */ (/** @type {unknown} */ (prof)))[role];
     if (!r) return null;
     return r.bank || (r.sg ? 'shiny' : (r.tone || null));
   }
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function applyStyleMixerDefaults(cfg) {
     let prof; try { prof = resolveAudioProfile(cfg || {}); } catch (_) { return; }
+    /** @param {string} role @param {string | null} inst */
     const setInst = (role, inst) => { if (mixerState[role]) mixerState[role].instrument = inst; };
+    /** @param {string} role @param {string | null} amp */
     const setAmp  = (role, amp)  => { if (mixerState[role]) mixerState[role].amp = amp; };
     setInst('notes',   styleVoiceFor('notes', prof));   setAmp('notes',   (prof.notes && prof.notes.amp) || null);
     setInst('harmony', styleVoiceFor('harmony', prof)); setAmp('harmony', (prof.harmony && prof.harmony.amp) || null);
@@ -5807,6 +5443,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Resync only when the style actually CHANGED (a same-style regenerate keeps the user's
   // tweaks; the first build just adopts the style so a saved mixer survives load).
+  /** @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function maybeResyncMixer(cfg) {
     const s = cfgAudioProfile(cfg || {}) || '';
     if (_mixerStyleApplied === null) { _mixerStyleApplied = s; return; }
@@ -5816,12 +5453,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!audioBus) return;
     const ctx = audioBus.ctx;
     allChannels().forEach(c => {
-      const g = audioBus.tracks[c.key];
+      const g = (/** @type {import('./src/types/audio-graph.js').AudioBus} */ (audioBus)).tracks[c.key];
       if (g) {
         const v = mixerGainFor(c.key);
         try { g.gain.setTargetAtTime(v, ctx.currentTime, 0.02); } catch (_) { g.gain.value = v; }
       }
-      const p = audioBus.panners && audioBus.panners[c.key];
+      const p = (/** @type {import('./src/types/audio-graph.js').AudioBus} */ (audioBus)).panners && (/** @type {import('./src/types/audio-graph.js').AudioBus} */ (audioBus)).panners[c.key];
       if (p) {
         const pv = mixerPanFor(c.key);
         try { p.pan.setTargetAtTime(pv, ctx.currentTime, 0.02); } catch (_) { p.pan.value = pv; }
@@ -5842,18 +5479,21 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const { personal, band, prof } = deriveMixerChannels();
     // INSTRUMENT headline per band strip + a numeric chip ONLY when ambiguous (two
     // strips resolving to the same instrument, e.g. afrobeat's two guitars).
+    /** @type {Record<string, {headline: string | null, chip: string}>} */
     const meta = {};
-    { const counts = {}; band.forEach(c => { const h = stripInstrumentLabel(c, prof); counts[h] = (counts[h] || 0) + 1; });
-      const seen = {}; band.forEach(c => { const h = stripInstrumentLabel(c, prof); let chip = ''; if (counts[h] >= 2) { seen[h] = (seen[h] || 0) + 1; chip = String(seen[h]); } meta[c.key] = { headline: h, chip }; }); }
+    { const /** @type {Record<string, number>} */ counts = {}; band.forEach(c => { const h = stripInstrumentLabel(c, prof); counts[String(h)] = (counts[String(h)] || 0) + 1; });
+      /** @type {Record<string, number>} */ const seen = {}; band.forEach(c => { const h = stripInstrumentLabel(c, prof); let chip = ''; if (counts[String(h)] >= 2) { seen[String(h)] = (seen[String(h)] || 0) + 1; chip = String(seen[String(h)]); } meta[c.key] = { headline: h, chip }; }); }
     // Band-reveal: a BAND strip whose instrument CHANGED since the last VISIBLE render
     // glows (the genre-switch reveal). Tracked only while the deck is on-screen, so an
     // off-screen resync doesn't spend the reveal — it fires when the player next sees it.
     // Never on the first open (no baseline → set it, don't flash the whole band).
-    const _mxVisible = !!($('virtuoso_lab-root') && $('virtuoso_lab-root').classList.contains('virtuoso_lab_vir-mixer-open'));
-    const reveal = {}; const curSig = {};
+    const _mxVisible = !!($('virtuoso_lab-root') && /** @type {Element} */ ($('virtuoso_lab-root')).classList.contains('virtuoso_lab_vir-mixer-open'));
+    /** @type {Record<string, boolean>} */
+    const reveal = {}; const /** @type {Record<string, string | null>} */ curSig = {};
     band.forEach(c => { curSig[c.key] = meta[c.key].headline; });
-    if (_mxVisible && _mixerRevealSig) band.forEach(c => { if (_mixerRevealSig[c.key] !== curSig[c.key]) reveal[c.key] = true; });
+    if (_mxVisible && _mixerRevealSig) band.forEach(c => { if ((/** @type {Record<string, string | null>} */ (_mixerRevealSig))[c.key] !== curSig[c.key]) reveal[c.key] = true; });
     if (_mxVisible) _mixerRevealSig = curSig;
+    /** @param {import('./src/types/audio-graph.js').MixerChannel} c */
     const stripHtml = (c) => {
       const st = mixerState[c.key];
       const m = meta[c.key], headline = m ? m.headline : c.label, chip = m ? m.chip : '';
@@ -5927,6 +5567,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const caption = band.length
       ? `<div class="virtuoso_lab-mixer-caption">${styleName ? `<b>${styleName}</b> band — ` : 'Your band — '}${bandNames.join(' · ')}</div>`
       : `<div class="virtuoso_lab-mixer-caption">Just you and the click — this drill has no backing band.</div>`;
+    /** @param {string} cls @param {string} label @param {string} strips */
     const grp = (cls, label, strips) => `<div class="virtuoso_lab-mixer-group ${cls}"><span class="virtuoso_lab-mixer-grouplabel">${label}</span><div class="virtuoso_lab-mixer-groupstrips">${strips}</div></div>`;
     host.innerHTML = caption + `<div class="virtuoso_lab-mixer-deck">` +
       grp('personal', 'Personal', inputHtml + personal.map(stripHtml).join('')) +
@@ -5938,14 +5579,19 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // BACKING band. The cab is per-AMP (one Metal cab serves every metal-amped strip),
   // so this manages the 3 amps, not the 7 strips. The player's OWN live amp stays
   // the Input "YOU" strip's "Tone…" handoff to nam_tone — band tone ≠ live tone.
+  /** @type {Record<string, string>} */
   const RIG_AMP_LABELS = { clean: 'Clean', drive: 'Overdrive', metal: 'Metal' };
+  /** @type {Record<string, string>} */
   const RIG_DEFAULT_CAB = { clean: 'Built-in (procedural)', drive: 'Built-in (procedural)', metal: 'V30 4×12' };
+  /** @param {string} ampId */
   function rigOutputDb(ampId) {
     const ov = rigState[ampId] || {}, v = (ov.output != null ? ov.output : (AMP_PRESETS[ampId] ? AMP_PRESETS[ampId].makeup : 1));
     return v <= 0.0001 ? '−∞' : (20 * Math.log10(v)).toFixed(1);
   }
+  /** @param {string} [flag] */
   function renderRig(flag) {
     const host = $('virtuoso_lab-mixer-rig'); if (!host) return;
+    /** @param {string} id */
     const card = (id) => {
       const ov = rigState[id] || {}, p = AMP_PRESETS[id] || {};
       const custom = !!ov.irName;
@@ -5977,7 +5623,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the playback tick is untouched, and there is zero cost while closed). Reads
   // the post-fader AnalyserNode taps (trackBus) + the post-limiter master tap,
   // with the LIM LED riding the safety limiter's gain reduction.
-  let _mixMeterRaf = 0, _mixMeterBuf = null;
+  let _mixMeterRaf = 0, /** @type {Uint8Array<ArrayBuffer> | null} */ _mixMeterBuf = null;
+  /** @type {Record<string, number>} */
   const _mixMeterPk = {};
   // INPUT-strip level source: during a run the grading level tap (_lvlSamples —
   // desktop getLevels / web analyser) is fresh, so read its last sample; outside
@@ -5986,8 +5633,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // because the mixer opened.
   const _mixIn = { lvl: 0, inFlight: false, lastPoll: 0 };
   function mixerInputLevel() {
-    if (playing && _lvlMode !== 'none' && _lvlSamples.length) return _lvlSamples[_lvlSamples.length - 1].L;
-    const bridge = hostDesktop() && hostDesktop().audio;
+    if (transport.playing && _lvlMode !== 'none' && _lvlSamples.length) return _lvlSamples[_lvlSamples.length - 1].L;
+    const bridge = hostDesktop()?.audio;
     if (bridge && typeof bridge.getLevels === 'function' && !_mixIn.inFlight && performance.now() - _mixIn.lastPoll > 100) {
       _mixIn.inFlight = true; _mixIn.lastPoll = performance.now();
       let p = null; try { p = bridge.getLevels(); } catch (_) { p = null; }
@@ -6002,15 +5649,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const host = $('virtuoso_lab-mixer-channels');
     if (host) {
       if (!_mixMeterBuf) _mixMeterBuf = new Uint8Array(256);
+      /** @param {AnalyserNode | null | undefined} an */
       const peakOf = (an) => {
         if (!an) return 0;
-        try { an.getByteTimeDomainData(_mixMeterBuf); } catch (_) { return 0; }
+        try { an.getByteTimeDomainData(/** @type {Uint8Array<ArrayBuffer>} */ (_mixMeterBuf)); } catch (_) { return 0; }
         let p = 0;
-        for (let i = 0; i < 256; i++) { const v = Math.abs(_mixMeterBuf[i] - 128); if (v > p) p = v; }
+        for (let i = 0; i < 256; i++) { const v = Math.abs(/** @type {Uint8Array<ArrayBuffer>} */ (_mixMeterBuf)[i] - 128); if (v > p) p = v; }
         return p / 128;
       };
       // `lvl` (0..1) overrides the analyser read — the INPUT strip's source is a
       // direct level (host getLevels / the run's level tap), not a bus tap.
+      /** @param {string} k @param {AnalyserNode | null} an @param {number} [lvl] */
       const draw = (k, an, lvl) => {
         const sm = Math.max(lvl != null ? lvl : peakOf(an), (_mixMeterPk[k] || 0) * 0.88);   // fast attack, smooth release
         _mixMeterPk[k] = sm;
@@ -6021,7 +5670,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         fill.classList.toggle('hot', db > -3);
       };
       if (audioBus) {
-        allChannels().forEach(c => draw(c.key, audioBus.analysers[c.key]));
+        allChannels().forEach(c => draw(c.key, (/** @type {import('./src/types/audio-graph.js').AudioBus} */ (audioBus)).analysers[c.key]));
         draw('master', audioBus.masterAnalyser);
         const lim = $('virtuoso_lab-mixer-lim');
         if (lim) {
@@ -6036,6 +5685,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Panel toggles (M / P / ? overlays). Slide transitions + open state live in CSS
   // (reduced-motion aware); these flip the root class + aria + the button highlight.
+  /** @param {boolean} [force] */
   function toggleMixer(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-mixer-open');
@@ -6048,6 +5698,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (!_mixMeterRaf) _mixMeterRaf = requestAnimationFrame(mixerMeterFrame);   // meters run only while open
     }
   }
+  /** @param {boolean} [force] */
   function toggleProgressSheet(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-progress-open');
@@ -6056,6 +5707,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-progress-strip')?.classList.toggle('chip-open', open);   // the header chip is P's affordance
     if (open) renderProgressSheet();
   }
+  /** @param {boolean} [force] */
   function toggleCheatSheet(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-cheat-open');
@@ -6071,12 +5723,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // draft (addSegmentToDraft) and stays open for multi-add. Overlay, not relayout;
   // Esc stays unbound (the host owns it). UX: project_workout_browse_design_refresh.
   let _libFilters = { genre: 'all', skill: 'all', instrument: 'all' };
+  /** @type {Record<string, string>} */
   const LIB_GENRE_LABELS = { blues:'Blues', rock:'Rock', metal:'Metal', djent:'Djent', jazz:'Jazz', funk:'Funk', pop:'Pop', country:'Country', gospel:'Gospel' };
   function _libGenres() {
     const set = new Set();
     for (const id of Object.keys(SEGMENT_TEMPLATES)) { const st = SEGMENT_TEMPLATES[id].style; if (st) set.add(st); }
     return [...set].sort();
   }
+  /** @param {boolean} [force] */
   function toggleLibrary(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-library-open');
@@ -6086,8 +5740,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-library-open')?.classList.toggle('active', open);
     if (open) renderLibrary();
   }
+  /** @param {'genre' | 'skill' | 'instrument'} dim @param {string} label @param {string[][]} values */
   function _libChipRow(dim, label, values) {
     const cur = _libFilters[dim];
+    /** @param {string} val @param {string} txt */
     const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
     return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
@@ -6098,8 +5754,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
     el.innerHTML = _libChipRow('genre', 'Genre', genres) + _libChipRow('skill', 'Skill', skills) + _libChipRow('instrument', 'Instrument', insts);
   }
+  /** @param {string} id */
   function _libCardHtml(id) {
     const t = SEGMENT_TEMPLATES[id];
+    /** @param {unknown} s */
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const color = KIND_COLORS[t.kind] || '#94a3b8';
     const klabel = KIND_LABELS[t.kind] || t.kind;
@@ -6120,6 +5778,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const body = $('virtuoso_lab-library-body'), cnt = $('virtuoso_lab-library-count'); if (!body) return;
     const f = _libFilters;
     const ids = Object.keys(SEGMENT_TEMPLATES);
+    /** @param {string} id */
     const match = id => { const t = SEGMENT_TEMPLATES[id];
       return (f.genre === 'all' || t.style === f.genre)
           && (f.skill === 'all' || t.band === f.skill)
@@ -6144,10 +5803,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // starter into the editable timeline (replace-guard when the draft is edited).
   // This is the ONLY starter picker — the old <select> dropdown was dropped;
   // BUILT_IN_SESSIONS is the option source and _selectedStarterId the selection state.
+  /** @type {Record<string, string>} */
   const ROLE_COLORS = { warmup:'#f97316', technique:'#a855f7', scale_arp:'#22c55e', application:'#3b82f6', jam:'#eab308', review:'#06b6d4', cooldown:'#64748b' };
+  /** @type {Record<string, string>} */
   const STARTER_GENRE_WORDS = { blues:'blues', rock:'rock', metal:'metal', jazz:'jazz', bebop:'jazz', funk:'funk', pop:'pop', country:'country', gospel:'gospel' };
   let _starterFilters = { genre: 'all', level: 'all', instrument: 'all' };
+  /** @type {string | null} */
   let _pendingStarter = null;
+  /** @param {string} id */
   function _sessionFacets(id) {
     const sess = BUILT_IN_SESSIONS[id]; if (!sess) return { genre:'general', level:'any', instrument:'guitar' };
     const tags = (sess.tags || []).map(t => String(t).toLowerCase());
@@ -6158,6 +5821,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const setup = STRING_SETUPS[sess.stringSetup] || STRING_SETUPS.guitar_6_standard;
     return { genre, level, instrument: setup.instrument };
   }
+  /** @param {boolean} [force] */
   function toggleStarters(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-starters-open');
@@ -6167,8 +5831,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-starters-open')?.classList.toggle('active', open);
     if (open) { _pendingStarter = null; renderStarters(); }
   }
+  /** @param {'genre' | 'level' | 'instrument'} dim @param {string} label @param {string[][]} values */
   function _starterChipRow(dim, label, values) {
     const cur = _starterFilters[dim];
+    /** @param {string} val @param {string} txt */
     const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
     return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
   }
@@ -6181,19 +5847,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
     el.innerHTML = _starterChipRow('genre', 'Genre', genres) + _starterChipRow('level', 'Level', levels) + _starterChipRow('instrument', 'Instrument', insts);
   }
+  /** @param {string} id */
   function _starterDotsHtml(id) {
-    const segs = (BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean);
+    const segs = /** @type {import('./src/core/session-types.js').Segment[]} */ ((BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean));
     return `<span class="virtuoso_lab-starter-dots">` + segs.map(s => {
-      const c = ROLE_COLORS[s.role] || KIND_COLORS[s.kind] || '#64748b';
-      const lbl = (SEGMENT_ROLES[s.role] || {}).label || KIND_LABELS[s.kind] || s.kind;
+      const c = ROLE_COLORS[String(s.role)] || KIND_COLORS[String(s.kind)] || '#64748b';
+      const lbl = (SEGMENT_ROLES[String(s.role)] || {}).label || KIND_LABELS[String(s.kind)] || s.kind;
       return `<span class="virtuoso_lab-starter-dot" style="background:${c}" title="${lbl}"></span>`;
     }).join('') + `</span>`;
   }
+  /** @param {string} id */
   function _starterCardHtml(id) {
     const sess = BUILT_IN_SESSIONS[id];
+    /** @param {unknown} s */
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const f = _sessionFacets(id);
-    const segs = (sess.segments || []).map(materializeSegment).filter(Boolean);
+    const segs = /** @type {import('./src/core/session-types.js').Segment[]} */ ((sess.segments || []).map(materializeSegment).filter(Boolean));
     const dur = segs.reduce((a, s) => a + segmentEstDuration(s), 0);
     const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m`;
     const meta = [`${segs.length} blocks`, f.genre === 'general' ? null : (LIB_GENRE_LABELS[f.genre] || f.genre), f.level === 'any' ? null : f.level, f.instrument, durStr].filter(Boolean).join(' · ');
@@ -6222,6 +5891,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     const f = _starterFilters;
     const ids = Object.keys(BUILT_IN_SESSIONS);
+    /** @param {string} id */
     const match = id => { const x = _sessionFacets(id);
       return (f.genre === 'all' || x.genre === f.genre)
           && (f.level === 'all' || x.level === f.level)
@@ -6236,6 +5906,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
   // has edits, stage a confirm strip instead of clobbering (force=true confirms).
+  /** @param {string} id @param {boolean} [force] */
   function loadStarter(id, force) {
     if (!BUILT_IN_SESSIONS[id]) return;
     if (workoutEditor.dirty && workoutEditor.draft && !force) { _pendingStarter = id; renderStarters(); return; }
@@ -6251,17 +5922,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // our preset CRUD (the host ships no program/routine surface). Guardrails: no
   // streak-on-the-routine, no "you haven't run this in N days" nag — it's a
   // convenience, not an obligation.
+  /** @type {import('./src/types/progress-data.js').Routine[] | null} */
   let _savedRoutines = null;   // cache of the user's kind:'workout' presets
   async function loadSavedRoutines() {
     try {
       const r = await fetch('/api/plugins/virtuoso_lab/presets');
       const data = r.ok ? await r.json() : null;
       const all = (data && Array.isArray(data.presets)) ? data.presets : [];
-      _savedRoutines = all.filter(p => p && p.kind === 'workout' && p.config && Array.isArray(p.config.segments));
+      _savedRoutines = all.filter((/** @type {import('./src/types/progress-data.js').Routine | null} */ p) => p && p.kind === 'workout' && p.config && Array.isArray(p.config.segments));
     } catch (_) { _savedRoutines = _savedRoutines || []; }
     return _savedRoutines;
   }
+  /** @param {string} name */
   function routineSlug(name) { return 'rt_' + String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) + '_' + Date.now().toString(36); }
+  /** @param {string} name */
   async function saveRoutine(name) {
     const draft = workoutEditor.draft;
     if (!draft || !(draft.segments || []).length) { showStatus('Build a Workout first.'); return false; }
@@ -6276,11 +5950,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     await loadSavedRoutines(); renderStarters();
     return true;
   }
+  /** @param {string} id */
   function loadRoutine(id) {
     const rt = (_savedRoutines || []).find(p => p.id === id); if (!rt) return;
     workoutEditor.replace(id, rt.config); _pendingStarter = null;
     toggleStarters(false);
   }
+  /** @param {string} id */
   async function deleteRoutine(id) {
     try { await fetch('/api/plugins/virtuoso_lab/presets/' + encodeURIComponent(id), { method: 'DELETE' }); } catch (_) {}
     if (_savedRoutines) _savedRoutines = _savedRoutines.filter(p => p.id !== id);
@@ -6289,6 +5965,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function routinesSectionHtml() {
     const rts = _savedRoutines || [];
     if (!rts.length) return '';
+    /** @param {unknown} s */
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const cards = rts.map(rt => {
       const n = (rt.config.segments || []).length;
@@ -6320,6 +5997,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
                order:     Array.isArray(o.order)     ? o.order     : [] };
     } catch { return { installed: [], order: [] }; }
   }
+  /** @param {{order: string[]}} state */
   function packsSave(state) {
     try { localStorage.setItem('virtuoso_lab.packs', JSON.stringify({ installed: state.order.slice(), order: state.order.slice() })); }
     catch (e) { console.warn('[Virtuoso] packs save failed', e); }
@@ -6328,20 +6006,24 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   const _corePackIds  = () => PATHWAY_BANDS.filter(b => b.kind === 'core').map(b => b.id);
   // Installed Style packs in saved order — self-healing: existing+installed style
   // ids only, deduped, with any installed-but-unordered id appended.
+  /** @param {{installed: string[], order: string[]} | null} [state] */
   function installedStyleOrder(state) {
     const st = state || packsLoad();
     const styles = _stylePackIds();
-    const inst = st.installed.filter(id => styles.includes(id));
-    const ordered = st.order.filter(id => inst.includes(id));
-    inst.forEach(id => { if (!ordered.includes(id)) ordered.push(id); });
+    const inst = st.installed.filter((/** @type {string} */ id) => styles.includes(id));
+    const ordered = st.order.filter((/** @type {string} */ id) => inst.includes(id));
+    inst.forEach((/** @type {string} */ id) => { if (!ordered.includes(id)) ordered.push(id); });
     return ordered;
   }
   // The picker's band order: Core (fixed) + installed Style packs (user order).
   function visiblePackOrder() { return _corePackIds().concat(installedStyleOrder()); }
 
+  /** @type {{order: string[]} | null} */
   let _packsDraft = null;   // { order:[styleIds] } working copy while the modal is open
+  /** @type {{col: string, id: string} | null} */
   let _packsSel = null;     // { col:'available'|'installed', id } current selection
 
+  /** @param {boolean} [force] */
   function togglePackManager(force) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const open = force != null ? force : !root.classList.contains('virtuoso_lab_vir-packs-open');
@@ -6374,6 +6056,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!availableStyles.length) {
       avail.appendChild(_packEmpty('All style packs installed — drag one here to hide it.'));
     } else {
+      /** @param {string} id */
       const famOf = id => (PATHWAY_BANDS.find(b => b.id === id) || {}).family;
       const fams = PACK_FAMILY_ORDER.filter(f => availableStyles.some(id => famOf(id) === f));
       availableStyles.forEach(id => { const f = famOf(id); if (f && !fams.includes(f)) fams.push(f); });
@@ -6385,9 +6068,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _syncPackMoveButtons();
   }
 
+  /** @param {string} msg */
   function _packEmpty(msg) { const d = document.createElement('div'); d.className = 'virtuoso_lab-pack-empty'; d.textContent = msg; return d; }
 
+  /** @param {string} id @param {string} col @param {{core?: boolean}} opts */
   function _packRow(id, col, opts) {
+    /** @type {{label: string, kind?: string, buildsOn?: string}} */
     const b = PATHWAY_BANDS.find(x => x.id === id) || { label: id };
     const row = document.createElement('div');
     row.className = 'virtuoso_lab-segment-card virtuoso_lab-pack-row'
@@ -6406,20 +6092,23 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       row.addEventListener('click', select);
       row.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(); } });
       row.setAttribute('draggable', 'true');
-      row.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', id); e.dataTransfer.effectAllowed = 'move'; row.classList.add('dragging'); });
+      row.addEventListener('dragstart', (e) => { const dt = e.dataTransfer; if (!dt) return; dt.setData('text/plain', id); dt.effectAllowed = 'move'; row.classList.add('dragging'); });
       row.addEventListener('dragend', () => row.classList.remove('dragging'));
     }
     return row;
   }
 
+  /** @param {string} id */
   function _packInstall(id) {
     if (!_packsDraft || _packsDraft.order.includes(id) || !_stylePackIds().includes(id)) return;
     _packsDraft.order.push(id);
   }
+  /** @param {string} id */
   function _packUninstall(id) {
     if (!_packsDraft) return;
     _packsDraft.order = _packsDraft.order.filter(x => x !== id);
   }
+  /** @param {string} id @param {string | null | undefined} beforeId */
   function _packReorder(id, beforeId) {
     if (!_packsDraft) return;
     const arr = _packsDraft.order.filter(x => x !== id);
@@ -6428,6 +6117,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _packsDraft.order = arr;
   }
   // Which installed Style row a drop at clientY lands before (null = append to end).
+  /** @param {HTMLElement} container @param {number} clientY */
   function _packRowUnder(container, clientY) {
     const rows = [...container.querySelectorAll('.virtuoso_lab-pack-row:not(.is-core)')];
     for (const r of rows) { const box = r.getBoundingClientRect(); if (clientY < box.top + box.height / 2) return r.dataset.packId; }
@@ -6520,6 +6210,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // (encouraging, optional step-down, no red). Honest empty states never
   // celebrate. Numbers stay RAW (>100% = the known counting nit, visible).
   // Reuses the packs-modal overlay + cheat-card chrome; never touches Escape.
+  /** @param {string | null} pwId */
   function jamStyleForPathway(pwId) {
     if (!pwId) return null;
     if (String(pwId).startsWith('blues')) return 'blues';
@@ -6541,12 +6232,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function _heroColors() {
     const c = { text: '#e2e8f0', dim: '#cbd5e1', faint: '#64748b', border: '#334155', heat: '#f0a050', ok: '#22c55e' };
     try {
-      const cs = getComputedStyle($('virtuoso_lab-root'));
+      const cs = getComputedStyle(/** @type {Element} */ ($('virtuoso_lab-root')));
+      /** @param {string} v @param {keyof typeof c} k */
       const pick = (v, k) => { const x = cs.getPropertyValue(v).trim(); if (x) c[k] = x; };
       pick('--virtuoso_lab_vir-text', 'text'); pick('--virtuoso_lab_vir-text-faint', 'faint'); pick('--virtuoso_lab_vir-border', 'border'); pick('--virtuoso_lab_vir-heat', 'heat');
     } catch (_) {}
     return c;
   }
+  /** @param {HTMLCanvasElement | null} canvas @param {import('./src/types/results-data.js').HeatSnapshot | null} heat */
   function drawHeatmapHero(canvas, heat) {
     if (!canvas || !heat) return;
     const C = _heroColors();
@@ -6570,7 +6263,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // into wall-to-wall slabs; the capped grid centers in the available span.
     const ch = 16, cw = Math.min(34, (W - padL - padR) / cols);
     const gridX = padL + Math.max(0, ((W - padL - padR) - cw * cols) / 2);
+    /** @param {number} f */
     const xOf = f => gridX + (f - lo) * cw;
+    /** @param {number} s */
     const yOf = s => padT + (rows - 1 - s) * ch;   // s=0 (lowest string) at the bottom
     const maxHit = Math.max(1, ...heat.cells.map(c => c.hit));
     const byKey = new Map(heat.cells.map(c => [c.s + '|' + c.f, c]));
@@ -6602,6 +6297,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const step = cols > 12 ? 3 : cols > 7 ? 2 : 1;
     for (let f = Math.max(1, lo); f <= hi; f += step) ctx.fillText(String(f), xOf(f) + cw / 2, padT + rows * ch + 3);
   }
+  /** @param {HTMLCanvasElement | null} canvas @param {import('./src/types/results-data.js').LeanSnapshot | null} lean */
   function drawLeanStripHero(canvas, lean) {
     if (!canvas || !lean || !lean.bars.length) return;
     const C = _heroColors();
@@ -6616,6 +6312,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     ctx.clearRect(0, 0, W, cssH);
     const innerH = cssH - padT - padB, midY = padT + innerH / 2;
     const SCALE = 60;                                              // ±60 ms full-scale
+    /** @param {number} ms */
     const yOf = ms => midY - (Math.max(-SCALE, Math.min(SCALE, ms)) / SCALE) * (innerH / 2) * -1;   // late (+) sits BELOW the line
     // The pocket band: slightly BEHIND the beat reads as IN the pocket (bass
     // grammar) — early(−8) … late(+20).
@@ -6647,10 +6344,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     for (let k = 0; k < n; k += step) ctx.fillText(String(bars[k].i + 1), padL + k * bw + bw / 2, cssH - padB + 3);
   }
   // The hero chooser + its caption/stat copy. Returns { html, draw } or null.
+  /** @param {Partial<import('./src/types/results-data.js').ScoreSummary>} r @param {Partial<import('./src/types/results-data.js').RunInfo> | null} info @param {{isWorkout: boolean, isFelt: boolean, rough: boolean, judged: boolean}} flags */
   function buildResultsHero(r, info, flags) {
     if (flags.isWorkout || flags.isFelt || flags.rough || !flags.judged) return null;
     if ((r.judgedPassed || 0) < 8) return null;
     if (_downshiftChipShown) return null;    // one nudge per run — the chip already spoke
+    /** @param {unknown} t */
     const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const heat = info && info.heat, lean = info && info.leanBars;
     const active = heat ? heat.cells.filter(c => c.hit + c.miss > 0) : [];
@@ -6664,10 +6363,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const fgTop = Object.entries(heat.fgMiss || {}).sort((a, b) => b[1] - a[1])[0];
       const trTop = Object.entries(heat.transMiss || {}).sort((a, b) => b[1] - a[1])[0];
       if (fgTop && fgTop[1] >= 3 && fgTop[1] / Math.max(1, heat.missTotal) >= 0.4) {
+        /** @type {Record<string, string>} */
         const names = { 1: '1st-finger', 2: '2nd-finger', 3: '3rd-finger', 4: 'pinky' };
         stat = `Most missed: ${names[fgTop[0]]} notes (${fgTop[1]} of ${heat.missTotal})`;
       } else if (trTop && trTop[1] >= 3) {
         const [a, b] = trTop[0].split('>').map(Number);
+        /** @param {number} i */
         const nm = i => heat.opens[i] != null ? pcName(heat.opens[i] % 12) : String(i);
         stat = `Most missed crossing: ${nm(a)}→${nm(b)} string`;
       }
@@ -6705,6 +6406,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // player owns off the screen — teach the fix, never fake a score. The fault→
   // drill table is instrument-aware (guitar vs bass rungs) and never prescribes
   // the rung you just ran (falls to its sibling). Returns { why, pathwayId } | null.
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s @param {Partial<import('./src/types/results-data.js').ScoreSummary>} r @param {Partial<import('./src/types/results-data.js').RunInfo> | null} info */
   function buildCoachRx(s, r, info) {
     if (!info || !s) return null;
     if (s.jam || s.mode === 'session') return null;   // Jam is a mirror; a Workout has no single fault
@@ -6719,6 +6421,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // prescribed focus per spec (mode + rung), and prefer last run's focus if it
     // still trips a threshold — the pure applyCoachHysteresis decides.
     const key = `${s.mode || ''}:${s.pathway_id || s.practice_type || ''}`;
+    /** @type {Record<string, import('./src/types/results-data.js').CoachFocus | null>} */
     let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso_lab.coach_focus') || '{}'); } catch (_) {}
     const { chosen, focus } = applyCoachHysteresis(candidates, store[key] || null);
     try { store[key] = focus; localStorage.setItem('virtuoso_lab.coach_focus', JSON.stringify(store)); } catch (_) {}
@@ -6730,10 +6433,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // numbers) or null when nothing is clearly off in the fault direction, or when
   // the "region" is basically the whole run (a GLOBAL lean — the generic copy
   // reads better than "bars 1–8"). Pure. `rushing` = the fault direction.
+  /** @param {import('./src/types/results-data.js').LeanSnapshot | null | undefined} leanBars @param {boolean} rushing */
   function worstLeanBars(leanBars, rushing) {
     if (!leanBars || !Array.isArray(leanBars.bars)) return null;
     const bars = leanBars.bars.filter(b => (b.n || 0) >= 2);   // 1-sample bars are noise
     if (bars.length < 3) return null;
+    /** @param {import('./src/types/results-data.js').LeanBar} b */
     const score = b => (rushing ? -b.lean : b.lean);           // fault-direction magnitude (ms)
     let worst = bars[0];
     for (const b of bars) if (score(b) > score(worst)) worst = b;
@@ -6752,10 +6457,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the coach loop, unit-tested via the __virtuoso_labCoach debug hook. Returns ALL
   // faults that trip their threshold, in priority order (each tagged with a
   // `fault` category so the hysteresis layer can keep the player on one fix).
+  /** @param {import('./src/types/results-data.js').CoachContext | null} ctx @returns {import('./src/types/results-data.js').CoachCandidate[]} */
   function coachRxCandidates(ctx) {
     const { isBass, curPw, info, felt } = ctx || {};
     if (!info) return [];
     // Never send them back to the rung they just ran — fall to its sibling.
+    /** @param {string} primary @param {string} alt */
     const pick = (primary, alt) => (primary !== curPw ? primary : (alt && alt !== curPw ? alt : null));
     const out = [];
     const heat = info.heat;
@@ -6765,6 +6472,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const fgTop = Object.entries(heat.fgMiss || {}).sort((a, b) => b[1] - a[1])[0];
       if (fgTop && fgTop[1] >= 3 && fgTop[1] / Math.max(1, heat.missTotal) >= 0.4) {
         const fn = Number(fgTop[0]);
+        /** @type {Record<string, string>} */
         const names = { 1: 'index', 2: 'middle', 3: 'ring', 4: 'pinky' };   // players say index/middle/ring/pinky (bass-pedagogy 2026-07-14)
         // Bass routes a weak PINKY to the dedicated hammer-on/pull-off
         // strengthener; every other finger (and all guitar) to one-finger-per-fret.
@@ -6783,6 +6491,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const trTop = Object.entries(heat.transMiss || {}).sort((a, b) => b[1] - a[1])[0];
       if (trTop && trTop[1] >= 3) {
         const [a, b] = trTop[0].split('>').map(Number);
+        /** @param {number} i */
         const nm = i => (heat.opens[i] != null ? pcName(heat.opens[i] % 12) : String(i));
         // The fault is a fumbled ADJACENT crossing → drill the crossing itself
         // (alternate-picking keeps the pattern unbroken across strings), NOT
@@ -6799,7 +6508,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     //     2026-07-14 flagged bass_root_click's sub-70 Hz open roots as a web
     //     false-miss risk, so root_click is only the sibling fallback).
     const feltWord = (felt && (felt.verdict === 'rushing' || felt.verdict === 'dragging')) ? felt.verdict : null;
-    const timingLean = ((info.leanN || 0) >= 12 && Math.abs(info.leanMs) >= 30) ? (info.leanMs < 0 ? 'rushing' : 'dragging') : null;
+    const timingLean = ((info.leanN || 0) >= 12 && Math.abs((/** @type {number} */ (info.leanMs))) >= 30) ? ((/** @type {number} */ (info.leanMs)) < 0 ? 'rushing' : 'dragging') : null;
     const lean = feltWord || timingLean;
     if (lean) {
       const id = isBass ? pick('bass_rh_pulse', 'bass_root_click') : pick('rhy_single_string', 'rhy_subdivision');
@@ -6822,6 +6531,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // The single top prescription (the priority winner) — kept for the smoke suite
   // and any caller that doesn't want hysteresis.
+  /** @param {import('./src/types/results-data.js').CoachContext | null} ctx */
   function coachRxFor(ctx) { return coachRxCandidates(ctx)[0] || null; }
   // PR (deferred 1.3 refinement) · anti-thrash hysteresis. Re-diagnosing from
   // scratch every run can flip the prescribed focus finger→timing→crossing so the
@@ -6830,17 +6540,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // a threshold this run, keep reinforcing it — for up to 2 consecutive runs —
   // before letting a new top fault take over. Pure: (candidates, prevFocus) →
   // { chosen, focus }. prevFocus = { cat, streak } | null.
+  /** @param {import('./src/types/results-data.js').CoachCandidate[] | null} candidates @param {import('./src/types/results-data.js').CoachFocus | null} prevFocus */
   function applyCoachHysteresis(candidates, prevFocus) {
     if (!candidates || !candidates.length) return { chosen: null, focus: prevFocus || null };
     const top = candidates[0];
     const held = prevFocus && prevFocus.cat !== top.fault && (prevFocus.streak || 0) < 2
       ? candidates.find(c => c.fault === prevFocus.cat) : null;
-    if (held) return { chosen: held, focus: { cat: held.fault, streak: (prevFocus.streak || 0) + 1 } };
+    if (held) return { chosen: held, focus: { cat: held.fault, streak: ((/** @type {import('./src/types/results-data.js').CoachFocus} */ (prevFocus)).streak || 0) + 1 } };
     const streak = (prevFocus && prevFocus.cat === top.fault) ? (prevFocus.streak || 0) + 1 : 0;
     return { chosen: top, focus: { cat: top.fault, streak } };
   }
+  /** @param {import('./src/types/results-data.js').CoachCandidate | null} rx */
   function coachRxHtml(rx) {
     if (!rx || !PATHWAYS[rx.pathwayId]) return '';
+    /** @param {unknown} t */
     const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     return `<button type="button" class="virtuoso_lab-results-coach" id="virtuoso_lab-results-coach-go" data-pw="${rx.pathwayId}">`
       + `<span class="virtuoso_lab-results-coach-lead">Practice next</span>`
@@ -6858,6 +6571,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // dominant one in a sentence, bucketed the SAME way feltHoldAnalyze picks the
   // verdict (drift → lean → jitter). Descriptive + a light cue; never a score.
   // Pure (takes a felt object); bass-pedagogy validated 2026-07-14. { text, tone }.
+  /** @param {import('./src/types/results-data.js').FeltAnalysis | null} felt */
   function buildPocketDiagnosis(felt) {
     if (!felt) return null;
     const v = felt.verdict, lean = felt.leanMs || 0, drift = felt.driftMs || 0, jit = felt.jitterMs || 0;
@@ -6892,11 +6606,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // with descriptive content only: time jammed, how many notes, the tones you
   // moved through, over what style/key. NO %, rank, or verdict (the panel
   // fence). Reuses closeResultsModal + the overlay/Esc close wiring.
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function showJamRecap(s) {
     const root = $('virtuoso_lab-root'), body = $('virtuoso_lab-results-body'), title = $('virtuoso_lab-results-title');
     if (!root || !body) return;
     const m = _jamMirror;
-    const esc = (x) => String(x).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    /** @param {unknown} x */
+    const esc = (x) => String(x).replace(/[&<>"]/g, c => (/** @type {Record<string, string>} */ ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]));
     const ms = (s && s.duration_ms) || 0;
     const mins = Math.floor(ms / 60000), secs = Math.round((ms % 60000) / 1000);
     const dur = ms >= 1000 ? `${mins}:${String(secs).padStart(2, '0')}` : 'a moment';
@@ -6956,6 +6672,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-results-modal')?.setAttribute('aria-hidden', 'false');
     body.querySelector('[data-act="jam-again"]')?.focus();
   }
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s @property {string} [_autoSig] */
   function showResultsModal(s) {
     const root = $('virtuoso_lab-root'), body = $('virtuoso_lab-results-body'), title = $('virtuoso_lab-results-title');
     if (!root || !body || !s) return;
@@ -6976,7 +6693,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const isFelt = !!(s.felt || s.feltResult);
     const feltFlip = !!(s.feltResult && s.feltResult.flip);
     const earned = !!(s.proof || (ownTierFlip && !isFelt) || feltFlip || (s.depth && s.depth.travelRung));
-    const rough = judged && pct < 65 && !earned && !isFelt;   // a felt run is never "rough" (no %)
+    const rough = judged && pct !== null && pct < 65 && !earned && !isFelt;   // a felt run is never "rough" (no %)
     let xpOff = false; try { xpOff = (progressLoad().mode === 'off'); } catch (_) {}
     // Mastery crest — the card's overall-standing seal (accent-family; stays accent even on an
     // earned/green card, so a cleared run shows BOTH signals). Hidden at rank 0 / XP-Off.
@@ -7010,8 +6727,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     let verdict = '';
     if (feltFlip) {
       const word = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">✓ ${word} — cleared ${s.feltResult.tierName}</div>` +
-        (s.feltResult.feltPB ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">Grooves owned — held Locked to ${s.feltResult.feltBpm} BPM</div>` : '');
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">✓ ${word} — cleared ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).tierName}</div>` +
+        (/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltPB ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">Grooves owned — held Locked to ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltBpm} BPM</div>` : '');
     } else if (s.proof) {
       const claim = s.proof.kind === 'guide_tones'
         ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
@@ -7023,7 +6740,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         (psub ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">${psub}</div>` : '');
         // (the share card now rides the unified shareRow below — every run)
     } else if (ownTierFlip && !isFelt) {
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Rung cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Rung cleared — ${TIER_LABELS[/** @type {number} */ (s.clearedTier)] || ('Tier ' + (/** @type {number} */ (s.clearedTier) + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
     } else if (s.depth && s.depth.travelRung) {
       verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Travel rung cleared — it travels now</div>`;
     }
@@ -7047,8 +6764,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // P-sheet). Gained-only; in XP-Off only the functional ladder facts remain.
     const stripBits = [];
     if (s.ladder && s.ladder.tiers.length) {
-      const rungs = s.ladder.tiers.map((b, i) => {
-        const clr = i <= s.ladder.highestCleared;
+      const rungs = s.ladder.tiers.map((_tier, i) => {
+        const clr = i <= /** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).highestCleared;
         const isNew = !xpOff && s.tierCleared && i === s.clearedTier;
         return `<span class="virtuoso_lab-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
       }).join('');
@@ -7098,6 +6815,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // dim mono tails behind the `virtuoso_lab.resultsVerbose` flag, with a Copy
     // diagnostics button — the field-debugging instrument.
     let verbose = false; try { verbose = localStorage.getItem('virtuoso_lab.resultsVerbose') === 'on'; } catch (_) {}
+    /** @param {string} t */
     const devTail = (t) => verbose ? ` <span class="virtuoso_lab-results-dev">${t}</span>` : '';
     const rows = [];
     if (judged && r.missed > 0) rows.push(`Missed: <strong>${r.missed}</strong> judged notes`);
@@ -7121,10 +6839,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // Timing tendency + near-miss (Slice 2, the feel→data converter) —
       // threshold-gated so a centered run says nothing: ≥8 samples and a lean
       // of ≥30ms, or ≥4 near-misses. Descriptive, never scored.
-      if (info.leanN >= 8 && Math.abs(info.leanMs) >= 30) {
-        rows.push(`Timing leaned <strong>${info.leanMs > 0 ? 'late' : 'early'}</strong> — about ${Math.abs(info.leanMs)}ms ${info.leanMs > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
+      if ((/** @type {number} */ (info.leanN)) >= 8 && Math.abs((/** @type {number} */ (info.leanMs))) >= 30) {
+        rows.push(`Timing leaned <strong>${(/** @type {number} */ (info.leanMs)) > 0 ? 'late' : 'early'}</strong> — about ${Math.abs((/** @type {number} */ (info.leanMs)))}ms ${(/** @type {number} */ (info.leanMs)) > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
       }
-      if (info.nearMiss >= 4) {
+      if ((/** @type {number} */ (info.nearMiss)) >= 4) {
         rows.push(`<strong>${info.nearMiss}</strong> right-pitch moments landed just outside their timing window — closer than the score shows${devTail('(in-pitch ≤250ms off-window frames)')}`);
       }
       // Sparse-evidence disclosure (L&D ruling): below the grading floor the
@@ -7148,9 +6866,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const jamStyle = jamStyleForPathway(s.pathway_id);
     let primary = null, stepdown = null, secondaryAgain = false;
     const lastIdx = s.ladder ? s.ladder.tiers.length - 1 : -1;
+    /** @param {number} i */
     const tname = (i) => TIER_LABELS[i] || ('T' + (i + 1));
+    /** @param {number} i */
     const climbSub = (i) => i >= lastIdx ? `${tname(i)} · the top rung` : `${tname(i)} · ${lastIdx - i + 1} rungs to ${tname(lastIdx)}`;
-    const dareUp = (i) => ({ act: 'next-tier', idx: i, label: `Take it to ${s.ladder.tiers[i]} ▸`, sub: climbSub(i) });
+    /** @param {number} i */
+    const dareUp = (i) => ({ act: 'next-tier', idx: i, label: `Take it to ${/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[i]} ▸`, sub: climbSub(i) });
     if (hasResult) {
       const hi = s.ladder ? s.ladder.highestCleared : -1;
       if (rough) {
@@ -7180,6 +6901,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         primary = { act: 'again', label: 'Run it back ▸' };
       }
     }
+    /** @param {{act?: string, idx?: number, label: string, sub?: string}} p */
     const btnHtml = (p) => `<span class="cta-dare">${p.label}</span>` + (p.sub ? `<span class="cta-sub">${p.sub}</span>` : '');
     const ctaHtml =
       `<div class="virtuoso_lab-results-cta">` +
@@ -7197,26 +6919,30 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // no per-block %/score — the chapter list IS the readout.
     let sessionHeadHtml = '', chaptersHtml = '';
     if (isWorkout) {
+      /** @param {number} sec */
       const fmtMS = (sec) => { const m = Math.floor(sec / 60), x = Math.round(sec % 60); return `${m}:${String(x).padStart(2, '0')}`; };
-      const roleLabel = (role) => (SEGMENT_ROLES[role] && SEGMENT_ROLES[role].label) || (role ? prettyKind(role) : '');
+      /** @param {string | null} role */
+      const roleLabel = (role) => (SEGMENT_ROLES[String(role)] && SEGMENT_ROLES[String(role)].label) || (role ? prettyKind(role) : '');
       // Arc line — the distinct roles traveled, in curriculum order.
+      /** @type {string[]} */
       const seenRoles = [];
-      s.chapters.forEach(c => { if (c.role && !seenRoles.includes(c.role)) seenRoles.push(c.role); });
+      (/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).forEach(c => { if (c.role && !seenRoles.includes(c.role)) seenRoles.push(c.role); });
       seenRoles.sort((a, b) => ((SEGMENT_ROLES[a]?.order ?? 9) - (SEGMENT_ROLES[b]?.order ?? 9)));
       const arc = seenRoles.map(roleLabel).filter(Boolean).join(' → ');
       sessionHeadHtml =
         `<div class="virtuoso_lab-results-session-head">` +
         `<div class="virtuoso_lab-results-session-title">Workout complete</div>` +
-        `<div class="virtuoso_lab-results-session-meta">${s.chapters.length} blocks · ${dur} practiced</div>` +
+        `<div class="virtuoso_lab-results-session-meta">${(/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).length} blocks · ${dur} practiced</div>` +
         (arc ? `<div class="virtuoso_lab-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
         `</div>`;
       // Chapter rows, role-divider grouped (a divider when the role changes from the
       // prior row — shows the real sequence). dot/✓ NEVER --virtuoso_lab_vir-meter green.
+      /** @type {string | null} */
       let lastRole = null;
-      const rows2 = s.chapters.map(c => {
+      const rows2 = (/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).map(c => {
         const out = [];
         if (c.role !== lastRole) { out.push(`<div class="virtuoso_lab-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
-        const color = ROLE_COLORS[c.role] || KIND_COLORS[c.kind] || '#64748b';
+        const color = ROLE_COLORS[String(c.role)] || KIND_COLORS[String(c.kind)] || '#64748b';
         // Added review/2nd-app rows carry their context in the NAME ("Revisited —
         // …") — so suppress the competency sub-line for them (no double-naming).
         // Per-block glyph: ✓ PROVED (earned a real tier flip — the ONE place
@@ -7315,8 +7041,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     try {
       if (localStorage.getItem('virtuoso_lab.autosaveCard') === '1') {
         const sig = `${s.duration_ms || 0}|${s.bpm || 0}|${s.displayName || s.mode || ''}`;
-        if (showResultsModal._autoSig !== sig) {
-          showResultsModal._autoSig = sig;
+        if ((/** @type {typeof showResultsModal & {_autoSig?: string}} */ (showResultsModal))._autoSig !== sig) {
+          (/** @type {typeof showResultsModal & {_autoSig?: string}} */ (showResultsModal))._autoSig = sig;
           (async () => {
             try { await loadCardFonts(); } catch (_) {}
             try { const cv = renderShareCardImage(s); if (cv) await saveCardToServer(cv, s, true); } catch (_) {}
@@ -7332,8 +7058,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (judged && !reduceMotion && !isWorkout && !isFelt) {
       const el = body.querySelector('.virtuoso_lab-results-pct');
       const t0 = performance.now(), durMs = 550;
+      /** @param {number} now */
       const step = (now) => {
-        if (!el.isConnected) return;
+        if (!el || !el.isConnected || pct === null) return;
         const k = Math.min(1, (now - t0) / durMs);
         el.textContent = Math.round(pct * (1 - Math.pow(1 - k, 3))) + '%';
         if (k < 1) requestAnimationFrame(step);
@@ -7347,17 +7074,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
-        activeTempoTierIdx = primary.idx;
+        practiceSelection.setTier(/** @type {number} */ (primary.idx));
         const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
-        if (pw) applyTierFields(pw, primary.idx);   // bpm + the tier's density step
-        else setFieldSilent('bpm', String(s.ladder.tiers[primary.idx]));
+        if (pw) practiceSelection.applyTier(pw, /** @type {number} */ (primary.idx));   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[/** @type {number} */ (primary.idx)]));
         syncTempoTierButtons();
         onGenerate();
         focusPlay();
       } else if (primary && primary.act === 'jam') {
         // D-J10: carry the run's KEY + the drilled device into the jam (the
         // device becomes the pre-selected first intent chip).
-        jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
+        jamArmFromDrill(/** @type {string} */ (jamStyle), (/** @type {string} */ ((readConfig() || {}).key)), s.displayName || '');
       } else {
         focusPlay();
       }
@@ -7381,15 +7108,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         info ? `ear: ${info.ear}` : '',
         `bpm ${s.bpm} · practiced ${dur}`,
       ].filter(Boolean).join('\n');
-      try { navigator.clipboard.writeText(diag); ev.target.textContent = 'Copied ✓'; } catch (_) {}
+      try { navigator.clipboard.writeText(diag); (/** @type {HTMLElement} */ (ev.target)).textContent = 'Copied ✓'; } catch (_) {}
     });
     $('virtuoso_lab-results-stepdown')?.addEventListener('click', () => {
       closeResultsModal();
       if (stepdown) {
-        activeTempoTierIdx = stepdown.idx;
+        practiceSelection.setTier(/** @type {number} */ (stepdown.idx));
         const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
-        if (pw) applyTierFields(pw, stepdown.idx);   // bpm + the tier's density step
-        else setFieldSilent('bpm', String(s.ladder.tiers[stepdown.idx]));
+        if (pw) practiceSelection.applyTier(pw, /** @type {number} */ (stepdown.idx));   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[/** @type {number} */ (stepdown.idx)]));
         syncTempoTierButtons();
         onGenerate();
       }
@@ -7398,13 +7125,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-results-jam')?.addEventListener('click', () => {
       closeResultsModal();
       // D-J10: same device hand-off as the primary jam CTA.
-      jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
+      jamArmFromDrill(/** @type {string} */ (jamStyle), (/** @type {string} */ ((readConfig() || {}).key)), s.displayName || '');
     });
     // Coach prescription (PR 1.3): close-and-arm into the Ladder, the SAME open
     // path the picker node-click uses (set the select + dispatch change → mode
     // switch happens first so the guided form is live).
     $('virtuoso_lab-results-coach-go')?.addEventListener('click', (ev) => {
-      const id = ev.currentTarget.getAttribute('data-pw');
+      const id = (/** @type {Element} */ (ev.currentTarget)).getAttribute('data-pw');
       if (!id) return;
       closeResultsModal();
       selectMode('guided');
@@ -7440,7 +7167,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // The transport Play button is the natural close-and-arm landing spot.
     if (modal && modal.contains(document.activeElement)) {
       const play = $('virtuoso_lab-play');
-      if (play) play.focus(); else { try { document.activeElement.blur(); } catch (_) {} }
+      if (play) play.focus(); else { try { (/** @type {HTMLElement} */ (document.activeElement)).blur(); } catch (_) {} }
     }
     modal?.setAttribute('aria-hidden', 'true');
     root.classList.remove('virtuoso_lab_vir-results-open');
@@ -7467,6 +7194,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function woodshedLog() {
     const sessions = sessionsLoad();
     const pt = pathwayTiersLoad();
+    /** @type {{byNode: Record<string, import('./src/types/progress-data.js').ProgressNode>, xp: number}} */
     let store = { byNode: {}, xp: 0 }; try { store = progressLoad(); } catch (_) {}
     const now = Date.now(), DAY = 86400000;
     let totalMs = 0, weekMs = 0; const days = new Set();
@@ -7492,6 +7220,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       .sort((a, b) => b.bpm - a.bpm);
     return { totalMin: Math.round(totalMs / 60000), weekMin: Math.round(weekMs / 60000), sessions: sessions.length, days: days.size, xp: store.xp || 0, numbers, travels, grooves };
   }
+  /** @param {number} min */
   function fmtMins(min) { return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`; }
   function woodshedSectionHtml() {
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
@@ -7512,7 +7241,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // UNCAPPED lifetime ledger below (hours keep counting; PBs / keys / badges never cap).
     // gamification+market verdict: keep finite levels, make the terminal state a graduation,
     // never an infinite treadmill. project_xp_leveling_cap_prestige_verdict.
-    if (lv.nextName) rows.push(`<div class="virtuoso_lab-pm-coming">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
+    const nextAt = lv.nextAt;
+    if (lv.nextName && nextAt != null) rows.push(`<div class="virtuoso_lab-pm-coming">${(nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
     else rows.push(`<div class="virtuoso_lab-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
     // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
     let numbersHtml = '';
@@ -7553,13 +7283,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Forgiving streak, framed to celebrate the return (never punish the break).
     const _sessions = sessionsLoad();
     const streakN = streakCount(_sessions);
-    const todayDone = new Set(_sessions.map(s => s.date)).has(localDateStr());
+    const todayDone = new Set(_sessions.map((/** @type {{date: string}} */ s) => s.date)).has(localDateStr());
     const streakLine = streakN > 0
       ? `<div class="virtuoso_lab-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="virtuoso_lab-pm-coming">Practice today to extend it.</div>'}`
       : `<div class="virtuoso_lab-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
+    /** @param {string} id */
     const dotRow = (id) => {
       const pw = PATHWAYS[id], hi = (pt[id].highest_tier ?? -1);
       const dots = (pw.tempoTiers || []).map((_, i) => `<span class="tree-tier-dot${i <= hi ? ' cleared' : ''}"></span>`).join('');
@@ -7607,6 +7338,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       ? tun.selectedOptions[0].textContent.replace(/\s*\(.*\)\s*/, '').trim().slice(0, 4) : '';
     lbl.dataset.short = tShort ? `${short} · ${tShort}` : short;
   }
+  /** @param {boolean} [force] */
   function toggleSetupPopover(force) {
     const pop = $('virtuoso_lab-setup-popover'), btn = $('virtuoso_lab-setup-btn');
     if (!pop || !btn) return;
@@ -7639,17 +7371,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // NOTE (notedetect-expert, load-bearing): note_detect reads NEITHER
   // workingTuning nor /api/settings — the verifier's tuning reference is solely
   // the per-call ctx Virtuoso already passes. This sync must never replace it.
+  /** @type {import('./src/types/host-data.js').HostTuningTable | null} */
   let _hostTuningsByKey = null;   // {'guitar-6': {name: [hz,…]}} from GET /api/tunings
+  /** @type {import('./src/types/host-data.js').HostTuningTable | null} */
   let _hostTuningMidis = null;    // {'guitar-6': {name: [midi,…]}} — exact integers (host ≥ #829)
   let _hostTuningsRef = 440;      // referencePitch the hz table was scaled to
+  /** @type {import('./src/types/host-data.js').HostSettingsInput | null} */
   let _hostSettingsCache = null;  // last GET /api/settings body (pathway echo)
   let _hostApplying = false;      // true while applying host → panel (no write echo)
   let _hostSelfEmit = false;      // true around our own instrument:changed emit
+  /** @type {ReturnType<typeof setTimeout> | null} */
   let _hostWriteTimer = null;
   // Host tunings → absolute midis. Prefer the exact integers the host serves
   // (`tuningMidis`, host #829 — no float round-trip); fall back to recovering
   // them from the FREQUENCY table against its reference pitch (A4 = 69 at
   // referencePitch) for hosts predating #829.
+  /** @param {string} family @param {number} count */
   function hostTuningEntries(family, count) {
     const key = `${family}-${count}`;
     const table = _hostTuningsByKey && _hostTuningsByKey[key];
@@ -7667,6 +7404,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return out;
   }
+  /** @param {string} family @param {number} count @param {number[]} midis */
   function hostTuningNameForMidis(family, count, midis) {
     const hit = hostTuningEntries(family, count)
       .find(e => e.midis.length === midis.length && e.midis.every((m, i) => m === midis[i]));
@@ -7680,7 +7418,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       _hostTuningsByKey = (d && d.tunings) || null;
       _hostTuningMidis = (d && d.tuningMidis) || null;   // exact integers (host #829); null on older hosts
       _hostTuningsRef = Number(d && d.referencePitch) || 440;
-      syncTuningOptions();   // repaint the dropdown with the host named group
+      tuningSettings.sync();   // repaint the dropdown with the host named group
     } catch (_) { /* older host / offline — Virtuoso presets only */ }
   }
   // The panel's currently-effective open midis (custom override else the setup's).
@@ -7690,7 +7428,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const custom = (hidden?.value || '').split(',').map(Number).filter(Number.isFinite);
     if (custom.length === count) return custom;
     const setup = document.querySelector('[name="stringSetup"]');
-    return ((STRING_SETUPS[setup?.value] || {}).openMidis || []).slice();
+    return ((STRING_SETUPS[String(setup?.value)] || {}).openMidis || []).slice();
   }
   // Write-through: user panel change → POST /api/settings (host commit discipline:
   // adopt only on an accepted response — /api/settings can return {error} with
@@ -7712,7 +7450,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const midis = effectiveMidisNow();
     if (!std || midis.length !== std.length) return;
     const named = hostTuningNameForMidis(family, count, midis);
-    const tuning = named || midis.map((m, i) => m - std[i]);
+    const tuning = named || midis.map((/** @type {number} */ m, /** @type {number} */ i) => m - std[i]);
     let accepted = false;
     try {
       const r = await fetch('/api/settings', {
@@ -7736,6 +7474,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // console noise trips the smoke suites' console-error guards).
     if (typeof window.tuner?.toggle === 'function') {
       try {
+        /** @type {{lastInstrument: string, lastTuning?: string}} */
         const body = { lastInstrument: `${family}-${count}` };
         if (typeof tuning === 'string') body.lastTuning = tuning;   // custom arrays have no name — skip
         await fetch('/api/plugins/tuner/config', {
@@ -7747,6 +7486,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Resolve a host settings body to {inst, count, midis} (absolute midis — the
   // interop currency; never reconcile via offsets alone).
+  /** @param {import('./src/types/host-data.js').HostSettingsInput} s */
   function hostSettingsResolve(s) {
     const inst = s.instrument === 'bass' ? 'bass' : 'guitar';
     const counts = inst === 'bass' ? [4, 5, 6] : [6, 7, 8];
@@ -7759,21 +7499,23 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const named = hostTuningEntries(inst, count).find(e => e.name === s.tuning);
       midis = named ? named.midis.slice() : std.slice();
     } else if (Array.isArray(s.tuning) && s.tuning.length === std.length) {
-      midis = std.map((m, i) => m + (Number(s.tuning[i]) || 0));
+      midis = std.map((m, i) => m + (Number((/** @type {unknown[]} */ (s.tuning))[i]) || 0));
     } else {
       midis = std.slice();
     }
     return { inst, count, midis };
   }
+  /** @param {NonNullable<ReturnType<typeof hostSettingsResolve>>} res */
   function hostStateMatchesPanel(res) {
     const cur = effectiveMidisNow();
     return currentFamily() === res.inst && currentStringCount() === res.count
-      && cur.length === res.midis.length && cur.every((m, i) => m === res.midis[i]);
+      && cur.length === res.midis.length && cur.every((/** @type {number} */ m, /** @type {number} */ i) => m === res.midis[i]);
   }
   // Apply host → panel (a PULL: fresh install, or a live instrument:changed from
   // the host badge / another screen). Applies via the normal setup-change path so
   // pathway repaint/regenerate behave exactly like a user change — _hostApplying
   // suppresses only the write-back echo.
+  /** @param {import('./src/types/host-data.js').HostSettingsInput} s */
   function applyHostInstrument(s) {
     const res = hostSettingsResolve(s);
     if (!res) return;
@@ -7797,7 +7539,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       syncInstrumentFamilyButtons();
       // The full user-path handler: syncs, L1 store save, pathway repaint, regenerate.
       setupEl.dispatchEvent(new Event('change', { bubbles: true }));
-      syncCustomTuningInputs();
+      tuningSettings.syncInputs();
     } finally { _hostApplying = false; }
   }
   async function hostSettingsFetch() {
@@ -7832,6 +7574,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const b = $('virtuoso_lab-tuner-badge');
     if (b) b.hidden = typeof window.tuner?.toggle !== 'function';
   }
+  /** @param {Partial<import('./src/types/host-data.js').TunerFrame> | null} d */
   function applyTunerFrame(d) {
     const note = $('virtuoso_lab-tuner-note'), meter = $('virtuoso_lab-tuner-meter');
     if (!note || !meter) return;
@@ -7844,7 +7587,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const lit = cents == null ? -1 : Math.max(0, Math.min(4, Math.round(cents / 10) + 2));
     for (let i = 0; i < segs.length; i++) {
       segs[i].classList.toggle('on', i === lit);
-      segs[i].classList.toggle('off-pitch', i === lit && Math.abs(cents) > 5);
+      segs[i].classList.toggle('off-pitch', i === lit && Math.abs((/** @type {number} */ (cents))) > 5);
     }
   }
   // Profile badge: compact mirror (avatar + streak + rank) + LINK. Renders nothing
@@ -7899,6 +7642,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Header settings menu (⚙) + its prefs: accent theme (live), default XP mode (a
   // stored default — ready for the unbuilt XP store), default count-in (seeds the
   // count-in control on load). All persisted to localStorage.
+  /** @param {boolean} [force] */
   function toggleSettingsMenu(force) {
     const menu = $('virtuoso_lab-settings-menu'), btn = $('virtuoso_lab-settings-btn');
     if (!menu || !btn) return;
@@ -7909,6 +7653,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     menu.classList.toggle('virtuoso_lab_vir-open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
+  /** @param {string} name */
   function applyTheme(name) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     // Drop any accent-theme class generically so the picker stays data-driven —
@@ -7918,6 +7663,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     try { localStorage.setItem('virtuoso_lab.theme', name || ''); } catch (_) {}
     document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
   }
+  /** @param {string} mode */
   function applyXpModeDefault(mode) {
     try { localStorage.setItem('virtuoso_lab.xpMode', mode); } catch (_) {}
     // Tier C: this IS the live XP-Off switch — drive the real progress-store mode
@@ -7938,12 +7684,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function countInGridOn() {
     try { return localStorage.getItem('virtuoso_lab.countInGrid') === 'on'; } catch (_) { return false; }
   }
+  /** @param {string} val */
   function applyCountInGrid(val) {
     document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === val));
   }
   // Studio energy (settings → Studio energy): the host-parity "Lit" chrome treatment
   // is one root class (.virtuoso_lab_vir-lit, default ON). 'calm' reverts to EXACTLY the restrained
   // base look — the user's toggle-back guarantee. Persisted; no playing-surface impact.
+  /** @param {string} mode */
   function applyEnergy(mode) {
     const lit = mode !== 'calm';
     const root = $('virtuoso_lab-root'); if (root) root.classList.toggle('virtuoso_lab_vir-lit', lit);
@@ -7956,6 +7704,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Lit/Calm). neon/esports/metal/warm/focus are opt-in note_detect-parity skins.
   // Each non-Signature skin also owns its own colorway set; colorways change palette
   // tokens only, never the skin's typography/shape/motion identity.
+  /** @type {Record<string, import('./src/types/theme-data.js').ThemeRecipe>} */
   const VIR_THEME_RECIPES = {
     signature: {
       id: 'signature', label: 'Signature', role: 'Virtuoso baseline', mode: 'dark',
@@ -8050,12 +7799,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     },
   };
   const VIR_CARD_SKINS = ['signature', 'neon', 'esports', 'metal', 'warm', 'focus'];
-  const VIR_CARD_TONES = VIR_CARD_SKINS.reduce((acc, id) => {
+  const VIR_CARD_TONES = VIR_CARD_SKINS.reduce((/** @type {Record<string, import('./src/types/theme-data.js').CardTone[]>} */ acc, id) => {
     const recipe = VIR_THEME_RECIPES[id];
     if (recipe && recipe.tones && recipe.tones.length) acc[id] = recipe.tones;
     return acc;
   }, {});
+  /** @param {string} skin */
   function themeRecipeForSkin(skin) { return VIR_THEME_RECIPES[skin] || VIR_THEME_RECIPES.signature; }
+  /** @param {string} activeSkin */
   function renderCardSkinPicker(activeSkin) {
     const host = $('virtuoso_lab-cardskin-pick'); if (!host) return;
     const active = VIR_CARD_SKINS.indexOf(activeSkin) !== -1 ? activeSkin : 'signature';
@@ -8082,6 +7833,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       host.appendChild(b);
     });
   }
+  /** @param {string} skin */
   function cardToneForSkin(skin) {
     if (!VIR_CARD_TONES[skin]) return 'default';
     try {
@@ -8089,6 +7841,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return VIR_CARD_TONES[skin].some(x => x.id === t) ? t : 'default';
     } catch (_) { return 'default'; }
   }
+  /** @param {string} skin @param {string} tone */
   function renderCardTonePicker(skin, tone) {
     const group = $('virtuoso_lab-cardtone-group'), host = $('virtuoso_lab-cardtone-pick'), label = $('virtuoso_lab-cardtone-label');
     if (!group || !host) return;
@@ -8110,6 +7863,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       host.appendChild(b);
     });
   }
+  /** @param {string} skin @param {string} tone */
   function applyCardTone(skin, tone) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const tones = VIR_CARD_TONES[skin] || [];
@@ -8119,6 +7873,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (tones.length) { try { localStorage.setItem('virtuoso_lab.cardTone.' + skin, id); } catch (_) {} }
     renderCardTonePicker(skin, id);
   }
+  /** @param {string} name */
   function applyCardSkin(name) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const skin = VIR_CARD_SKINS.indexOf(name) !== -1 ? name : 'signature';
@@ -8139,6 +7894,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // cockpit. Stamps data-virtuoso_lab_vir-skincockpit on the root — read by the cockpit-extension CSS,
   // which remaps the shell's --virtuoso_lab_vir-accent* to the skin's --virtuoso_lab_vir-card-* when ON. Default 'card'
   // = calm cockpit (byte-identical). A no-op for Signature (no data-virtuoso_lab_vir-cardskin → no bleed).
+  /** @param {string} scope */
   function applySkinScope(scope) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     const on = scope === 'cockpit';
@@ -8154,6 +7910,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const grp = $('virtuoso_lab-skinscope-group');
     if (grp) grp.classList.toggle('is-disabled', skin === 'signature');
   }
+  /** @param {string} val */
   function applyCountInDefault(val) {
     const bars = Math.max(1, Math.min(8, parseInt(val, 10) || 1));
     setFieldSilent('countIn', String(bars));   // the field is the source; syncTransport reflects the segments
@@ -8182,6 +7939,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     applySkinScope(skinScope);
   }
 
+  /** @param {AudioContext} ctx @param {number} when @param {number} freq @param {number} dur @param {string} instrument @param {number} gainScale @param {number} bendSemis */
   function schedulePluckedString(ctx, when, freq, dur, instrument, gainScale, bendSemis) {
     // Triangle-based plucked-string synthesis — clean, audible, no WaveShaper
     // over-drive. Sawtooth + heavy distortion (prior approach) produced
@@ -8228,12 +7986,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Pedal-steel BED glide memo (2026-06-15): the previous steel chord's voicing, so the
   // 'steel' tone can HOLD common tones and glide only the CHANGED voices (oblique pedal
   // motion). Module-scoped; the <= whole-step glide gate bounds any stale-state artifact.
-  let _steelPrevMidis = null, _synthBassPrevMidi = null, _neonLeadPrevMidi = null;
+  let /** @type {number[] | null} */ _steelPrevMidis = null, /** @type {number | null} */ _synthBassPrevMidi = null, /** @type {number | null} */ _neonLeadPrevMidi = null;
+  /** @param {AudioContext} ctx @param {number} when @param {number[]} midis @param {number} dur @param {string} instrument @param {string} tone @param {{bright?: number, level?: number, bus?: string, prevMidis?: number[] | null}} [opts] */
   function scheduleHarmonyPad(ctx, when, midis, dur, instrument, tone, opts) {
     if (!midis.length) return;
     tone = tone || 'pad';
-    const bright = (opts && Number.isFinite(opts.bright)) ? opts.bright : 0.5;
-    const lvl = (opts && Number.isFinite(opts.level)) ? opts.level : 1;
+    const bright = (opts && opts.bright !== undefined && Number.isFinite(opts.bright)) ? opts.bright : 0.5;
+    const lvl = (opts && opts.level !== undefined && Number.isFinite(opts.level)) ? opts.level : 1;
     // Which strip owns the voice: cell-driven comping rides 'harmony' (Rhythm),
     // the sustained legacy pad rides 'pad' (Keys) — the caller routes.
     const busName = (opts && opts.bus) || 'harmony';
@@ -8599,6 +8358,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // env-to-cutoff sweep (the punch) + a near-prev portamento slide (synthwave/funk/pop). Its
   // OWN dedicated voice on the 'bass' bus (audio-engine 2026-06-15: a GM multisample can't do
   // the sweep or the slide). lvl already carries bass.level × vel; mono → no √n.
+  /** @param {AudioContext} ctx @param {number} when @param {number} midi @param {number} dur @param {number} lvl @param {number | null} prevMidi */
   function scheduleSynthBass(ctx, when, midi, dur, lvl, prevMidi) {
     const f = midiToFreq(midi);
     const master = ctx.createGain(), filter = ctx.createBiquadFilter();
@@ -8627,6 +8387,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Three click tiers: accent (group/measure downbeat), normal (on-beat), and
   // soft (a count-in subdivision tick between beats).
+  /** @param {AudioContext} ctx @param {number} when @param {boolean} accent @param {boolean} soft @param {number} [levelMul] */
   function scheduleClick(ctx, when, accent, soft, levelMul) {
     const osc = ctx.createOscillator(), gain = ctx.createGain(), filter = ctx.createBiquadFilter();
     const freq = accent ? 1760 : (soft ? 900 : 1120);
@@ -8643,7 +8404,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // compressor + >8 kHz shelf, before the master limiter). `vol` already carries
   // the role level × structural velocity; per-piece peak gains shape the balance
   // (kick softened most). Starting numbers — ear-tunable on the backend.
-  let _drumNoiseBuf = null, _drumNoiseCtx = null;
+  let /** @type {AudioBuffer | null} */ _drumNoiseBuf = null, /** @type {AudioContext | null} */ _drumNoiseCtx = null;
+  /** @param {AudioContext} ctx */
   function drumNoiseBuffer(ctx) {
     if (_drumNoiseBuf && _drumNoiseCtx === ctx) return _drumNoiseBuf;
     const len = Math.floor(ctx.sampleRate * 1.0);
@@ -8654,6 +8416,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Natural ring-out per piece for sampled hits (cymbals ring; hats/kick are short).
   // hh_open uses the choke dur from buildDrumEvents instead.
+  /** @type {Record<string, number>} */
   const DRUM_NATURAL_DUR = {
     kick:0.5, snare:0.4, snare_xstick:0.18,
     hh_closed:0.12, hh_pedal:0.1, hh_open:0.5,
@@ -8664,6 +8427,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Play one sampled drum hit via VirtuosoLabWebAudioFont — wafVoice MINUS wafLoudnessTrim (a
   // drum note number is a piece selector, not a pitch, so the pitch-tilt is wrong).
   // Routes through the drum sub-bus (its own comp + shelf, before the master limiter).
+  /** @param {AudioContext} ctx @param {import('./src/types/waf.js').WavePreset | null} preset @param {number} note @param {number} when @param {number} vol @param {number} dur */
   function wafDrumVoice(ctx, preset, note, when, vol, dur) {
     if (!wafPlayer || !preset) return;
     const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, 'drums'), preset, when, note, Math.max(0.08, dur || 0.4), Math.max(0, vol));
@@ -8671,7 +8435,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // RR rotation per piece for the REAL sampled kit — rotates through a piece's round-robin
   // takes so a fast repeated voice (driving hats/ride/kick) never machine-guns.
+  /** @type {Record<string, number>} */
   const _dkRr = {};
+  /** @param {string} piece @param {number} count */
   function dkRrPick(piece, count) {
     if (count <= 1) return 1;
     _dkRr[piece] = ((_dkRr[piece] || 0) % count) + 1;
@@ -8683,6 +8449,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the 4 ms melodic ramp (it would blunt the transient — sound-design call). Returns false
   // if the buffer isn't loaded yet so the caller falls back to FluidR3/synth (degraded-but-
   // audible, never silent). hh_open honors the choke `dur` from buildDrumEvents.
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').DrumBank} bank @param {string} piece @param {number} when @param {number} vol @param {number} dur @param {number} kitLevel */
   function scheduleDkHit(ctx, bank, piece, when, vol, dur, kitLevel) {
     const token = bank.src[piece]; if (!token) return false;
     const file = bank.file(token, dkRrPick(piece, bank.rr[token] || 1));
@@ -8710,35 +8477,38 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Dispatch one drum hit. Sample kits (Phase D4) play the FluidR3 one-shot when its
   // preset is loaded; until then (or for a missing piece) they fall back to the synth
   // 909 voice — degraded-but-audible, never silent (matches the melodic failover).
+  /** @param {AudioContext} ctx @param {import('./src/types/audio-graph.js').DrumKit & {id: string}} kit @param {string | undefined} piece @param {number} when @param {number} vol @param {number | undefined} dur */
   function scheduleDrumHit(ctx, kit, piece, when, vol, dur) {
     if (kit && kit.engine === 'sample' && kit.pieces) {
       // REAL sampled kit first (virtuosity buffers); falls through if this piece is
       // un-harvested (ride_bell/splash/…) or its buffer hasn't finished loading.
-      const b = kit.bank && DRUMKIT_BANKS[kit.bank];
-      if (b && b.src[piece] && scheduleDkHit(ctx, b, piece, when, vol, dur, kit.level || 1)) return;
-      const note = kit.pieces[piece];
+      const b = kit.bank && DRUMKIT_BANKS[String(kit.bank)];
+      if (b && b.src[String(piece)] && scheduleDkHit(ctx, b, /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur), kit.level || 1)) return;
+      const note = kit.pieces[String(piece)];
       if (note != null && SAMPLED_DRUM_NOTES.has(note)) {   // skip uncommitted notes (no 404 retry)
-        ensureDrumPiece(kit, piece);   // lazy-load cymbals/toms on first use
+        ensureDrumPiece(kit, /** @type {string} */ (piece));   // lazy-load cymbals/toms on first use
         const preset = getReadyWafPreset(drumVar(note, kit.font, kit.variant));
         if (preset) {
-          const d = (piece === 'hh_open' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[piece] || 0.4);
-          const g = DRUM_PIECE_GAIN[piece] != null ? DRUM_PIECE_GAIN[piece] : 1;
+          const d = (piece === 'hh_open' && Number.isFinite(dur)) ? (/** @type {number} */ (dur)) : (DRUM_NATURAL_DUR[String(piece)] || 0.4);
+          const g = DRUM_PIECE_GAIN[String(piece)] != null ? DRUM_PIECE_GAIN[String(piece)] : 1;
           wafDrumVoice(ctx, preset, note, when, Math.max(0, vol) * (kit.level || 1) * g, d);
           return;
         }
       }
-      scheduleSynthDrumHit(ctx, '909', piece, when, vol, dur);   // fallback: cold-load / missing piece
+      scheduleSynthDrumHit(ctx, '909', /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur));   // fallback: cold-load / missing piece
       return;
     }
-    scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', piece, when, vol, dur);
+    scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur));
   }
   // Procedural synth drum voice (808/909) — the electronic kits + the sample failover.
+  /** @param {AudioContext} ctx @param {string | undefined} preset @param {string} piece @param {number} when @param {number} vol @param {number} dur */
   function scheduleSynthDrumHit(ctx, preset, piece, when, vol, dur) {
     const out = trackBus(ctx, 'drums');
     // Per-piece relative gain (sound-design) — tames the hot GM ride/cymbals/hats.
     const v = Math.max(0, (vol || 0) * (DRUM_PIECE_GAIN[piece] != null ? DRUM_PIECE_GAIN[piece] : 1));
     if (v <= 0) return;
     const RAMP = 0.004;   // 4 ms attack ramp — hearing-safe, no click transient
+    /** @param {GainNode} g @param {number} peak @param {number} decay */
     const env = (g, peak, decay) => {
       const p = Math.max(0.0002, peak);
       g.gain.setValueAtTime(0.0001, when);
@@ -8746,6 +8516,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       g.gain.exponentialRampToValueAtTime(0.0001, when + RAMP + Math.max(0.02, decay));
     };
     const is808 = preset === '808';
+    /** @param {number} peak @param {number} decay @param {BiquadFilterType} type @param {number} freq @param {number} [q] */
     const noise = (peak, decay, type, freq, q) => {
       const n = ctx.createBufferSource(), f = ctx.createBiquadFilter(), g = ctx.createGain();
       n.buffer = drumNoiseBuffer(ctx);
@@ -8858,6 +8629,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Resolve the active drum kit OBJECT. Mixer kit override wins, then the profile's
   // kit, then kit_909. An unregistered id falls back to kit_909 so the band is never
   // silent. The returned object carries `id` + the kit's engine/preset/pieces.
+  /** @param {import('./src/core/generation-types.js').AudioProfile | null} profile */
   function resolveDrumKit(profile) {
     const kitId = mixerKitFor('drums') || (profile && profile.drums && profile.drums.kit) || 'kit_909';
     const reg = KIT_REGISTRY[kitId] || KIT_REGISTRY.kit_909;
@@ -8879,9 +8651,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // twin of DRUM_PIECE_GAIN / sgSourceTrim, calibrated against the clean GM27 voice = 1.0.
   // By-ear tunable. Keyed by GM preset number (built from a readable tone→trim table).
   const WAF_TONE_TRIM = { organ: 0.62, epiano: 0.78, piano: 0.80, strings: 0.70, pad: 0.72, clav: 0.85, brass: 0.74, synthlead: 0.85, clean: 1.0, guitar: 1.05, nylon: 1.05, bass: 0.95, upright: 1.0 };
+  /** @type {Record<string, number>} */
   const WAF_GM_TRIM = {};
   for (const [tone, tr] of Object.entries(WAF_TONE_TRIM)) { const gm = TONE_GM[tone]; if (gm != null) WAF_GM_TRIM[gm] = tr; }
+  /** @param {number | null} gm */
   const wafGmTrim = gm => (gm != null && WAF_GM_TRIM[gm] != null) ? WAF_GM_TRIM[gm] : 1;
+  /** @param {number} midi */
   function wafLoudnessTrim(midi) {
     const f = 440 * Math.pow(2, (midi - 69) / 12);
     let db;
@@ -8898,7 +8673,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // silence to full into the limiter. Click + notes are unaffected (they bypass the
   // group). Single-exercise modes (≤1 segment) have no breaks → no-op. Scheduled at
   // absolute ctx-time each playback pass so it tracks the loop scheduler.
-  function scheduleBackingEnvelope(bundle, ctx, base, startFrom, duration) {
+  /** @param {ReturnType<typeof makeBundle>} bundle @param {AudioContext} _ctx @param {number} base @param {number} startFrom @param {number} duration */
+  function scheduleBackingEnvelope(bundle, _ctx, base, startFrom, duration) {
     const bus = audioBus; if (!bus || !bus.backingGroup) return;
     const g = bus.backingGroup.gain;
     const bounds = (bundle.segmentBounds || []).filter(b => b && Number.isFinite(b.start) && Number.isFinite(b.end));
@@ -8906,7 +8682,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     for (let i = 0; i < bounds.length - 1; i++) {
       if (bounds[i + 1].start > bounds[i].end + 1e-3) breaks.push([bounds[i].end, bounds[i + 1].start]);
     }
-    const FADE = 0.018, at = t => base + (t - startFrom);
+    const FADE = 0.018, at = (/** @type {number} */ t) => base + (t - startFrom);
     try {
       g.cancelScheduledValues(base);
       if (!breaks.length) { g.setValueAtTime(1, base); return; }       // no breaks (flowing / single block)
@@ -8930,6 +8706,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Returns { base, end }: base = the ctx-time chart-time `fromTime` maps to;
   // end = the real last sound-end ctx-time (sustains may outlive the window),
   // which is what chunk pruning must respect.
+  /** @param {ReturnType<typeof makeBundle>} bundle @param {number} [fromTime] @param {number} [delaySeconds] @param {number} [toTime] @param {boolean} [onsetOnly] */
   function schedulePreviewAudio(bundle, fromTime, delaySeconds, toTime, onsetOnly) {
     const cfg = readConfig();
     // Prefer the bundle's own audio settings (sessions patch their own config)
@@ -8940,9 +8717,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // all audio is off if this pass covers the lead-in.
     const wantCountIn = lead > 0 && (fromTime || 0) < lead - 1e-4;
     if (!audio.notes && !audio.metronome && !audio.harmony && !wantCountIn) return;
-    ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
-    const ctx = audioCtx, base = ctx.currentTime + (Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
+    const ctx = ensureAudioCtx();
+    if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+    const base = ctx.currentTime + (delaySeconds !== undefined && Number.isFinite(delaySeconds) ? delaySeconds : AUDIO_LOOKAHEAD_SECONDS), startFrom = fromTime || 0;
     // Use the bundle's own openMidis so note frequencies always match what was
     // generated — prevents pitch mismatch when the form's string setup differs
     // from the exercise (e.g. session generated with 6-string, form shows 8-string).
@@ -8953,7 +8730,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // belongs to the next chunk; chunks reuse the identical float, so the
     // boundary can't double-schedule or drop). Sound DURATIONS are still
     // clamped to the chart, never to the window — sustains ring past it.
-    const winEnd = Number.isFinite(toTime) ? Math.min(toTime, duration) : duration + 0.1;
+    const winEnd = toTime !== undefined && Number.isFinite(toTime) ? Math.min(toTime, duration) : duration + 0.1;
     let schedEnd = base;   // real last sound-end (ctx time) — for chunk pruning
     // Break-band gain automation rides the persistent backingGroup bus at
     // absolute ctx times, so re-running it per chunk just re-asserts the same
@@ -8973,7 +8750,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // pad there — engine!=='sample' resolves null → scheduleHarmonyPad), else
     // the harmony voice (back-compat).
     const profPadGm = harmProfile.pad
-      ? (harmProfile.pad.engine === 'sample' ? TONE_GM[harmProfile.pad.tone] : null)
+      ? (harmProfile.pad.engine === 'sample' ? TONE_GM[String(harmProfile.pad.tone)] : null)
       : profHarmGm;
     const padGm   = mixerInstrumentFor('pad') ?? profPadGm;
     const bassGm  = mixerInstrumentFor('bass')    ?? (harmProfile.bass.engine    === 'sample' ? TONE_GM[harmProfile.bass.tone]    : null);
@@ -8991,6 +8768,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // bluegrass GUITAR boom-chuck vs the BANJO roll. Resolve the preset here (re-resolved each
     // rolling-window chunk, so a cold voice warms up), keyed by bus. Empty for the 28 genres
     // with no tracks[] → no extra voices, byte-identical.
+    /** @type {Record<string, {gm: number, preset: import('./src/types/waf.js').WavePreset | null}>} */
     const extraPresets = {};
     if (audio.harmony) {
       for (const t of recipeTracks({ ...cfg, audio })) {
@@ -9031,6 +8809,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // stays clean/in-tune). Zero extra nodes: detune/gain/onset ride params that already
     // exist; the envelope reshape reuses the GainNode queueWaveTable returns. Seeded =
     // the same cfg sounds the same every pass (determinism is a hard rule).
+    /** @param {import('./src/types/waf.js').WavePreset} preset @param {string} busName @param {number} when @param {number} midi @param {number} d @param {number} vol @param {{seed?: number, artic?: string}} [opts] */
     const wafVoice = (preset, busName, when, midi, d, vol, opts) => {
       let v = vol, w = when, h = 0;
       if (opts && opts.seed != null) {
@@ -9038,7 +8817,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         v *= 1 + (h - 0.5) * 0.10;      // ±~0.4 dB gain wobble
         w += h * 0.004;                 // 0–4 ms onset jitter (later only — never before `when`)
       }
-      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, w, midi, d, Math.max(0.0001, v) * wafLoudnessTrim(midi));
+      const e = (/** @type {import('./src/types/waf.js').WafPlayer} */ (wafPlayer)).queueWaveTable(ctx, trackBus(ctx, busName), preset, w, midi, d, Math.max(0.0001, v) * wafLoudnessTrim(midi));
       if (!e) return;
       if (opts) {
         // RR detune (cents) — independent of, and additive to, playbackRate; deterministic.
@@ -9124,7 +8903,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
             // The recorded multi-string dead-strum — ONE unpitched sample per
             // hit (never per chord note). Cold buffer = skip (a missing ghost
             // beats a wrongly pitched WAF stand-in).
-            sgVoice(ctx, busName, when, 0, d, lvlBase * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
+            sgVoice(ctx, busName, when, 0, d, (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
           } else if (useSg && busName === 'harmony') {
             // DOUBLE-TRACK (band-intel C2): two takes of the comp guitar, hard
             // L/R (±0.35), the right side a seeded 12–20ms late + a few cents
@@ -9135,14 +8914,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
             const jit = (Math.abs(Math.sin(ev.t * 12.9898)) * 43758.5453) % 1;   // deterministic per hit
             const dly = 0.012 + jit * 0.008, cents = (jit > 0.5 ? 1 : -1) * (3 + jit * 3);
             for (const m of (ev.midis || [])) {
-              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
+              const v = (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
               const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35, bank: sgBank });
               const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents, bank: sgBank });
               if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72 * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           } else {
             for (const m of (ev.midis || [])) {
-              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel;
+              const v = (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * hScale * vel;
               if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { bank: sgBank })) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           }
@@ -9172,17 +8951,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const drumKit = resolveDrumKit(harmProfile);
       for (const ev of bundle.backingEvents || []) {
         if (ev.role !== 'drums') continue;
+        const drumEvent = /** @type {import('./src/core/generation-types.js').DrumEvent} */ (ev);
         if (ev.t < lead - 1e-4) continue;                 // count-in silence
         if (ev.t < startFrom || ev.t >= winEnd) continue;
-        scheduleDrumHit(ctx, drumKit, ev.voice, base + (ev.t - startFrom),
-          WAF_VOICE_VOL.drums * (Number.isFinite(ev.velocity) ? ev.velocity : 0.78), ev.dur);
-        schedEnd = Math.max(schedEnd, base + (ev.t - startFrom) + (Number.isFinite(ev.dur) ? ev.dur + 0.5 : 2));
+        scheduleDrumHit(ctx, drumKit, drumEvent.voice, base + (ev.t - startFrom),
+          (/** @type {number} */ (WAF_VOICE_VOL.drums)) * (Number.isFinite(drumEvent.velocity) ? drumEvent.velocity : 0.78), drumEvent.dur);
+        schedEnd = Math.max(schedEnd, base + (ev.t - startFrom) + (Number.isFinite(drumEvent.dur) ? (/** @type {number} */ (drumEvent.dur)) + 0.5 : 2));
       }
     }
     if (audio.notes) for (const n of bundle.notes || []) {
       if (n._tail) continue;  // visual loop-preview copy; audio loops via the scheduler
       if (n.solo === 'you') continue;  // Spotlight (J-3): YOUR turn → you're the soloist, the band's lead voice is silent (the tag only exists in spotlight charts)
-      if (_preRollUntil > 0 && n.t < _preRollUntil) continue;  // resume pre-roll runway: notes muted, only the count-in click plays
+      if (transport.preRollUntil > 0 && n.t < transport.preRollUntil) continue;  // resume pre-roll runway: notes muted, only the count-in click plays
       if (n.t < startFrom || n.t >= winEnd) continue;
       if (n.s < 0 || n.s >= opens.length || n.f < 0) continue;
       const when = base + (n.t - startFrom), midi = opens[n.s] + n.f;
@@ -9236,7 +9016,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         if (b._tail) continue;  // visual loop-preview copy; don't double-click at the seam
         if (b.time < startFrom || b.time >= winEnd) continue;
         const inCountIn = lead > 0 && b.time < lead - 1e-4;
-        const inPreRoll = _preRollUntil > 0 && b.time < _preRollUntil;   // resume pre-roll runway → force the count-in click (full level, like the head count-in)
+        const inPreRoll = transport.preRollUntil > 0 && b.time < transport.preRollUntil;   // resume pre-roll runway → force the count-in click (full level, like the head count-in)
         if (!audio.metronome && !inCountIn && !b.brk && !inPreRoll) continue;   // the inter-block break + the resume pre-roll ARE count-ins → always click (even metronome-off)
         // Strong accent on measure downbeats and grouping starts (e.g. 7/8 as
         // 3+2+2). Beats are already meter-correct (built by buildBeats), so this
@@ -9292,7 +9072,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // power bridge (`hostDesktop().power.setScreenAwake`) when present (the Web
   // API is unreliable in Electron). Both degrade silently where unsupported. The Web
   // sentinel auto-releases when the tab hides; we re-acquire on re-show while playing.
-  let _wakeLock = null, _wantWakeLock = false;
+  let /** @type {WakeLockSentinel | null} */ _wakeLock = null, _wantWakeLock = false;
   function acquireWakeLock() {
     _wantWakeLock = true;
     try { hostDesktop()?.power?.setScreenAwake?.(true); } catch (_) {}
@@ -9324,27 +9104,28 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   const _downshiftSeen = new Set();   // rung ids offered or dismissed this session
   let _downshiftEvaluated = false;    // this run — the ~4-bar check fires once
   let _downshiftChipShown = false;    // this run — read by the results modal's step-down
+  /** @type {number | null} */
   let _downshiftEvalAt = null;        // chart time of the check (lead + 4 bars)
   function maybeOfferDownshift() {
     if (_downshiftEvaluated || !activeBundle) return;
-    const id = activePathwayId;
+    const id = practiceSelection.pathwayId;
     if (!id || id === 'custom' || !_beginnerRungSet.has(id) || _downshiftSeen.has(id)) { _downshiftEvaluated = true; return; }
-    if (activeTempoTierIdx <= 0) { _downshiftEvaluated = true; return; }   // already at the floor — nothing kinder to offer
+    if (practiceSelection.tierIndex <= 0) { _downshiftEvaluated = true; return; }   // already at the floor — nothing kinder to offer
     const pw = PATHWAYS[id];
-    if (!pw || !pw.tempoTiers || pw.tempoTiers[activeTempoTierIdx - 1] == null) { _downshiftEvaluated = true; return; }
+    if (!pw || !pw.tempoTiers || pw.tempoTiers[practiceSelection.tierIndex - 1] == null) { _downshiftEvaluated = true; return; }
     if (_downshiftEvalAt == null) {
       const cfgLike = (activeBundle.config && activeBundle.config.meter) ? activeBundle.config : readConfig();
       _downshiftEvalAt = (activeBundle.leadIn || 0) + 4 * measureSeconds(cfgLike);
     }
-    if (currentPracticeTime < _downshiftEvalAt) return;
+    if (transport.time < _downshiftEvalAt) return;
     // The judge must have RESOLVED enough notes, and the player must be audibly
     // trying (never trigger on silence — an unplugged guitar is not "too fast").
-    const passed = ptWinPassedCount(currentPracticeTime - ptLatency());
+    const passed = ptWinPassedCount(transport.time - ptLatency());
     if (passed < 6) return;            // sparse so far — keep waiting (cheap)
     if (!_ptHadInput) return;          // no input yet — wait, don't consume the check
     _downshiftEvaluated = true;        // one evaluation per run, whatever the outcome
     if (_ptScoredUnits / passed >= 0.4) return;   // holding up fine — stay quiet
-    const idx = activeTempoTierIdx - 1;
+    const idx = practiceSelection.tierIndex - 1;
     const chip = $('virtuoso_lab-downshift'), go = $('virtuoso_lab-downshift-go');
     if (!chip || !go) return;
     go.textContent = `Try ${tierChipLabel(pw, idx)} ▸`;
@@ -9368,23 +9149,19 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     sessionEnd(); // flush any in-progress session before starting a new one
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
-    playing = true;
-    paused = false; _pausedAccumMs = 0; _pauseBeganMs = 0; _preRollUntil = 0; _wrapAnim = null;
-    _runMaxChartTime = currentPracticeTime; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
+    transport.begin(); _wrapAnim = null;
+    _runMaxChartTime = transport.time; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
     _downshiftEvaluated = false; _downshiftChipShown = false; _downshiftEvalAt = null; hideDownshiftChip();   // the mid-run offer re-arms per run (session suppression via _downshiftSeen)
     acquireWakeLock();   // hold the screen awake for the duration of this play
     // With an active A–B loop, playback begins at the loop start — not wherever
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
     // seek cursor). Without this, scrubbing then hitting Play started mid-loop.
-    if (segmentLoopA != null && segmentLoopB != null) {
-      currentPracticeTime = Math.min(segmentLoopA, segmentLoopB);
-    }
-    playStartChartTime = currentPracticeTime;  // remember where this play began (for Stop)
+    transport.rememberStart();
     // Count-in is baked into the chart as lead-in rest bars (see applyCountIn),
     // so playback just starts from the playhead — no playhead freeze. Starting
     // from 0 plays the count-in once; the loop then cycles the music only. The
     // count-in clicks come from schedulePreviewAudio (lead-in beats always tick).
-    anchorPlayClock(currentPracticeTime);
+    anchorPlayClock(transport.time);
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     if (!rafId) rafId = requestAnimationFrame(tick);
     startPitchTracker(activeBundle); syncPlayButton(); refreshStatusFromState();
@@ -9392,7 +9169,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); playing = false; paused = false; _preRollUntil = 0; _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); currentPracticeTime = playStartChartTime; playAnchorChartTime = playStartChartTime; stopAudio(); stopPitchTracker(); if (rafId) { cancelAnimationFrame(rafId); rafId = null; } drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { sessionEnd(); transport.stop(false, true); _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); transport.rewindToStart(); stopRunAudio(); drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // ── PR 2.1 · "Hear it" — audition the target phrase (Ear-Mode enabler) ───────
   // Ear Mode's foundation (docs/plugin/design/ear-mode.md): play the current exercise's NOTES as
   // audio, UNGRADED — no scorer, no session, no RAF clock. Just schedule the
@@ -9401,7 +9178,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Notes only (no metronome/backing); an A–B loop bounds the phrase. Never fights
   // a graded run; a second click stops it. Fire-and-forget — a timer resets the UI
   // when the phrase ends (no clock drives it).
-  let _demoActive = false, _demoTimer = null;
+  let _demoActive = false, /** @type {ReturnType<typeof setTimeout> | null} */ _demoTimer = null;
   function previewStop() {
     if (_demoTimer) { clearTimeout(_demoTimer); _demoTimer = null; }
     if (!_demoActive) return;
@@ -9411,14 +9188,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   function previewListen() {
     if (_demoActive) { previewStop(); return; }        // toggle off
-    if (!activeBundle || playing) return;              // needs a bundle; never over a graded run
+    if (!activeBundle || transport.playing) return;              // needs a bundle; never over a graded run
     ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});
     stopAudio();                                       // clear any lingering nodes
     const lead = activeBundle.leadIn || 0, dur = activeBundle.songInfo?.duration || 0;
-    const hasLoop = segmentLoopA != null && segmentLoopB != null;
-    const from = hasLoop ? Math.min(segmentLoopA, segmentLoopB) : lead;   // skip the count-in
-    const to = hasLoop ? Math.max(segmentLoopA, segmentLoopB) : dur;
+    const hasLoop = transport.loopA != null && transport.loopB != null;
+    const from = hasLoop ? Math.min(transport.loopA, transport.loopB) : lead;   // skip the count-in
+    const to = hasLoop ? Math.max(transport.loopA, transport.loopB) : dur;
     if (!(to > from)) return;
     // Notes-only demo: clone the bundle with an audio profile that sounds ONLY the
     // practice voice — the phrase to hear, no click, no band.
@@ -9441,47 +9218,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // the clock/audio from the frozen playhead (the seekTo pattern). Wake lock is
   // released while paused (a paused screen may sleep) and re-acquired on resume.
   function pausePlayback() {
-    if (!playing || paused) return;
-    paused = true; _pauseBeganMs = performance.now();
+    if (!transport.pause()) return;
     stopAudio();
     releaseWakeLock();
     syncPlayButton(); refreshStatusFromState();
   }
   function resumePlayback() {
-    if (!playing || !paused) return;
-    _pausedAccumMs += Math.max(0, performance.now() - _pauseBeganMs);
-    paused = false;
+    if (!transport.playing || !transport.paused) return;
+    transport.resume({lead:activeBundle ? (activeBundle.leadIn || 0) : 0, beats:activeBundle?.beats || []});
     acquireWakeLock();
-    // Resume PRE-ROLL (Tier 2): re-lock the pulse before the notes return. Snap
-    // back to the measure downbeat at/before the pause, count in 1–2 bars over the
-    // REAL preceding chart time (the prior bar(s) = the visual runway — DAW
-    // pre-roll), muting those notes + forcing the count-in click, then resume at
-    // the bar. ZERO chart mutation — a transient clock trick. Skips when the pause
-    // is already in the head count-in or the very first music bar (the lead-in is
-    // its own runway). A-B loop: never run before A.
-    const lead = activeBundle ? (activeBundle.leadIn || 0) : 0;
-    const pauseT = currentPracticeTime;
-    let resumeAt = pauseT;
-    _preRollUntil = 0;
-    if (pauseT > lead + 1e-3) {
-      const measures = ((activeBundle && activeBundle.beats) || [])
-        .filter(b => !b._tail && (b.accent === 'measure' || (b.measure || -1) >= 0))
-        .map(b => b.time).sort((a, b) => a - b);
-      let reentry = lead;
-      for (const m of measures) { if (m <= pauseT + 1e-3) reentry = m; else break; }
-      if (reentry > lead + 1e-3) {                       // a genuine mid-chart bar
-        const idx = measures.indexOf(reentry);
-        const localBar = (idx >= 0 && idx + 1 < measures.length) ? (measures[idx + 1] - reentry)
-                       : (idx > 0 ? (reentry - measures[idx - 1]) : 2);
-        const preBars = Math.max(1, Math.min(2, Math.round(2.0 / Math.max(0.3, localBar))));
-        let startAt = reentry - preBars * localBar;
-        if (segmentLoopA != null) startAt = Math.max(startAt, segmentLoopA);
-        resumeAt = Math.max(0, startAt);
-        _preRollUntil = reentry;
-      }
-    }
-    currentPracticeTime = resumeAt;
-    anchorPlayClock(resumeAt);
+    anchorPlayClock(transport.time);
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     // Scoring hygiene across a pause is inherent: paused frames are discarded in
     // ptOnPitch; pre-roll frames likewise (the player isn't expected to play the
@@ -9491,9 +9237,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Dedicated transport Stop (the button left of Play/Pause). Acts on a running
   // OR paused run; inert when already stopped (the button is disabled then).
   function onStop() {
-    rendererAttachIdentity++;
-    generationIdentity++;
-    if (!playing) { stopRenderer(); return; }
+    rendererLifecycle.invalidate();
+    if (!transport.playing) { stopRenderer(); return; }
     // An explicit Stop is a DELIBERATE run end → the results modal may show.
     // Sideways stops (regenerate-while-playing, mode/screen switches) keep the
     // flag false so a settings fiddle never pops a modal.
@@ -9502,9 +9247,21 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Toggle for the primary Play/Pause button. If we don't have a chart yet,
   // generate one first so the very first click always plays something.
+  /** @param {number} request */
+  async function rendererReadyForPlay(request) {
+    try {
+      return await rendererLifecycle.waitUntilReady() && rendererLifecycle.isCurrentRequest(request);
+    } catch (error) {
+      if (!rendererLifecycle.isCurrentRequest(request)) return false;
+      showStatus(`Renderer failed: ${(/** @type {Error} */ (error)).message || error}`);
+      console.error('[Virtuoso] Play renderer readiness failed', error);
+      syncPlayButton();
+      return false;
+    }
+  }
   async function onPlayToggle() {
-    if (playing && !paused) { pausePlayback(); return; }
-    if (playing && paused) {
+    if (transport.playing && !transport.paused) { pausePlayback(); return; }
+    if (transport.playing && transport.paused) {
       // Resume inside the click gesture so a context the browser suspended
       // (e.g. after long inactivity) comes back with the audio.
       if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
@@ -9513,41 +9270,40 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Create/resume the AudioContext inside the click gesture (before any await) so
     // the voice warm-up + playback don't start on a suspended context.
     ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});
     // Bounded wait for the host output-device steer so the run's first notes
     // land on the right sink (150ms cap — routing never delays Play noticeably,
     // and a slow/failed steer just starts on the default sink).
-    const attachment = rendererAttachIdentity, generation = generationIdentity;
+    let request = rendererLifecycle.currentRequest();
     await Promise.race([applyHostSink(), new Promise((r) => setTimeout(r, 150))]);
-    if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
+    if (!rendererLifecycle.isCurrentRequest(request)) return;
     // In session mode, Play builds + starts the selected session if one isn't
     // already loaded; otherwise it replays the built session from the playhead.
     if ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode')) {
       if (!activeBundle || activeBundle.config?.mode !== 'session') { await onLaunchSession(); return; }
-      const bundle = activeBundle;
-      await awaitVoices(bundle);  // start on WAF, not the oscillator
-      if (attachment === rendererAttachIdentity && generation === generationIdentity && bundle === activeBundle) startPlayback();
+      await transport.runStart(rendererReadyForPlay(request), () => {});
       return;
     }
     if (!activeBundle) {
       if (!await onGenerate()) return;
     }
-    const readyAttachment = rendererAttachIdentity, readyGeneration = generationIdentity, bundle = activeBundle;
-    await awaitVoices(bundle);  // start on WAF, not the oscillator
-    if (readyAttachment === rendererAttachIdentity && readyGeneration === generationIdentity && bundle === activeBundle) startPlayback();
+    request = rendererLifecycle.currentRequest();
+    await transport.runStart(rendererReadyForPlay(request), () => {});
   }
 
   // ── Playback transport (scrubber + A/B loop + count-in) ──────────────────────
+  /** @param {number} s */
   function fmtTime(s) { s = Math.max(0, s || 0); const m = Math.floor(s / 60); const sec = Math.floor(s % 60); return m + ':' + String(sec).padStart(2, '0'); }
 
   // Seek the preview to an absolute chart time. Mirrors setSegmentLoop's
   // re-anchor logic so audio resumes from the new spot rather than going silent.
+  /** @param {number} t */
   function seekTo(t) {
     if (!activeBundle) return;
     const dur = activeBundle.songInfo?.duration || 0;
-    currentPracticeTime = Math.max(0, Math.min(dur, Number(t) || 0));
-    if (playing && !paused) {
-      anchorPlayClock(currentPracticeTime);
+    transport.seek(t, dur);
+    if (transport.playing && !transport.paused) {
+      anchorPlayClock(transport.time);
       stopAudio();
       scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
     } else {
@@ -9561,7 +9317,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Per-frame light sync: scrubber position + current-time readout.
   function syncTransportTime() {
     const cur = $('virtuoso_lab-time-cur');
-    if (cur) cur.textContent = fmtTime(currentPracticeTime);
+    if (cur) cur.textContent = fmtTime(transport.time);
     updateActiveSegment();
   }
 
@@ -9571,17 +9327,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function syncTransport() {
     const dur = activeBundle?.songInfo?.duration || 0;
     const hudTitle = $('virtuoso_lab-hud-title');
-    if (hudTitle) hudTitle.textContent = activeBundle ? describeCurrentContent() : '';
+    if (hudTitle) hudTitle.textContent = activeBundle ? practicePresentation.describe() : '';
     const durEl = $('virtuoso_lab-time-dur'); if (durEl) durEl.textContent = fmtTime(dur);
     syncTransportTime();
     paintLoopRegion();
-    $('virtuoso_lab-loop-a')?.classList.toggle('active', tpA != null);
-    $('virtuoso_lab-loop-b')?.classList.toggle('active', tpB != null);
+    $('virtuoso_lab-loop-a')?.classList.toggle('active', transport.markerA != null);
+    $('virtuoso_lab-loop-b')?.classList.toggle('active', transport.markerB != null);
     const lc = $('virtuoso_lab-loop-count');
     if (lc) {
-      const active = segmentLoopA != null && segmentLoopB != null && !isJamMode();
-      lc.hidden = !active || _loopWraps < 1;
-      if (active) lc.textContent = 'Loop ' + _loopWraps;
+      const active = transport.loopA != null && transport.loopB != null && !isJamMode();
+      lc.hidden = !active || transport.wraps < 1;
+      if (active) lc.textContent = 'Loop ' + transport.wraps;
     }
     const lr = $('virtuoso_lab-loop-range');
     if (lr) { const txt = loopReadoutText(); lr.hidden = !txt; lr.textContent = txt || ''; }
@@ -9601,6 +9357,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return (activeBundle?.beats || []).filter(b => (b.measure || -1) >= 0).map(b => b.time).sort((x, y) => x - y);
   }
   // Snap a time to the nearest bar line, unless `free` (Alt held) or no grid.
+  /** @param {number} t @param {boolean} free */
   function snapToDownbeat(t, free) {
     if (free) return t;
     const d = chartDownbeats();
@@ -9611,6 +9368,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Bar.beat label for a time (e.g. "5.1") from the chart's beat grid — the
   // downbeat is beat 1, each subsequent non-bar beat increments. null before the
   // first bar line (e.g. during a count-in lead-in).
+  /** @param {number} t */
   function timeBarBeat(t) {
     const beats = activeBundle?.beats || [];
     let measure = null, beatInBar = 0;
@@ -9624,8 +9382,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // DAW-style cycle readout: "5.1–8.4 · 3 bars" (bar.beat bounds + bar span), or
   // a seconds fallback when there's no bar grid. null when no loop is set.
   function loopReadoutText() {
-    if (tpA == null || tpB == null || Math.abs(tpA - tpB) < 0.02) return null;
-    const lo = Math.min(tpA, tpB), hi = Math.max(tpA, tpB);
+    if (transport.markerA == null || transport.markerB == null || Math.abs(transport.markerA - transport.markerB) < 0.02) return null;
+    const lo = Math.min(transport.markerA, transport.markerB), hi = Math.max(transport.markerA, transport.markerB);
     const a = timeBarBeat(lo), b = timeBarBeat(hi);
     const bars = chartDownbeats().filter(x => x > lo + 0.02 && x <= hi + 0.02).length;
     const span = bars > 0 ? (bars + ' bar' + (bars === 1 ? '' : 's')) : ((hi - lo).toFixed(1) + 's');
@@ -9635,20 +9393,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Commit the A/B points to the loop engine once both are set and distinct;
   // otherwise leave the loop disengaged (a single point just paints a marker).
   function commitLoop() {
-    if (tpA != null && tpB != null && Math.abs(tpA - tpB) > 0.02) {
-      try { setSegmentLoop(Math.min(tpA, tpB), Math.max(tpA, tpB)); }
+    if (transport.markerA != null && transport.markerB != null && Math.abs(transport.markerA - transport.markerB) > 0.02) {
+      try { setSegmentLoop(Math.min(transport.markerA, transport.markerB), Math.max(transport.markerA, transport.markerB)); }
       catch (_) { clearSegmentLoop(); }
     } else {
       clearSegmentLoop();
     }
-    _loopWraps = 0;
+    transport.resetWraps();
     syncTransport();
   }
 
   // Reset all transport loop state — used when a fresh chart is generated and
   // the old A/B times may no longer be valid for the new duration.
   function resetTransportLoop() {
-    tpA = null; tpB = null; _loopWraps = 0; _activeSegIdx = -1;
+    transport.resetLoop(); _activeSegIdx = -1;
     clearSegmentLoop();
     syncTransport();
   }
@@ -9658,7 +9416,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
   function currentSegmentIndex() {
     const b = sessionBounds(); if (!b || !b.length) return -1;
-    const t = currentPracticeTime;
+    const t = transport.time;
     for (let i = 0; i < b.length; i++) if (t >= b[i].start - 1e-6 && t < b[i].end - 1e-6) return i;
     return t >= b[b.length - 1].end - 1e-6 ? b.length - 1 : 0;
   }
@@ -9684,13 +9442,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     document.querySelectorAll('#virtuoso_lab-segment-list .virtuoso_lab-segment-card').forEach((el, i) => el.classList.toggle('active', i === idx));
   }
 
+  /** @param {number} i */
   function jumpToSegment(i) { const b = sessionBounds(); if (b && b[i]) seekTo(b[i].start); }
 
   function prevSegment() {
     const b = sessionBounds(); if (!b || !b.length) return;
     const idx = currentSegmentIndex();
     // >1s into a segment restarts it; otherwise step to the previous one.
-    const target = (currentPracticeTime > b[idx].start + 1 || idx === 0) ? idx : idx - 1;
+    const target = (transport.time > b[idx].start + 1 || idx === 0) ? idx : idx - 1;
     seekTo(b[Math.max(0, target)].start);
   }
 
@@ -9703,16 +9462,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function loopCurrentSegment() {
     const b = sessionBounds(); if (!b || !b.length) return;
     const idx = currentSegmentIndex(); if (idx < 0) return;
-    tpA = b[idx].start; tpB = b[idx].end; commitLoop();
+    transport.markLoop(b[idx].start, b[idx].end); commitLoop();
   }
 
   // Nudge to the adjacent bar line. Uses the chart's own measure downbeats
   // (beats with measure >= 0), so it stays tempo-accurate even across session
   // segments with different tempos. dir < 0 = back, dir > 0 = forward.
+  /** @param {number} dir */
   function nudgeBar(dir) {
     if (!activeBundle) return;
     const downbeats = (activeBundle.beats || []).filter(b => (b.measure || -1) >= 0).map(b => b.time).sort((a, c) => a - c);
-    const t = currentPracticeTime, dur = activeBundle.songInfo?.duration || 0;
+    const t = transport.time, dur = activeBundle.songInfo?.duration || 0;
     if (!downbeats.length) { seekTo(t + dir * 2); return; } // fallback if no beat grid
     if (dir > 0) {
       const next = downbeats.find(d => d > t + 0.05);
@@ -9725,27 +9485,29 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
   // Nudge the loop's end (B) edge to the adjacent bar line (Shift+←/→). Adjusts
   // cycle length from the end; refuses to collapse the loop past its start.
+  /** @param {number} dir */
   function nudgeLoopEdge(dir) {
-    if (tpA == null || tpB == null || Math.abs(tpA - tpB) < 0.02) return false;
+    if (transport.markerA == null || transport.markerB == null || Math.abs(transport.markerA - transport.markerB) < 0.02) return false;
     const dn = chartDownbeats(); if (!dn.length) return false;
     const dur = activeBundle?.songInfo?.duration || 0;
-    const lo = Math.min(tpA, tpB), hi = Math.max(tpA, tpB);
+    const lo = Math.min(transport.markerA, transport.markerB), hi = Math.max(transport.markerA, transport.markerB);
     let next = dir > 0 ? dn.find(x => x > hi + 0.05) : [...dn].reverse().find(x => x < hi - 0.05);
     if (next == null) next = dir > 0 ? dur : hi;
     if (next <= lo + 0.02) return true;  // refuse to collapse past the start
-    tpA = lo; tpB = next; commitLoop(); paintLoopRegion();
+    transport.markLoop(lo, next); commitLoop(); paintLoopRegion();
     return true;
   }
 
   // Keyboard transport, scoped to the Virtuoso screen. Ignores keystrokes when
   // a form field is focused or a modifier is held, and never touches Escape
   // (FeedBack owns Escape for return-to-menu). Comma/period are session-only.
+  /** @param {KeyboardEvent} e */
   function onTransportKey(e) {
     const root = $('virtuoso_lab-root');
     if (!root || !root.offsetParent) return; // screen not the active/visible one
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const tag = (e.target?.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+    const tag = ((/** @type {HTMLElement | null} */ (e.target))?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || (/** @type {HTMLElement | null} */ (e.target))?.isContentEditable) return;
     const sessionMode = root.classList.contains('virtuoso_lab-session-mode');
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
@@ -9753,8 +9515,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       case 'ArrowRight': e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(1)) break; nudgeBar(1); break;
       // Loop in/out moved to i/o (editor in/out convention) so [ is free for the
       // shell Inspector-collapse hotkey (menu/shell decision); \ still clears the loop.
-      case 'i': case 'I': e.preventDefault(); tpA = currentPracticeTime; commitLoop(); break;
-      case 'o': case 'O': e.preventDefault(); tpB = currentPracticeTime; commitLoop(); break;
+      case 'i': case 'I': e.preventDefault(); transport.markLoop(transport.time, transport.markerB); commitLoop(); break;
+      case 'o': case 'O': e.preventDefault(); transport.markLoop(transport.markerA, transport.time); commitLoop(); break;
       case '\\':         e.preventDefault(); resetTransportLoop(); break;
       // Shell hotkeys: M mixer · P progress · [ collapse Inspector · ? cheat-sheet.
       case 'm': case 'M': e.preventDefault(); toggleMixer(); break;
@@ -9773,9 +9535,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // used to restate every menu selection (debug-log style); now it confirms
   // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
   // Errors/fallback messages do NOT go here — they're routed to #virtuoso_lab-status.
+  /** @param {import('./src/types/entry-data.js').EntryExercise} exercise */
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart;
+    /** @param {unknown} s */
     const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    /** @param {string} label @param {string | number | undefined} value */
     const cell = (label, value) => `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val">${esc(value)}</span></div>`;
     const len = fmtTime(c.duration);
     // Sessions mix tempo/key/meter across segments, so show session-level facts
@@ -9795,7 +9560,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // that reads like the readout, commits via the delegated handler in bind()
     // (writes the Inspector field → regenerate). Works as a live OVERRIDE in any
     // mode, exactly like the editable Tempo cell.
+    /** @param {string | number} value @param {string} label @param {string | number} cur */
     const opt = (value, label, cur) => `<option value="${esc(value)}"${String(value) === String(cur) ? ' selected' : ''}>${esc(label)}</option>`;
+    /** @param {string} id @param {string} label @param {string} inner @param {string} title */
     const lcdSel = (id, label, inner, title) =>
       `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val"><select id="${id}" class="virtuoso_lab-lcd-select" aria-label="${esc(title)}" title="${esc(title)}">${inner}</select></span></div>`;
     // Key — root note editable; the scale name stays a static suffix. chromatic has
@@ -9840,82 +9607,60 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       cell('Notes', c.notes.length)
     ].join('');
   }
+  /** @param {string} text */
   function showStatus(text) { const el = $('virtuoso_lab-status'); if (el) el.textContent = text; }
-  function describeCurrentContent() {
-    try {
-      if (lastExercise?.session.practiceFile) return `File practice — ${lastExercise.session.sessionName} · ${lastExercise.session.practiceFileVariantTitle} · ${lastExercise.session.bpm} BPM (reference ${lastExercise.session.referenceTempo})`;
-      // Jam describes the JAM, not the form (the form holds whatever exercise
-      // was left behind — the status line read "Chromatic…" mid-jam; J-1 fix).
-      const js = lastExercise && lastExercise.session;
-      if (isJamMode() && js && js.jamStyle && STYLE_PALETTES[js.jamStyle]) {
-        return `Jam — ${STYLE_PALETTES[js.jamStyle].label} in ${js.key} · ${js.bpm} BPM` + (jamIntent ? ` · ${jamIntent}` : '');
-      }
-      const cfg = readConfig();
-      if (cfg.mode === 'chromatic') {
-        return `Chromatic ${CHROMATIC_PATTERN_LABELS[cfg.chromaticPattern] || cfg.chromaticPattern}, frets ${cfg.fretMin}–${cfg.fretMax}`;
-      }
-      const scaleLabel = String(cfg.scale || '').replace(/_/g, ' ');
-      return `${cfg.key} ${scaleLabel}, frets ${cfg.fretMin}–${cfg.fretMax}`;
-    } catch { return ''; }
-  }
   function refreshStatusFromState() {
     // Output-device honesty: when the host engine is on a device we couldn't
     // follow, say so right where the player is looking (the silent failure was
     // the actual bug — Arch + Focusrite report, 2026-06-07).
-    const sinkNote = (_sinkMismatch ? ` · ⚠ ${_sinkMismatch}` : '') + (!practiceCatalog?.state.settled ? ' · Chromatic Warmup loading…' : practiceCatalog.state.error ? ' · Chromatic Warmup unavailable (practice catalog failed to load)' : '');
+    const sinkNote = (_sinkMismatch ? ` · ⚠ ${_sinkMismatch}` : '') + (!practiceSelection.catalogState?.settled ? ' · Chromatic Warmup loading…' : practiceSelection.catalogState.error ? ' · Chromatic Warmup unavailable (practice catalog failed to load)' : '');
     if (!activeBundle) { showStatus(`Ready${sinkNote}`); return; }
-    const desc = describeCurrentContent();
-    showStatus(playing ? (paused ? `Paused — ${desc}${sinkNote}` : `Playing — ${desc}${sinkNote}`) : `Ready — ${desc}${sinkNote}`);
+    const desc = practicePresentation.describe();
+    showStatus(transport.playing ? (transport.paused ? `Paused — ${desc}${sinkNote}` : `Playing — ${desc}${sinkNote}`) : `Ready — ${desc}${sinkNote}`);
   }
 
   async function onGenerate() {
-    if (pendingInitialPathway) { refreshStatusFromState(); return; }
-    cancelPracticeLoad();
-    const identity = ++generationIdentity;
-    let attachment = rendererAttachIdentity;
-    const practice = loadedPracticeFile;
-    const ownsGeneration = () => identity === generationIdentity && attachment === rendererAttachIdentity;
-    const summary = $('virtuoso_lab-summary');
+    if (practiceSelection.pendingInitial) { refreshStatusFromState(); return; }
+    practiceSelection.cancelLoad();
+    let request = rendererLifecycle.invalidate();
+    const practice = practiceSelection.file;
+    const ownsGeneration = () => rendererLifecycle.isCurrentRequest(request);
+    const summary = /** @type {HTMLDivElement} */ ($('virtuoso_lab-summary'));
     try {
       const cfg = readConfig();
-      if (practice) { cfg.practiceFile = practice; cfg.practiceVariantId = practiceVariantId; }
-      const pathway = activePathwayId && PATHWAYS[activePathwayId];
-      if (!practice && pathway?.practiceFile && $('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode')) {
-        Object.assign(cfg, catalogPathwayConfig(pathway, activePathwayVariationIdx, activeTempoTierIdx, cfg));
-        cfg.meter = parseMeter(cfg.meter);
-      }
-      cfg.practicedPathwayId = !practice && $('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode') && PATHWAYS[activePathwayId] ? activePathwayId : null;
+      practiceSelection.selectedConfig(cfg);
+      if (cfg.practicePathwayId) cfg.meter = parseMeter(cfg.meter);
+      cfg.practicedPathwayId = !practice && $('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode') && PATHWAYS[String(practiceSelection.pathwayId)] ? practiceSelection.pathwayId : null;
       const exercise = generateExercise(withRunTarget(cfg));
-      if (cfg.practicePathwayId) updatePathwayGoalCard(cfg.practicePathwayId, false);
+      if (cfg.practicePathwayId) practicePresentation.renderGoal(cfg.practicePathwayId, false);
       lastExercise = exercise;
       summary.innerHTML = summarize(exercise);
       const pending = attachRenderer(exercise);
-      attachment = rendererAttachIdentity;
+      request = rendererLifecycle.currentRequest();
       if (!await pending || !ownsGeneration()) return;
       prewarmVoices(activeBundle);  // start the sampled-voice load now so Play starts on WAF, not the oscillator
       syncJamHighlightUI();
       syncFretboardUI();
-      syncPracticeFileControls();
+      practiceSelection.syncFileControls();
       refreshStatusFromState();
       return true;
     } catch (e) {
       if (!ownsGeneration()) return;
-      if (practice || PATHWAYS[activePathwayId]?.practiceFile) { stopRenderer(); activeBundle = null; lastExercise = null; }
-      showStatus(`Error: ${e.message || e}`);
+      if (practice || PATHWAYS[String(practiceSelection.pathwayId)]?.practiceFile) { stopRenderer(); activeBundle = null; lastExercise = null; }
+      showStatus(`Error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] generate failed', e);
     }
   }
-  async function savePreset() {
-    const cfg = readConfig(), name = `${cfg.key} ${cfg.scale} ${cfg.setupLabel} ${cfg.mode}`, id = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Date.now().toString(36);
-    const res = await fetch('/api/plugins/virtuoso_lab/presets', { method:'POST', headers:{ 'Content-Type':'application/json' }, body:JSON.stringify({ id, name, kind:cfg.mode, config:cfg }) });
-    if (!res.ok) throw new Error(await res.text());
-    showStatus(`Saved preset: ${name}`);
-  }
+  // The save button was explicitly cut from HTML; recall remains supported.
+  const practicePresets = createPracticePresets({
+    onSelect(config) { applyPathwayConfig(config); if (activeBundle) onGenerate(); }
+  });
   function syncStringSetupControls() { const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'); if (!instrument || !setup) return; const current = STRING_SETUPS[setup.value] || STRING_SETUPS.guitar_6_standard; instrument.value = current.instrument; }
   // CAGED/3NPS shape concepts are guitar-only — hide them when bass is active.
   // Remembers the shape-aware system (caged/3nps) we force-switched away from
   // when the user picked a bass setup, so returning to guitar restores it
   // instead of stranding the player in 'position'.
+  /** @type {string | null} */
   let stashedGuitarSystem = null;
   function syncInstrumentClass() {
     const root = $('virtuoso_lab-root');
@@ -9972,7 +9717,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // stepping (CAGED shapes aren't shown), so its label + control must update
     // when the instrument changes. updatePositionStepper() picks the right
     // mode + axis label.
-    updatePositionStepper();
+    practicePresentation.renderPosition();
     // Mirror the underlying instrument value into the top-level family
     // selector so all three controls (family chip, instrument select,
     // string-setup select) stay in sync regardless of which one drove the
@@ -9995,6 +9740,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // select and fires its 'change' event so every downstream sync (string
   // setup, instrument class, shape dropdown, renderer fallback for bass)
   // runs through the same code path as the in-form change.
+  /** @param {string} family */
   function onInstrumentFamilyClick(family) {
     if (family === 'piano') return;  // disabled — coming in a future release
     const instr = document.querySelector('[name="instrument"]');
@@ -10013,7 +9759,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     try { localStorage.setItem('virtuoso_lab.instrumentFamily', family); } catch (_) {}
     syncInstrumentFamilyButtons();
     syncStringCountChips();
-    syncTuningOptions();
+    tuningSettings.sync();
   }
 
   // ── Strings + tuning ───────────────────────────────────────────────────
@@ -10055,6 +9801,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // The player's EFFECTIVE open midis per the L1 store (custom CSV when valid
   // for the saved setup, else the setup's standard), or null when nothing saved.
+  /** @param {{stringSetup: string, customOpenMidis: string} | null} inst */
   function instrumentStoreMidis(inst) {
     if (!inst) return null;
     const setup = STRING_SETUPS[inst.stringSetup];
@@ -10068,7 +9815,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   function currentStringCount() {
     const setup = document.querySelector('[name="stringSetup"]');
-    const cur = STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard;
+    const cur = STRING_SETUPS[String(setup?.value)] || STRING_SETUPS.guitar_6_standard;
     return cur.openMidis.length;
   }
   function syncStringCountChips() {
@@ -10087,6 +9834,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       row.appendChild(b);
     }
   }
+  /** @param {number} count */
   function onStringCountClick(count) {
     // Snap stringSetup to the canonical standard preset for this family +
     // count. If a custom tuning was active, it's dropped — the user explicitly
@@ -10103,279 +9851,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     setup.dispatchEvent(new Event('change', { bubbles: true }));
     hostSettingsWriteSoon();  // the chip click is a real player declaration
     syncStringCountChips();
-    syncTuningOptions();
+    tuningSettings.sync();
   }
-  // Saved-tunings cache, populated by loadSavedTunings() once per plugin
-  // session. Filtered per (family, string_count) by syncTuningOptions.
-  let savedTunings = [];
-  async function loadSavedTunings() {
-    try {
-      const r = await fetch('/api/plugins/virtuoso_lab/tunings');
-      if (!r.ok) return;
-      const body = await r.json();
-      savedTunings = Array.isArray(body.tunings) ? body.tunings : [];
-    } catch (_) {
-      savedTunings = [];
-    }
-    syncTuningOptions();
-  }
-  function syncTuningOptions() {
-    const sel = $('virtuoso_lab-tuning-select'); if (!sel) return;
-    const family = currentFamily();
-    const count = currentStringCount();
-    const presets = TUNING_PRESETS[`${family}_${count}`] || [];
-    const setup = document.querySelector('[name="stringSetup"]');
-    const setupName = setup?.value || `${family}_${count}_standard`;
-    const hidden = $('virtuoso_lab-custom-open-midis');
-    const customStr = hidden?.value || '';
-    const customMidis = customStr ? customStr.split(',').map(Number).filter(Number.isFinite) : null;
-    sel.innerHTML = '';
-    // The "currently effective" tuning is the custom-override when present,
-    // otherwise the stringSetup's standard midis. Walk presets and pick the
-    // first one that matches — so e.g. switching to DADGAD via the dropdown
-    // (which is stored as customOpenMidis) keeps the dropdown showing
-    // "DADGAD" instead of "Custom".
-    const effective = (customMidis && customMidis.length === count)
-      ? customMidis
-      : ((STRING_SETUPS[setupName] || {}).openMidis || []);
-    let activeId = null;
-    // Built-in presets (Standard, Drop D, DADGAD, …). These keep their STABLE ids
-    // (`standard`, `d_standard`, …) — tests, stored prefs, and the L1 adapt paths
-    // key off them, so the host merge must never remove or rename them (deliberate
-    // deviation from the spec's "host name wins": id stability beats label
-    // provenance; the labels are near-identical anyway).
-    const presetGroup = document.createElement('optgroup');
-    presetGroup.label = 'Built-in';
-    for (const p of presets) {
-      const opt = document.createElement('option');
-      opt.value = p.id;
-      opt.textContent = p.label;
-      opt.dataset.midis = p.midis.join(',');
-      presetGroup.appendChild(opt);
-      if (!activeId && effective.length === p.midis.length && effective.every((m, i) => m === p.midis[i])) {
-        activeId = p.id;
-      }
-    }
-    sel.appendChild(presetGroup);
-    // Host named tunings the curated set doesn't carry (topbar parity): the host
-    // tuning table is the fuller catalog (Drop A/Ab, Open E, …) — midis-duplicates
-    // of a built-in preset are skipped. Round-tripping to the host by NAME is
-    // unaffected by which option the user picks (hostTuningNameForMidis matches by
-    // resolved midis), as is the offset:true intent tag (applyTuningAdaptL1
-    // matches TUNING_PRESETS by midis).
-    const hostEntries = hostTuningEntries(family, count)
-      .filter(e => !presets.some(p => p.midis.length === e.midis.length && p.midis.every((m, i) => m === e.midis[i])));
-    if (hostEntries.length) {
-      const hostGroup = document.createElement('optgroup');
-      hostGroup.label = 'FeedBack';
-      for (const e of hostEntries) {
-        const opt = document.createElement('option');
-        opt.value = `host:${e.name}`;
-        opt.textContent = e.name;
-        opt.dataset.midis = e.midis.join(',');
-        hostGroup.appendChild(opt);
-        if (!activeId && effective.length === e.midis.length && effective.every((m, i) => m === e.midis[i])) {
-          activeId = `host:${e.name}`;
-        }
-      }
-      sel.appendChild(hostGroup);
-    }
-    // Saved tunings filtered to the current family + string count.
-    const mine = savedTunings.filter(t => t.family === family && t.string_count === count);
-    if (mine.length) {
-      const savedGroup = document.createElement('optgroup');
-      savedGroup.label = 'Saved';
-      for (const t of mine) {
-        const opt = document.createElement('option');
-        opt.value = `saved:${t.id}`;
-        opt.textContent = t.name;
-        opt.dataset.midis = (t.midis || []).join(',');
-        savedGroup.appendChild(opt);
-        if (!activeId && effective.length === (t.midis || []).length && (t.midis || []).every((m, i) => m === effective[i])) {
-          activeId = `saved:${t.id}`;
-        }
-      }
-      sel.appendChild(savedGroup);
-    }
-    // Always offer a Custom option. Picked when no preset matched and the
-    // user does have a non-empty custom override.
-    const customOpt = document.createElement('option');
-    customOpt.value = 'custom';
-    customOpt.textContent = 'Custom…';
-    sel.appendChild(customOpt);
-    if (!activeId && customMidis && customMidis.length === count) activeId = 'custom';
-    // Fallback = the first listed option (the host group may have absorbed the
-    // built-in Standard entry, so presets[0].id can be absent from the DOM).
-    sel.value = activeId || (sel.options[0] && sel.options[0].value) || 'custom';
-    syncCustomTuningInputs();
-    updateSetupButton();   // header Setup button shows the live instrument + tuning
-  }
-  // Persist the active custom tuning to the DB under a user-supplied name.
-  // After save, refetch the saved-tunings list so the dropdown reflects the
-  // new entry immediately.
-  async function onSaveTuningClick() {
-    const hidden = $('virtuoso_lab-custom-open-midis');
-    const midisStr = hidden?.value || '';
-    const midis = midisStr.split(',').map(Number).filter(Number.isFinite);
-    if (!midis.length) return;
-    const family = currentFamily();
-    const count = currentStringCount();
-    if (midis.length !== count) return;
-    const defaultName = midis.map(midiToNoteName).join(' ');
-    const name = window.prompt('Save tuning as:', defaultName);
-    if (!name) return;
-    try {
-      const r = await fetch('/api/plugins/virtuoso_lab/tunings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: name.trim(), family, string_count: count, midis }),
-      });
-      if (!r.ok) {
-        const txt = await r.text();
-        console.warn('[Virtuoso] save tuning failed', r.status, txt);
-        return;
-      }
-      await loadSavedTunings();
-    } catch (e) {
-      console.warn('[Virtuoso] save tuning error', e);
-    }
-  }
-  function syncCustomTuningInputs() {
-    const sel = $('virtuoso_lab-tuning-select');
-    const wrap = $('virtuoso_lab-custom-tuning');
-    const inputs = $('virtuoso_lab-custom-tuning-inputs');
-    const hidden = $('virtuoso_lab-custom-open-midis');
-    if (!sel || !wrap || !inputs || !hidden) return;
-    const isCustom = sel.value === 'custom';
-    wrap.style.display = isCustom ? 'flex' : 'none';
-    if (!isCustom) return;
-    const count = currentStringCount();
-    // Seed from existing hidden value, or the current stringSetup's midis.
-    let midis = hidden.value ? hidden.value.split(',').map(Number).filter(Number.isFinite) : null;
-    if (!midis || midis.length !== count) {
-      const setup = document.querySelector('[name="stringSetup"]');
-      midis = (STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
-      if (midis.length !== count) {
-        // Pad / trim to match the chosen count.
-        while (midis.length < count) midis.unshift(midis[0] - 5);
-        midis = midis.slice(0, count);
-      }
-    }
-    inputs.innerHTML = '';
-    for (let i = 0; i < count; i++) {
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.className = 'virtuoso_lab-custom-tuning-input';
-      input.value = midiToNoteName(midis[i]);
-      input.dataset.idx = String(i);
-      input.spellcheck = false;
-      input.addEventListener('input', () => onCustomTuningEdit());
-      input.addEventListener('blur', () => onCustomTuningEdit(true));
-      inputs.appendChild(input);
-    }
-    // Commit the seeded values to the hidden field so an immediate read
-    // sees them even before the user types.
-    commitCustomTuning(midis);
-  }
-  function readCustomTuningInputs() {
-    const inputs = Array.from(document.querySelectorAll('.virtuoso_lab-custom-tuning-input'));
-    const midis = [];
-    let allValid = true;
-    for (const el of inputs) {
-      const m = parseNoteName(el.value);
-      if (m == null) { el.classList.add('invalid'); allValid = false; midis.push(null); }
-      else { el.classList.remove('invalid'); midis.push(m); }
-    }
-    return { midis, allValid };
-  }
-  function commitCustomTuning(midis) {
-    const hidden = $('virtuoso_lab-custom-open-midis');
-    if (hidden) hidden.value = midis.join(',');
-  }
-  function onCustomTuningEdit(commit) {
-    const { midis, allValid } = readCustomTuningInputs();
-    if (!allValid) return;
-    commitCustomTuning(midis);
-    instrumentStoreSave();   // user-driven tuning edit = the player's L1 declaration
-    reapplyActivePathway();  // per-string edits don't dispatch a setup change
-    if (commit && (activeBundle || loadedPracticeFile || hasActivePathwayFile())) onGenerate();
-  }
-  function onTuningPresetChange() {
-    const sel = $('virtuoso_lab-tuning-select'); if (!sel) return;
-    const hidden = $('virtuoso_lab-custom-open-midis');
-    // Saved tunings come back as `saved:<id>`, host named tunings as `host:<name>`;
-    // the midis live on the option's dataset.midis (set by syncTuningOptions).
-    // Apply them as a custom override against the family's standard stringSetup.
-    if (sel.value && (sel.value.startsWith('saved:') || sel.value.startsWith('host:'))) {
-      const opt = sel.options[sel.selectedIndex];
-      const midis = (opt?.dataset.midis || '').split(',').map(Number).filter(Number.isFinite);
-      if (midis.length) {
-        const family = currentFamily();
-        const count = currentStringCount();
-        const setup = document.querySelector('[name="stringSetup"]');
-        if (setup) {
-          setup.value = `${family}_${count}_standard`;
-          commitCustomTuning(midis);
-          setup.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-        syncCustomTuningInputs();
-        instrumentStoreSave();
-      }
-      return;
-    }
-    if (sel.value === 'custom') {
-      // Initialize hidden field from the current stringSetup if not already.
-      if (!hidden.value) {
-        const setup = document.querySelector('[name="stringSetup"]');
-        const midis = (STRING_SETUPS[setup?.value] || STRING_SETUPS.guitar_6_standard).openMidis.slice();
-        commitCustomTuning(midis);
-      }
-      syncCustomTuningInputs();
-      instrumentStoreSave();
-      reapplyActivePathway();   // custom-CSV branch doesn't dispatch a setup change
-      if (activeBundle || hasActivePathwayFile()) onGenerate();
-      return;
-    }
-    // A built-in preset. Drop any custom tuning and (when the preset matches
-    // a STRING_SETUPS entry) snap stringSetup to it. Otherwise apply the
-    // preset's midis as customOpenMidis so generators see the right tuning.
-    hidden.value = '';
-    const family = currentFamily();
-    const count = currentStringCount();
-    const preset = (TUNING_PRESETS[`${family}_${count}`] || []).find(p => p.id === sel.value);
-    if (!preset) return;
-    const setup = document.querySelector('[name="stringSetup"]');
-    const setupKey = `${family}_${count}_${preset.id}`;
-    const setupName = TUNING_TO_SETUP[setupKey];
-    if (setupName && STRING_SETUPS[setupName]) {
-      setup.value = setupName;
-      setup.dispatchEvent(new Event('change', { bubbles: true }));
-    } else {
-      // Non-canonical preset (e.g. DADGAD, Open G) — drive it as a custom
-      // tuning override against the family's standard stringSetup.
-      setup.value = `${family}_${count}_standard`;
-      commitCustomTuning(preset.midis);
-      setup.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-    syncCustomTuningInputs();
-    instrumentStoreSave();   // a preset pick = the player's L1 declaration
-  }
-  function syncAdvancedMode() {
-    const root = $('virtuoso_lab-root'), toggle = $('virtuoso_lab-advanced-toggle');
-    const enabled = !!toggle?.checked;
-    root?.classList.toggle('virtuoso_lab-advanced', enabled);
-    document.querySelectorAll('.virtuoso_lab-advanced-only input, .virtuoso_lab-advanced-only select, .virtuoso_lab-advanced-only textarea, .virtuoso_lab-advanced-only button').forEach(el => { el.disabled = !enabled; });
-  }
-  function setFieldSilent(name, value) {
-    // Fields living OUTSIDE the form element but associated via the form=""
-    // attribute (e.g. the header Setup popover's hidden customOpenMidis input)
-    // aren't descendants of #virtuoso_lab-controls — fall back to the attribute.
-    const field = document.querySelector('#virtuoso_lab-controls [name="' + name + '"]')
-      || document.querySelector('[form="virtuoso_lab-controls"][name="' + name + '"]');
-    if (!field) return;
-    if (field.type === 'checkbox') field.checked = !!value;
-    else field.value = String(value);
-  }
+  const tuningSettings = createTuningSettings({
+    hostEntries: hostTuningEntries,
+    onDeclaration: instrumentStoreSave,
+    onCustomChange: (commit, includeFile) => {
+      reapplyActivePathway();
+      if (commit && (activeBundle || (includeFile && practiceSelection.file) || practiceSelection.hasPathwayFile())) onGenerate();
+    },
+    onSelection: () => { if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate(); },
+    onDisplay: updateSetupButton,
+  });
 
   // ── Meter-aware subdivision (Tier-1 fix, 2026-06-03 rhythm-meter panel) ──────
   // A meter is FELT in its denominator note-value (the metronome's pulse unit:
@@ -10388,7 +9875,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // pulse the DEFAULT and NAME the cross-pulse instead of silently defaulting into
   // it. Panel verdict: meter-aware default (eighth in /8), keep quarter as a
   // labelled advanced option, never hide it, don't relabel to "notes per beat".
+  /** @type {Record<string, number>} */
   const SUBDIV_NOTE_DENOM = { quarter: 4, eighth: 8, sixteenth: 16 };
+  /** @param {number} den */
   function pulseSubdivisionForDenominator(den) {
     if (den >= 16) return 'sixteenth';
     if (den >= 8)  return 'eighth';
@@ -10449,136 +9938,25 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     el.textContent = txt;
   }
-  function syncCagedButtonStrip() {
-    // The button-strip UI was removed in favor of the unified Shape dropdown.
-    // Kept as a no-op so existing callers don't need to be touched.
-  }
 
-  // Mirror the Shape dropdown's selected value into the legacy hidden
-  // cagedShape input. Only meaningful when the active system is CAGED — for
-  // other systems the chord-template helpers aren't called.
-  function syncShapeDropdownSelectionToHidden() {
-    const sysEl = $('virtuoso_lab-fretboard-system');
-    const shapeEl = $('virtuoso_lab-shape');
-    const hidden = $('virtuoso_lab-caged-shape-value');
-    if (!shapeEl || !hidden) return;
-    if (sysEl && sysEl.value === 'caged' && shapeEl.value) hidden.value = shapeEl.value;
-  }
+  /** @param {Record<string, unknown> | null} config */
   function applyPathwayConfig(config) {
-    pendingInitialPathway = null;
-    clearPracticeFile();
+    practiceSelection.beforeConfig();
     if (!config) return;
-    if (Object.prototype.hasOwnProperty.call(config, 'advancedMode')) setFieldSilent('advancedMode', config.advancedMode);
-    syncAdvancedMode();
-    // Instrument-family FIRST: if the rung declares a stringSetup for a different
-    // family, switch the instrument class before the field loop writes practiceType.
-    // syncInstrumentClass DISABLES the practice-type options not offered on the
-    // current instrument, and setFieldSilent silently rejects a value whose <option>
-    // is disabled — so applying a bass-native rung (e.g. right_hand_technique) while
-    // the class was still guitar fell back to 'scale'. (Surfaced selecting a bass
-    // ladder from a guitar context / restoring a bass pathway on reload.)
-    if (config.stringSetup && STRING_SETUPS[config.stringSetup]) {
-      setFieldSilent('stringSetup', config.stringSetup);
-      syncStringSetupControls();
-      syncInstrumentClass();
-    }
-    // Specialized backing/feel fields default OFF unless the pathway opts in, so a
-    // boogie/shuffle pathway's settings never leak into the next pathway selected
-    // (applyPathwayConfig doesn't reset the form; it only writes keys it's given).
-    setFieldSilent('backingStyle', config.backingStyle || 'pad');
-    setFieldSilent('swing', config.swing || 'straight');
-    // Drums suppression (beginner woodshed default) is rung-scoped → anti-leak
-    // defaulted, so a drumless beginner rung never mutes the next pathway's kit.
-    setFieldSilent('drums', config.drums || '');
-    // Reggae-skank pulse flag is specialized → default OFF unless the rung opts in,
-    // so a skank variation's offbeat never leaks into the next rung selected.
-    setFieldSilent('pulseOffbeat', config.pulseOffbeat ? 'true' : '');
-    // Shape-walk flag (The Five CAGED Shapes) is specialized → default OFF unless
-    // the rung opts in, so the walk never leaks into the next chord rung selected.
-    setFieldSilent('shapeWalk', config.shapeWalk ? 'true' : '');
-    // Stroke-policy school is specialized → default EMPTY unless the rung opts
-    // in, so a declared school never marks the next rung's run (anti-leak).
-    setFieldSilent('strokePolicy', config.strokePolicy || '');
-    // Herta accent/walk: anti-leak defaulted like the other rung-scoped flags.
-    setFieldSilent('hertaAccent', config.hertaAccent != null ? config.hertaAccent : '0');
-    setFieldSilent('hertaWalk', config.hertaWalk ? 'true' : '');
-    // Riff-vocabulary cell + phase: anti-leak defaulted — a motif rung's cell
-    // or construct phase never rides into the next pathway selected.
-    setFieldSilent('motifCell', config.motifCell || '');
-    setFieldSilent('motifPhase', config.motifPhase || '');
-    // Fingerstyle pack: anti-leak defaulted — a spider rung's pair / a study's
-    // p-i-m-a pattern never rides into the next pathway.
-    setFieldSilent('spiderPair', config.spiderPair || '');
-    setFieldSilent('pimaPattern', config.pimaPattern || '');
-    // sweepStrings (Sweep ladder): anti-leak defaulted → a 3-string entry rung's
-    // limiter never persists into the next pathway's full-box sweep.
-    setFieldSilent('sweepStrings', config.sweepStrings != null ? config.sweepStrings : '0');
-    // tapArp (Tapping ladder): anti-leak defaulted → a cascade rung's tapped-arpeggio
-    // mode never persists into the next 'tapping' pathway's articulation drill.
-    setFieldSilent('tapArp', config.tapArp ? 'true' : '');
-    // rhTechMode (Bass Groove & Right-Hand): anti-leak defaulted to 'pulse' so a
-    // rake/crossing/three-finger rung never carries into the next pathway.
-    setFieldSilent('rhTechMode', config.rhTechMode || 'pulse');
-    // walkApproach (Bass Lines & Changes): anti-leak defaulted to 'scale' so a
-    // chromatic/dominant-approach rung never carries into the next pathway.
-    setFieldSilent('walkApproach', config.walkApproach || 'scale');
-    setFieldSilent('walkFeel', config.walkFeel || 'four');   // anti-leak: two-feel never carries forward
-    // Backing comp cell + bass figure + density (steps 3–4): anti-leak
-    // defaulted — a rung's authored backing never rides into the next pathway.
-    setFieldSilent('backingComp', config.backingComp || '');
-    setFieldSilent('backingBass', config.backingBass || '');
-    setFieldSilent('backingDensity', config.backingDensity != null ? config.backingDensity : '');
-    // Custom tuning override (drop-A djent etc.) is specialized → default EMPTY
-    // unless the rung opts in, so a drop-tuned variation never leaks its tuning
-    // into the next pathway selected. (readConfig also length-validates the CSV
-    // against the stringSetup, so a stale mismatch degrades to standard tuning.)
-    // NOTE this anti-leak clears RUNG-scoped (L3) tunings only — the player's
-    // own tuning lives in the durable L1 store (virtuoso_lab.instrument) and is
-    // re-composed per-rung by applyTuningAdaptL1, never stored in this field.
-    setFieldSilent('customOpenMidis', config.customOpenMidis || '');
-    // L1 tuning-adapt metadata: anti-leak defaulted like the CSV (set only when
-    // applyTuningAdaptL1 rewrote this rung).
-    setFieldSilent('keyNominal', config.keyNominal || '');
-    setFieldSilent('tuningOffset', config.tuningOffset != null ? config.tuningOffset : '');
-    // Anchor-rung station token: anti-leak defaulted the same way.
-    setFieldSilent('anchorStation', config.anchorStation || '');
-    // Backing tone is automated: default the profile (anti-leak) + reflect the
-    // genre's default brightness onto the slider (the loop below sets the
-    // audioProfile field itself from config).
-    setFieldSilent('audioProfile', config.audioProfile || '');
-    { const _ap = config.audioProfile && AUDIO_PROFILES[config.audioProfile]; setFieldSilent('brightness', String(_ap && _ap.brightness != null ? _ap.brightness : 0.5)); }
-    // Preload this profile's sampled voices now (served locally → fast + offline),
-    // so they're ready the instant the player hits play (no first-pass fallback):
-    // the harmony comp, the backing bass, and the practice voice.
-    {
-      const _p = resolveAudioProfile({ ...config, audio: { profile: config.audioProfile || '' } });
-      if (_p.harmony.engine === 'sample') ensureWafPreset(TONE_GM[_p.harmony.tone]);
-      if (_p.bass.engine    === 'sample') ensureWafPreset(TONE_GM[_p.bass.tone]);
-      if (_p.notes.engine   === 'sample') ensureWafPreset(TONE_GM[_p.notes.tone]);
-    }
-    Object.keys(config).forEach(k => { if (k !== 'advancedMode') setFieldSilent(k, config[k]); });
-    syncStringSetupControls();
-    syncShapeDropdown();
-    syncShapeDropdownSelectionToHidden();
-    syncChromaticVisibility();
+    applyPracticeConfig(config, {
+      onInstrument() { syncStringSetupControls(); syncInstrumentClass(); },
+      onProfile(cfg) {
+        const profile = resolveAudioProfile({ ...cfg, audio: { profile: /** @type {string} */ (/** @type {unknown} */ (cfg.audioProfile || '')) } });
+        if (profile.harmony.engine === 'sample') ensureWafPreset(TONE_GM[profile.harmony.tone]);
+        if (profile.bass.engine === 'sample') ensureWafPreset(TONE_GM[profile.bass.tone]);
+        if (profile.notes.engine === 'sample') ensureWafPreset(TONE_GM[profile.notes.tone]);
+      },
+      onComplete() { syncStringSetupControls(); practiceSelection.syncShapes(); practiceSelection.syncShapeHidden(); syncChromaticVisibility(); }
+    });
   }
 
-  // Given a fret-range hint (from a legacy pathway definition), pick the
-  // shape whose fret window is closest to that range. Used so old pathway
-  // data with fretMin/fretMax still picks a sensible shape on the new model.
-  function shapeFromFretHint(system, fretMinHint, keyPc, scale, openMidis) {
-    const order = shapeOrderForKey(keyPc, system, scale, openMidis);
-    if (!order.length) return null;
-    let best = order[0], bestDist = Infinity;
-    for (const shape of order) {
-      const resolved = fretWindowForShape(keyPc, system, shape, scale, openMidis);
-      if (!resolved) continue;
-      const d = Math.abs(resolved.fretMin - (fretMinHint || 0));
-      if (d < bestDist) { best = shape; bestDist = d; }
-    }
-    return best;
-  }
 
+  /** @param {boolean} isPathway */
   function setPathwayModeClass(isPathway) {
     const root = $('virtuoso_lab-root');
     if (!root) return;
@@ -10621,6 +9999,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // 2026-06-13) ────────────────────────────────────────────────────────────────
   // 29 flat chips read as a wall (below table-stakes — market); group by family so
   // "I want funk" is ≤2 taps. Every STYLE_PALETTES key must appear (orphans → "Other").
+  /** @type {[string, string[]][]} */
   const GENRE_FAMILIES = [
     ['Rock / Metal',    ['rock', 'punk', 'metal', 'djent', 'prog', 'surf', 'shoegaze', 'emo']],
     ['Blues / Jazz',    ['blues', 'jazz', 'gypsy_jazz', 'ragtime', 'new_orleans', 'western_swing']],
@@ -10632,19 +10011,24 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   ];
   // Human labels for a resolved backing voice — the Band strip names the REAL player,
   // not "Auto". A distorted/overdriven amp re-labels the guitar/bass.
+
+  /** @type {Record<string, string>} */
   const BAND_TONE_LABEL = { piano: 'Piano', epiano: 'Rhodes', clav: 'Clavinet', organ: 'Organ', nylon: 'Nylon guitar', guitar: 'Acoustic guitar', clean: 'Electric guitar', upright: 'Upright bass', bass: 'Electric bass', strings: 'Strings', brass: 'Brass', synthlead: 'Synth lead', synthpad: 'Synth pad', pad: 'Pad', steel: 'Pedal Steel',
     sawpad: 'Saw pad', polybrass: 'Synth brass', neonlead: 'Neon lead', pwmpad: 'PWM pad', fmep: 'FM e-piano', pluck: 'Synth pluck', synthbass: 'Synth bass' };
+  /** @type {Record<string, string>} */
   const BAND_KIT_LABEL = { kit_rock: 'Rock kit', kit_acoustic_soft: 'Soft kit', kit_jazz: 'Jazz kit', kit_909: 'Synth kit (909)', kit_808: 'Synth kit (808)' };
+  /** @param {import('./src/core/generation-types.js').AudioVoice | null | undefined} slot @param {string} [role] */
   function bandVoiceLabel(slot, role) {
     if (!slot) return '—';
-    if (role === 'bass') return slot.amp === 'bass_drive' ? 'Overdriven bass' : (BAND_TONE_LABEL[slot.tone] || 'Bass');
+    if (role === 'bass') return slot.amp === 'bass_drive' ? 'Overdriven bass' : (BAND_TONE_LABEL[String(slot.tone)] || 'Bass');
     if (slot.amp === 'metal' || slot.amp === 'drive') return 'Distorted guitar';
-    return BAND_TONE_LABEL[slot.tone] || (slot.tone || '—');
+    return BAND_TONE_LABEL[String(slot.tone)] || (slot.tone || '—');
   }
   // The "Your band" lineup: read the resolved recipe + profile for a style and name
   // each ACTIVE role's instrument (so the player SEES country ≠ metal ≠ jazz before
   // a note plays — and it's the contract the audio must honor). Read-only naming;
   // per-track instrument SWAP lives in the Mixer (M) for now.
+  /** @param {string} styleId */
   function renderBandStrip(styleId) {
     const host = $('virtuoso_lab-jam-bandstrip'); if (!host) return;
     const pal = STYLE_PALETTES[styleId];
@@ -10702,14 +10086,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     let s = null; try { s = localStorage.getItem('virtuoso_lab.jamStyle'); } catch (_) {}
     return (s && STYLE_PALETTES[s]) ? s : Object.keys(STYLE_PALETTES)[0];
   }
+  /** @returns {string[]} */
   function jamRecentStyles() {
-    try { return (JSON.parse(localStorage.getItem('virtuoso_lab.jamRecent') || '[]') || []).filter(id => STYLE_PALETTES[id]); } catch (_) { return []; }
+    try { return (JSON.parse(localStorage.getItem('virtuoso_lab.jamRecent') || '[]') || []).filter((/** @type {string} */ id) => STYLE_PALETTES[id]); } catch (_) { return []; }
   }
+  /** @param {string} id */
   function setJamStyleId(id) {
     if (!STYLE_PALETTES[id]) return;
     try { localStorage.setItem('virtuoso_lab.jamStyle', id); } catch (_) {}
     try { const r = jamRecentStyles().filter(x => x !== id); r.unshift(id); localStorage.setItem('virtuoso_lab.jamRecent', JSON.stringify(r.slice(0, 4))); } catch (_) {}
   }
+  /** @param {string} id */
   function jamFamilyOf(id) { for (const [lab, ids] of GENRE_FAMILIES) if (ids.includes(id)) return lab; return null; }
   // The Jam style picker (IA redesign, panel 2026-06-14): the 29-chip WALL collapsed to
   // a search box + a Recent row + 6 collapsible FAMILY sections (only the active style's
@@ -10720,14 +10107,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     host.innerHTML = '';
     const activeId = currentJamStyleId();
     const q = _jamPickerQuery.trim().toLowerCase();
+    /** @param {string} id */
     const pickStyle = (id) => {
       if (!STYLE_PALETTES[id] || id === activeId) return;
       setJamStyleId(id);
       syncJamStyleDetails(id);                 // Updates picker + Band strip + intents immediately
-      if (playing && isJamMode()) jamQueueChange();   // Jam live-edits land at the wrap, style included
+      if (transport.playing && isJamMode()) jamQueueChange();   // Jam live-edits land at the wrap, style included
       renderJamStyles();
     syncJamHighlightUI();
     };
+    /** @param {string} id */
     const mkChip = (id) => {
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -10737,6 +10126,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       btn.addEventListener('click', () => pickStyle(id));
       return btn;
     };
+    /** @param {string[]} ids */
     const chipRow = (ids) => { const r = document.createElement('div'); r.className = 'virtuoso_lab-jam-fam-row'; ids.forEach(id => r.appendChild(mkChip(id))); host.appendChild(r); };
     const search = document.createElement('input');
     search.type = 'search'; search.className = 'virtuoso_lab-jam-search'; search.placeholder = 'Search styles…'; search.value = _jamPickerQuery;
@@ -10772,6 +10162,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Per-style Inspector details (slice J-1): the named Changes picker over the
   // palette's progressions[] (default "Mix" = the wrap-boundary round-robin,
   // D-J5a) + the one-line "try this" intent seed (goal-card grammar, JAM_PROMPTS).
+  /** @param {string} styleId */
   function syncJamStyleDetails(styleId) {
     const pal = STYLE_PALETTES[styleId];
     const sel = $('virtuoso_lab-jam-prog');
@@ -10799,6 +10190,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // set (their job is the foundation). Tap selects, tap again clears. The pick
   // shows on the status line while jamming; it is SELF-checked only — no judge,
   // no score, no tally (the mirror rule; the loop-end reflection is slice J-3).
+  /** @param {string} styleId */
   function renderJamIntents(styleId) {
     const host = $('virtuoso_lab-jam-intents');
     if (!host) return;
@@ -10827,6 +10219,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Roots/bass stay pinned by construction: depth only widens the upper voicing.
   // Power-chord styles (chordOverride '5'/'5oct') keep their 5ths — depth never
   // overrides a style's authored chord QUALITY, only its extension ceiling.
+  /** @param {string} palDepth */
   function jamDepthChordDepth(palDepth) {
     if (jamDepth === 'simple') return 'triad';
     if (jamDepth === 'rich') {
@@ -10838,6 +10231,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // skill ▸" arms a jam pre-loaded with the style, the run's KEY, and the
   // drilled device as the first (pre-selected) intent chip. Close-and-arm:
   // the player presses ▶ Jam — nothing autoplays.
+  /** @param {string} styleId @param {string | null} key @param {string} deviceLabel */
   function jamArmFromDrill(styleId, key, deviceLabel) {
     selectMode('jam');
     setJamStyleId(styleId);
@@ -10876,11 +10270,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // each jamPlay (a new session); NOT reset on a wrap hot-swap (same session).
   const JAM_PLAYED_FADE_MS = 1400;
   function jamMirrorReset() { _jamPlayed = []; _jamMirror = { noteCount: 0, pcs: new Set(), lastPc: -1, lastMs: 0 }; goldReset(); }
+  /** @param {number} pc @param {number} chartT */
   function jamMirrorDebugAdd(pc, chartT) {
     if (!_jamMirror) jamMirrorReset();
     const p = ((pc % 12) + 12) % 12;
-    _jamMirror.noteCount++;
-    _jamMirror.pcs.add(p);
+    (/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).noteCount++;
+    (/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).pcs.add(p);
     _jamPlayed.push({ pc: p, midi: pcAtOrAbove(p, jamIsBassContext() ? 36 : 60), t: performance.now(), chartT: Number(chartT) || 0 });
     if (_jamPlayed.length > 192) _jamPlayed.shift();
   }
@@ -10932,6 +10327,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return lines;
   }
+  /** @param {number} freqHz */
   function jamMirrorCapture(freqHz) {
     if (!_jamMirror || !(freqHz > 0)) return;
     const midi = Math.round(69 + 12 * Math.log2(freqHz / 440));
@@ -10943,7 +10339,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!isNew) return;
     _jamMirror.noteCount++;
     _jamMirror.pcs.add(pc);
-    _jamPlayed.push({ pc, midi, t: now, chartT: currentPracticeTime });
+    _jamPlayed.push({ pc, midi, t: now, chartT: transport.time });
     if (_jamPlayed.length > 192) _jamPlayed.shift();
     goldPropose(midi, pc);   // comb-confirm (or YIN-classify) for the Gold rung
   }
@@ -10965,7 +10361,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     minPcs: 7,           // distinct tones confirmed
     combOnly: true,
   };
+  /** @type {{confirmed: number, inChord: number, inKey: number, outside: number, pcs: Set<number>, chordHops: number, lastSeg: string | null, comb: boolean} | null} */
   let _goldMirror = null;
+  /** @type {{pc: number, chartT: number, until: number} | null} */
   let _goldPending = null;   // {pc, chartT, until} — one comb confirm in flight
 
   function goldReset() {
@@ -10974,6 +10372,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _goldPending = null;
   }
 
+  /** @param {number} pc @param {number} chartT */
   function goldClassify(pc, chartT) {
     const g = _goldMirror;
     if (!g) return;
@@ -11004,11 +10403,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const myGen = ++_goldArmGen;
     let weEnabled = false;
     try {
-      if (!window.noteDetect.isEnabled?.()) { await window.noteDetect.enable?.(); weEnabled = true; }
+      if (!(/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).isEnabled?.()) { await (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).enable?.(); weEnabled = true; }
     } catch (_) { return; }   // no detector → the YIN fallback classifies
     if (myGen !== _goldArmGen) {
       // Run stopped (or restarted) during enable() — undo our enable, don't arm.
-      if (weEnabled) { try { window.noteDetect.disable?.({ silent: true }); } catch (_) {} }
+      if (weEnabled) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).disable?.({ silent: true }); } catch (_) {} }
       return;
     }
     _goldWeEnabled = weEnabled;
@@ -11019,12 +10418,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _goldPending = null;
     if (!_goldArmed) return;
     _goldArmed = false;
-    try { window.noteDetect.setVerifyTarget(null); } catch (_) {}
-    if (_goldWeEnabled) { try { window.noteDetect.disable?.({ silent: true }); } catch (_) {} _goldWeEnabled = false; }
+    try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(null); } catch (_) {}
+    if (_goldWeEnabled) { try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).disable?.({ silent: true }); } catch (_) {} _goldWeEnabled = false; }
   }
   function goldCombActive() { return _goldArmed; }
 
   // Any correct (string, fret) position produces the same pitch for the comb.
+  /** @param {number} midi @param {number[]} [omOverride] */
   function goldMidiTarget(midi, omOverride) {
     const om = omOverride || _ptOpenMidis || [];
     for (let st = om.length - 1; st >= 0; st--) {
@@ -11034,39 +10434,43 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return null;
   }
 
+  /** @param {number} midi @param {number} pc */
   function goldPropose(midi, pc) {
     if (!_goldMirror) return;
     if (!goldCombActive()) {
       // No comb: classify the YIN note directly; the recap and the Gold bar
       // both know this take was heard by the browser ear.
-      goldClassify(pc, currentPracticeTime);
+      goldClassify(pc, transport.time);
       return;
     }
     _goldMirror.comb = true;
     const tgt = goldMidiTarget(midi);
     if (!tgt) return;
-    _goldPending = { pc, chartT: currentPracticeTime, until: performance.now() + 350 };
-    try { window.noteDetect.setVerifyTarget(tgt, { openMidis: _ptOpenMidis || [] }); } catch (_) { /* comb briefly gone */ }
+    _goldPending = { pc, chartT: transport.time, until: performance.now() + 350 };
+    try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(tgt, { openMidis: _ptOpenMidis || [] }); } catch (_) { /* comb briefly gone */ }
   }
 
   // Registered once at load; gated on _goldArmed (jam runs only — gold owns
   // the slot there), so it can never react to an exercise verifier's events
   // or clobber an exercise's live verify target.
+  /** @param {(Event & {detail?: {isHit?: boolean}}) | null} ev */
   function goldOnVerify(ev) {
     if (!_goldArmed) return;
     const d = ev && ev.detail;
     const pending = _goldPending;
     if (!d || !d.isHit || !pending) return;
     _goldPending = null;
-    try { window.noteDetect.setVerifyTarget(null); } catch (_) { /* ok */ }
+    try { (/** @type {Required<import('./src/types/host-interfaces.js').NoteDetect>} */ (window.noteDetect)).setVerifyTarget(null); } catch (_) { /* ok */ }
     if (performance.now() <= pending.until) goldClassify(pending.pc, pending.chartT);
   }
   if (typeof window !== 'undefined') window.addEventListener('notedetect:verify', goldOnVerify);
 
+  /** @param {{duration_ms?: number} | null} s */
   function goldEvaluate(s) {
     const g = _goldMirror;
     if (!g || !g.confirmed) return null;
     const inKeyPct = g.inKey / g.confirmed;
+    /** @type {{confirmed: number, inChord: number, inKey: number, inChordPct: number, inKeyPct: number, chordHops: number, pcCount: number, verifier: string, durationMs: number, met?: boolean}} */
     const res = {
       confirmed: g.confirmed,
       inChord: g.inChord,
@@ -11088,6 +10492,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
   // Gained-only: the first qualifying jam mints the style's gold; nothing
   // ever un-mints it.
+  /** @param {string} styleId @param {NonNullable<ReturnType<typeof goldEvaluate>>} res */
   function goldStore(styleId, res) {
     const o = progressLoad();
     o.goldImprov = o.goldImprov || {};
@@ -11119,10 +10524,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     };
   }
   function jamPendingCountdownText() {
-    if (!playing || !isJamMode() || segmentLoopA == null || segmentLoopB == null || !activeBundle) return '';
+    if (!transport.playing || !isJamMode() || transport.loopA == null || transport.loopB == null || !activeBundle) return '';
     const beatSec = chartBeatSeconds(activeBundle) || 0;
     if (!(beatSec > 0.02)) return '';
-    const remain = Math.max(0, segmentLoopB - currentPracticeTime);
+    const remain = Math.max(0, transport.loopB - transport.time);
     const beatsLeft = Math.max(1, Math.ceil(remain / beatSec - 1e-3));
     return beatsLeft <= 1 ? 'next beat' : ('in ' + beatsLeft + ' beats');
   }
@@ -11139,7 +10544,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // pass's snapshot, show/refresh (or clear) the pending chip. Changing a value
   // back before the wrap cancels cleanly — nothing rebuilds.
   function jamQueueChange() {
-    if (!playing || !isJamMode() || !_jamSnapshot) return;
+    if (!transport.playing || !isJamMode() || !_jamSnapshot) return;
     const now = jamPanelState(), was = _jamSnapshot, parts = [];
     if (now.style !== was.style) parts.push((STYLE_PALETTES[now.style] || {}).label || now.style);
     if (now.key !== was.key) parts.push('key ' + now.key);
@@ -11170,6 +10575,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // (the full play path) and jamHotSwapAtWrap (the in-place loop-seam swap) so
   // the two can never drift. Returns { cfg } or null when the style has no
   // palette (nothing to play).
+  /** @returns {{cfg: import('./src/types/entry-data.js').EntryConfig} | null} */
   function buildJamConfig() {
     const styleId = currentJamStyleId();   // saved id is the source of truth (the picker accordion may hide the active chip)
     const jamKey = ($('virtuoso_lab-jam-key') || {}).value || 'A';
@@ -11238,27 +10644,25 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const built = buildJamConfig();
     if (!built) return;
     const { cfg } = built;
-    let attachment = rendererAttachIdentity;
-    const generation = ++generationIdentity;
+    let request = rendererLifecycle.invalidate();
     try {
-      if (playing) stopPlayback();
+      if (transport.playing) stopPlayback();
       const exercise = generateExercise(cfg);
       lastExercise = exercise;
-      const pending = preparePlayback(exercise);
-      attachment = rendererAttachIdentity;
-      if (!await pending || attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
-      const dur = (activeBundle && activeBundle.songInfo && activeBundle.songInfo.duration) || 0;
-      const lead = (activeBundle && activeBundle.leadIn) || 0;
-      if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
-      startPlayback();
+      const pending = attachRenderer(exercise);
+      request = rendererLifecycle.currentRequest();
+      if (!await transport.runStart(pending, () => {
+        const dur = activeBundle?.songInfo?.duration || 0, lead = activeBundle?.leadIn || 0;
+        if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
+      })) return;
       jamMirrorReset();                 // J-3: fresh played-note mirror + recap accumulator for this jam session
       prewarmMixerCandidates();         // warm the instrument-swap candidates so a mid-jam voice switch is instant (Jam-UX reliability)
       refreshStatusFromState();
       _jamSnapshot = jamPanelState();   // the delta baseline for wrap-boundary live changes (J-2)
       jamPendingClear();
     } catch (e) {
-      if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
-      showStatus(`Jam error: ${e.message || e}`);
+      if (!rendererLifecycle.isCurrentRequest(request)) return;
+      showStatus(`Jam error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] jam failed', e);
     }
   }
@@ -11275,7 +10679,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function jamHotSwapAtWrap() {
     const built = buildJamConfig();
     // No renderer alive, or no config → can't swap in place; full rebuild.
-    if (!built || !renderer) { jamPendingClear(); flashJamApplied(); jamPlay(); return false; }
+    if (!built || !rendererLifecycle.renderer) { jamPendingClear(); flashJamApplied(); jamPlay(); return false; }
     const { cfg } = built;
     let exercise;
     try { exercise = generateExercise(cfg); }
@@ -11289,9 +10693,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _goldPending = null;
     if (_goldMirror) _goldMirror.lastSeg = null;
     maybeResyncMixer(cfg);   // jam style hot-swap → the mixer follows the new style
-    rendererBundle = (cfg.renderer === 'highway_3d')
-      ? Object.assign({}, activeBundle, { chords: [], chordTemplates: [], bgReactive: false })
-      : activeBundle;
+    rendererLifecycle.setBundle(activeBundle, /** @type {string} */ (cfg.renderer));
     fretboardSyncRange();
     // Re-anchor the loop + clock to the NEW chart's music region and (re)start its
     // audio from the downbeat. A deliberate content change can't be gaplessly
@@ -11301,11 +10703,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // the scheduleCurrentPassAndAnchor below.
     const dur = activeBundle.songInfo?.duration || 0;
     const lead = activeBundle.leadIn || 0;
-    if (dur > lead + 0.1) { segmentLoopA = lead; segmentLoopB = dur; }
-    else { segmentLoopA = null; segmentLoopB = null; }
-    currentPracticeTime = lead;
+    if (dur > lead + 0.1) { transport.setLoop(lead, dur); }
+    else { transport.setLoop(null, null); }
+    transport.moveCursor(lead);
     _runMaxChartTime = lead;
-    _loopWraps = 0;
+    transport.resetWraps();
     anchorPlayClock(lead);
     stopAudio();
     scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
@@ -11322,16 +10724,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Switch top-level practice mode. Guided/Custom drive the hidden pathway
   // select (its change handler applies the pathway / custom + regenerates);
   // Session swaps to the session panel.
-  function selectMode(mode) {
-    const wasPending = !!pendingInitialPathway;
-    pendingInitialPathway = null;
-    clearPracticeFile();
-    // Switching practice mode (Guided / Custom / Session) is a transport break:
-    // the current exercise no longer matches the view the user is moving to, so
-    // stop playback rather than letting audio/playhead bleed into the new mode.
-    // Matches onViewSwitch and the session-launch path. No-op before first play.
-    if (playing) stopPlayback();
-    try { localStorage.setItem(MODE_STORAGE_KEY, mode); } catch (_) {}   // resume-last-mode
+  /** @param {string} mode */
+  function selectMode(mode) { practiceSelection.selectMode(mode); }
+  /** @param {string} mode @param {boolean} [pathwayMode] */
+  function changeModeView(mode, pathwayMode) {
+    if (pathwayMode != null) { setPathwayModeClass(pathwayMode); return; }
+    if (transport.playing) stopPlayback();
     toggleLibrary(false); toggleStarters(false);   // the browse drawers are Workout-only — never linger over another mode
     const root = $('virtuoso_lab-root');
     if (root) root.classList.remove('virtuoso_lab-jam-mode');   // default: not jam (jam re-adds below)
@@ -11355,263 +10753,32 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return;
     }
     syncSessionMode('single');
-    const sel = $('virtuoso_lab-pathway');
-    if (!sel) { setPathwayModeClass(mode === 'guided'); return; }
-    if (mode === 'custom') {
-      sel.value = 'custom';
-    } else {
-      let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
-      if (currentFamily() === 'guitar' && !PATHWAYS[PATHWAY_FIRST_VISIT_DEFAULT] && (wasPending || stored === PATHWAY_FIRST_VISIT_DEFAULT)) {
-        applyInitialPathway();
-        return;
-      }
-      // Instrument-aware: a stored/active pathway coded for the OTHER instrument is
-      // rejected (it would yank the player's instrument), falling back to this
-      // instrument's Core on-ramp — never a hidden guitar pathway on bass.
-      const valid = stored && stored !== 'custom' && PATHWAYS[stored] && !isHiddenNode(stored);
-      const activeOk = activePathwayId && activePathwayId !== 'custom' && PATHWAYS[activePathwayId] && !isHiddenNode(activePathwayId);
-      sel.value = valid ? stored : activeOk ? activePathwayId : (currentFamily() === 'bass' ? 'bass_rh_pulse' : 'pent_foundation');
-    }
-    sel.dispatchEvent(new Event('change'));
   }
 
-  // ── Form-cue library (hand-marks Slice 2; the ergonomics lane) ─────────────
-  // ONE quiet pre-run sentence on the goal card — never mid-run, never
-  // detection-triggered ("we cannot see the hands — auto-firing a form cue off
-  // a missed note is fake diagnosis"), never fades. Priority per the panel:
-  // rung-specific > tier-triggered (tension cues belong to the top tier) >
-  // band-default; a rung's candidate list rotates by tier. Guitar = the
-  // 12-cue panel vocabulary; bass = the bass-pedagogy vocabulary (9+1).
-  const FORM_CUES = {
-    guitar: {
-      thumb_back: 'Thumb low on the back of the neck — it frees the fingers to arch onto their tips.',
-      thumb_over: 'Let the thumb hook over the top — it anchors the grip a bend pushes against.',
-      one_finger_per_fret: 'One finger per fret — let each finger own its fret instead of crawling.',
-      light_grip: 'Press just hard enough for a clean note, then back off 10% — speed lives in a light grip.',
-      finger_proximity: 'Keep idle fingers hovering low over the strings — distance is wasted time.',
-      wrist_neutral: 'Keep the picking wrist straight and loose — the motion comes from the wrist, not the elbow.',
-      anchor_palm: 'Rest the palm edge lightly at the bridge — an anchor, not a clamp.',
-      pinky_bend_support: 'Bend with the ring finger and stack index + middle behind it — never the pinky alone.',
-      guide_finger: 'On the shift, let a finger glide along the string — a rail, not a leap.',
-      shoulder_drop: 'Check your shoulders — drop them and breathe; tension creeps up at speed.',
-      barre_roll: 'Roll the barre finger slightly onto its bony edge — it takes less pressure than the flat pad.',
-      roll_dont_barre: "Across same-fret strings, roll one fingertip joint by joint — don't flatten a barre.",
-    },
-    bass: {
-      one_two_four: 'Down low, finger 1-2-4 and skip the ring — the frets are too wide for one-per-fret.',
-      floating_thumb: 'Let the thumb float and mute the strings it passes — the skipped string must stay silent.',
-      strict_im: 'Alternate index and middle strictly — ghosts included; the motor never stops.',
-      rake_descent: "Dropping to a lower string, let the same finger rake through — don't force the alternation.",
-      bridge_neck_tone: 'Pluck near the bridge for punch, near the neck for fat — choose the tone on purpose.',
-      pivot_dont_jump: 'Shift by pivoting the hand, not jumping it — and let an open string buy the move.',
-      full_value: 'Hold every note its full length — a walking line breathes in the note-ends.',
-      thumb_bounce: "Bounce the thumb off the string, don't bury it — the slap rings, the thud chokes.",
-      pop_hook: 'Hook the popping finger lightly under the string — the snap comes from wrist rotation, not pulling.',
-      relax_forearm: 'If the plucking forearm tightens, drop a tier — relaxation is the skill.',
-    },
-  };
-  // Rung-specific candidates (guitar); rotation across the list by tier.
-  const FORM_CUE_RUNGS = {
-    bend_drill: ['pinky_bend_support', 'thumb_over'],
-    sweep_arpeggio_primer: ['roll_dont_barre', 'light_grip'],
-    // Sweep Picking ladder: the roll rung's two cleanliness cues (panel 2026-06-07).
-    sweep_roll_apex: ['roll_dont_barre', 'light_grip'],
-    melodeath_twin_leads: ['roll_dont_barre'],
-    pick_tremolo: ['wrist_neutral', 'anchor_palm'],
-    pick_alternate: ['wrist_neutral', 'anchor_palm'],
-    pick_chromatic_16ths: ['wrist_neutral', 'finger_proximity'],
-    pick_economy: ['wrist_neutral', 'light_grip'],
-    pick_string_skip: ['anchor_palm'],
-    pick_herta: ['light_grip', 'finger_proximity'],
-    djent_herta_chug: ['wrist_neutral', 'light_grip'],
-    fs_pima_foundation: ['light_grip'],
-    fs_spider_adjacent: ['finger_proximity', 'light_grip'],
-    fs_spider_skip: ['finger_proximity', 'light_grip'],
-    fs_spider_wide: ['finger_proximity', 'light_grip'],
-    leg_hopo: ['finger_proximity', 'light_grip'],
-    leg_runs: ['finger_proximity', 'light_grip'],
-    // Tapping ladder (panel 2026-07-14): clean pull-off + light grip on the taps.
-    tap_articulation: ['finger_proximity', 'light_grip'],
-    tap_cell: ['finger_proximity', 'light_grip'],
-    tap_cascade: ['finger_proximity', 'light_grip'],
-    tap_sevenths: ['finger_proximity', 'light_grip'],
-    tap_changes: ['finger_proximity', 'light_grip'],
-    major_scale_caged: ['guide_finger'],
-    whole_neck_freedom: ['guide_finger'],
-  };
-  // Band defaults (guitar).
-  const FORM_CUE_BANDS = {
-    core_beginner: 'light_grip',
-    concept_picking: 'wrist_neutral',
-    concept_legato: 'finger_proximity',
-    concept_tapping: 'finger_proximity',
-    concept_rhythm: 'anchor_palm',
-  };
-  // Bass candidates derive from the exercise CLASS (the bass ruling maps cues
-  // to practice types), not the rung id — adapted rungs get the right cue free.
-  function bassFormCueCandidates(cfg) {
-    const pt = (cfg && cfg.practiceType) || '';
-    if (pt === 'slap_pop') return ['thumb_bounce', 'pop_hook'];
-    if (pt === 'walking_bass') return ['pivot_dont_jump', 'full_value'];
-    if (pt === 'octave_groove' || pt === 'dead_note_groove' || pt === 'right_hand_technique') return ['floating_thumb', 'strict_im'];
-    if (pt === 'chromatic' || pt === 'root_fifth_octave' || (cfg && cfg.fretMin != null && cfg.fretMin < 5)) return ['one_two_four', 'strict_im'];
-    return ['strict_im'];
-  }
-  function formCueForRung(pathwayId, tierIdx, cfg) {
-    const pw = PATHWAYS[pathwayId]; if (!pw) return null;
-    const inst = (cfg && cfg.instrument) === 'bass' ? 'bass' : 'guitar';
-    const lib = FORM_CUES[inst];
-    const cands = inst === 'bass' ? bassFormCueCandidates(cfg) : pw.formCues || FORM_CUE_RUNGS[pathwayId];
-    if (cands && cands.length) return lib[cands[Math.max(0, tierIdx | 0) % cands.length]] || null;
-    const topTier = pw.tempoTiers && pw.tempoTiers.length > 1 && tierIdx >= pw.tempoTiers.length - 1;
-    if (topTier) return lib[inst === 'bass' ? 'relax_forearm' : 'shoulder_drop'];
-    return lib[FORM_CUE_BANDS[pathwayBandId(pathwayId)] || (inst === 'bass' ? 'strict_im' : 'light_grip')] || null;
-  }
-
-  function updatePathwayGoalCard(pathwayId, modified, favoritePreset) {
-    const card = $('virtuoso_lab-pathway-goal-card');
-    const tag = $('virtuoso_lab-pathway-tag');
-    const title = $('virtuoso_lab-pathway-title');
-    const goal = $('virtuoso_lab-pathway-goal');
-    if (!card) return;
-    if (favoritePreset) {
-      if (title) title.textContent = favoritePreset.name || favoritePreset.id || 'Favorite';
-      if (goal) goal.textContent = 'Saved preset.';
-      { const _more = $('virtuoso_lab-goal-more'); if (_more) _more.style.display = 'none'; }
-      if (tag) tag.textContent = 'Favorite';
-      card.classList.remove('modified');
-      return;
-    }
-    const pw = pathwayId ? PATHWAYS[pathwayId] : null;
-    if (pw) {
-      if (title) title.textContent = pw.label || pathwayId;
-      const _gfull = pw.goal || '';
-      // §1.9 disclosure: first sentence = the always-visible recognition cue; the
-      // rest of the goal tucks behind "▸ About this drill" (alongside the form/tuning/
-      // backing one-liners). The disclosure's show/hide is finalized at the end.
-      const _gm = _gfull.match(/^(.*?[.!?])\s+(.+)$/s);
-      if (goal) goal.textContent = _gm ? _gm[1] : _gfull;
-      const _rest = $('virtuoso_lab-pathway-goal-rest');
-      if (_rest) {
-        const selection = pw.practiceFile && catalogPathwaySelection(pw, activePathwayVariationIdx, activeTempoTierIdx);
-        const hint = selection && pw.practiceFile.variants.find(variant => variant.id === selection.practiceVariantId)?.hint;
-        _rest.textContent = [(_gm ? _gm[2].trim() : ''), hint].filter(Boolean).join('\n\n');
-      }
-      if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
-      card.classList.toggle('modified', !!modified);
-    }
-    // "Your number" (engagement Tier A): the clean-tempo PB to beat for this
-    // pathway — guitar-ped's "a number to beat tomorrow," surfaced at SELECT so it
-    // pulls the player back. Reads pathway_tiers.bestBpm (a clean run only); points
-    // toward the next rung. Hidden until a PB exists (no clutter on a fresh drill).
-    const pbEl = $('virtuoso_lab-pathway-pb');
-    if (pbEl) {
-      const best = (pw && pathwayId) ? (pathwayTiersLoad()[pathwayId] || {}).bestBpm : null;
-      if (pw && best) {
-        const next = (pw.tempoTiers || []).find(t => t > best);
-        pbEl.textContent = next
-          ? `Your clean best here: ${best} BPM — beat it (next rung at ${next})`
-          : `Your clean best here: ${best} BPM — the top rung is yours`;
-        pbEl.style.display = '';
-      } else { pbEl.textContent = ''; pbEl.style.display = 'none'; }
-    }
-    // One calm line when this rung was adapted to the player's saved tuning
-    // (the lossless uniform-offset path adapts silently except for this note —
-    // it names the transposition instead of hiding it, the Division-caption
-    // precedent). Reads the hidden adapt fields applyPathwayConfig just wrote.
-    const note = $('virtuoso_lab-pathway-tuning-note');
-    if (note) {
-      const off = parseInt($('virtuoso_lab-tuning-offset')?.value || '0', 10) || 0;
-      const station = $('virtuoso_lab-anchor-station')?.value || '';
-      const concertKey = document.querySelector('#virtuoso_lab-controls [name="key"]')?.value || '';
-      if (pw && station) {
-        // Anchor rung: name the anchor + the derived pitch (keyless ≠ pitch-
-        // anonymous — the player should always know what note they're making).
-        // When the anchor sits below what the mic can track, say so honestly
-        // (the 70 Hz detector floor — graded by ears + the click, never a fail).
-        let subFloor = false;
-        try {
-          const cfgNow = readConfig();
-          const opens = openMidisForConfig(cfgNow);
-          const af = station === 'open' ? 0 : (parseInt(station.replace('fret ', ''), 10) || 0);
-          subFloor = midiToFreq((opens[0] || 40) + af) < DETECTOR_MIN_HZ;
-        } catch (_) {}
-        note.textContent = (station === 'open'
-          ? `Anchored on your open lowest string — that's ${concertKey} on your instrument.`
-          : `Pedal at ${station} of your lowest string — that's ${concertKey} on your instrument.`)
-          + (subFloor ? ' This register sits below what the mic can track — graded by your ears and the click.' : '');
-        note.style.display = '';
-      } else if (pw && off !== 0) {
-        const inst = instrumentStoreLoad();
-        const preset = inst && (TUNING_PRESETS[`${(STRING_SETUPS[inst.stringSetup] || {}).instrument}_${(STRING_SETUPS[inst.stringSetup] || { openMidis: [] }).openMidis.length}`] || [])
-          .find(p => { const m = instrumentStoreMidis(inst); return m && p.midis.length === m.length && p.midis.every((x, i) => x === m[i]); });
-        const tuningName = preset ? preset.label.replace(/\s*\(.*\)$/, '') : 'your tuning';
-        const steps = Math.abs(off) === 1 ? 'a half step' : Math.abs(off) === 2 ? 'a whole step' : `${Math.abs(off)} semitones`;
-        const dir = off < 0 ? 'down' : 'up';
-        note.textContent = `Charted for your ${tuningName} — same frets, sounds ${steps} ${dir} (key of ${concertKey}).`;
-        note.style.display = '';
-      } else {
-        note.textContent = '';
-        note.style.display = 'none';
-      }
-    }
-    // Form cue (hand-marks Slice 2; ergonomics ruling): ONE quiet pre-run
-    // sentence — goal-card only, never fades, never detection-triggered.
-    const cueEl = $('virtuoso_lab-pathway-form-cue');
-    if (cueEl) {
-      let cue = null;
-      if (pw && pathwayId) { try { cue = formCueForRung(pathwayId, activeTempoTierIdx, readConfig()); } catch (_) {} }
-      if (cue) { cueEl.textContent = 'Form · ' + cue; cueEl.style.display = ''; }
-      else { cueEl.textContent = ''; cueEl.style.display = 'none'; }
-    }
-    // Backing primitive naming (steps 3–4, L&D): when a comp cell and/or a
-    // bass figure drives the backing, name them — the player should know the
-    // grammar they're hearing ("Charleston comp + walking bass").
-    const bk = $('virtuoso_lab-pathway-backing-note');
-    if (bk) {
-      let bkLabel = null;
-      try {
-        const cfgB = readConfig();
-        const cid = compCellForConfig(cfgB);
-        const fid = bassFigureForConfig(cfgB);
-        const parts = [];
-        if (cid && COMP_GROOVES[cid]) parts.push(COMP_GROOVES[cid].label);
-        if (fid && BASS_FIGURES[fid]) parts.push(BASS_FIGURES[fid].label);
-        if (parts.length) bkLabel = parts.join(' + ');
-        else if (cfgB.backingDensity === 0) bkLabel = 'click only';
-      } catch (_) {}
-      if (bkLabel && pw) { bk.textContent = 'Backing · ' + bkLabel; bk.style.display = ''; }
-      else { bk.textContent = ''; bk.style.display = 'none'; }
-    }
-    // Clean-rung proving affordance (the player-opted supports-off run — the
-    // Clean depth rung's first concrete mechanic): offered once the Speed climb
-    // is cleared and Clean isn't credited, while hand-marks are ON. Clicking is
-    // the PLAYER flipping the pill — the toggle is never auto-flipped.
-    const prove = $('virtuoso_lab-prove-clean');
-    if (prove) {
-      let show = false;
-      if (pw && pathwayId && handMarksOn()) {
+  const practicePresentation = createPracticePresentation({ getCurrentPractice(view, pathwayId = practiceSelection.pathwayId) {
+    let cfg = null, bestBpm = null, proveClean = false, instrument = null;
+    if (view === 'goal' || (view === 'description' && !lastExercise?.session.practiceFile && !(isJamMode() && lastExercise?.session.jamStyle && STYLE_PALETTES[lastExercise.session.jamStyle]))) { try { cfg = readConfig(); } catch (_) {} }
+    if (view === 'goal' && pathwayId && PATHWAYS[pathwayId]) {
+      if ($('virtuoso_lab-pathway-pb')) bestBpm = (pathwayTiersLoad()[pathwayId] || {}).bestBpm || null;
+      // Progress reads stay with their state owner; presentation never creates nodes.
+      if ($('virtuoso_lab-prove-clean') && handMarksOn()) {
         try {
           const st = nodeProgressState(pathwayId, pathwayTiersLoad());
-          // depth is null both for an UNTOUCHED node (offer the affordance —
-          // Clean is uncredited) and in progress-Off mode (the whole layer is
-          // collapsed — don't offer). Distinguish by the store mode.
-          show = !!(st.cleared && progressLoad().mode !== 'off' && !(st.depth && st.depth.clean));
+          proveClean = !!(st.cleared && progressLoad().mode !== 'off' && !(st.depth && st.depth.clean));
         } catch (_) {}
       }
-      prove.style.display = show ? '' : 'none';
     }
-    // Finalize the "About this drill" disclosure: show it iff it has content (the
-    // goal's rest paragraph OR any tucked one-liner — form / tuning / backing). The
-    // PB hook + Prove-it button stay outside, always visible. Never an empty toggle.
-    const moreEl = $('virtuoso_lab-goal-more');
-    if (moreEl) {
-      const hasMore = ['virtuoso_lab-pathway-goal-rest', 'virtuoso_lab-pathway-tuning-note', 'virtuoso_lab-pathway-form-cue', 'virtuoso_lab-pathway-backing-note']
-        .some(id => (($(id) || {}).textContent || '').trim());
-      moreEl.style.display = hasMore ? '' : 'none';
+    if (view === 'goal' && pathwayId && PATHWAYS[pathwayId] && $('virtuoso_lab-pathway-tuning-note') && !$('virtuoso_lab-anchor-station')?.value && parseInt($('virtuoso_lab-tuning-offset')?.value || '0', 10)) {
+      const inst = instrumentStoreLoad();
+      if (inst) instrument = { stringSetup:inst.stringSetup, midis:instrumentStoreMidis(inst) };
     }
-    updateStartCta();   // keep the primed START CTA's name/skill in sync
-  }
+    return { pathwayId:practiceSelection.pathwayId, tierIndex:practiceSelection.tierIndex,
+      variationIndex:practiceSelection.variationIndex, bandId:view === 'goal' && pathwayId ? pathwayBandId(pathwayId) : null,
+      cfg, bestBpm, proveClean, instrument, detectorMinHz:DETECTOR_MIN_HZ,
+      practiceFile:practiceSelection.file, practiceVariantId:practiceSelection.variantId,
+      concertKey:view === 'goal' ? document.querySelector('#virtuoso_lab-controls [name="key"]')?.value || '' : '',
+      playing:transport.playing, paused:transport.paused, jamMode:isJamMode(), jamIntent, session:lastExercise?.session || null };
+  } });
 
   // Translate the named Position dropdown into raw fretMin/fretMax inputs.
   // Only active in pathway mode — Custom mode lets the user set frets directly.
@@ -11621,11 +10788,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // toggles are personal preference, not exercise content. That leaves
   // structural changes (scale, progression, etc) as the only true modifiers —
   // and in pathway mode those controls are hidden anyway.
+  /** @param {string} targetName */
   function markPathwayModifiedIfApplicable(targetName) {
-    if (!activePathwayId || activePathwayId === 'custom') return;
+    if (!practiceSelection.pathwayId || practiceSelection.pathwayId === 'custom') return;
     const ignore = new Set(['pathway', 'shape', 'fretboardSystem', 'fretMin', 'fretMax', 'key', 'bpm', 'audioNotes', 'audioMetronome', 'audioHarmony']);
     if (ignore.has(targetName)) return;
-    updatePathwayGoalCard(activePathwayId, true);
+    practicePresentation.renderGoal(practiceSelection.pathwayId, true);
   }
 
   // ── L1 tuning adapt (Phase 1: uniform offsets only — tuning panel 2026-06-05) ──
@@ -11643,6 +10811,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Out of scope here (Phase 2): structural tunings (cross-class decomposition,
   // retune prompts), rung-coded L3 customOpenMidis (those own the tuning), and
   // non-pathway modes.
+  /** @param {import('./src/types/authored-config.js').AuthoredConfig} cfg */
   function applyTuningAdaptL1(cfg) {
     if (cfg.customOpenMidis) return;                         // L3 rung override owns the tuning
     const inst = instrumentStoreLoad();
@@ -11666,7 +10835,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const d0 = effective[0] - rungSetup.openMidis[0];
     const uniform = effective.every((m, i) => m - rungSetup.openMidis[i] === d0);
     if (preset && preset.offset && uniform && d0 !== 0) {
-      const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
+      const keyPc = NOTE_ALIASES[String(cfg.key)] ?? 0;
       cfg.keyNominal = cfg.key;
       cfg.tuningOffset = d0;
       cfg.tuningLabel = preset.label;
@@ -11701,6 +10870,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Keyless ≠ pitch-anonymous: the derived pitch is always displayed.
   // Returns true when the rung is anchor-class (the L1 transpose adapt is then
   // skipped — there is no nominal key to transpose).
+  /** @param {import('./src/types/authored-config.js').AuthoredConfig} cfg */
   function applyAnchorPolicy(cfg) {
     if (cfg.anchor !== 'open_lowest') return false;
     // The player's declared instrument supersedes the rung's coded setup
@@ -11722,7 +10892,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const list = String(cfg.customOpenMidis).split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
       if (list.length === setup.openMidis.length) opens = list;
     }
-    const af = Math.max(0, Math.min(11, parseInt(cfg.anchorFret, 10) || 0));
+    const af = Math.max(0, Math.min(11, parseInt(/** @type {string} */ (/** @type {unknown} */ (cfg.anchorFret)), 10) || 0));
     cfg.anchorFret = af;
     cfg.key = NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12];   // derived concert key
     // Station token for Travel credit + the goal-card readout ('open'/'fret N')
@@ -11731,20 +10901,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return true;
   }
 
-  // The key select becomes a READOUT on anchor rungs (the key is derived from
-  // the player's lowest string — changing it would contradict the derivation;
-  // to move the pitch, change the tuning in Setup). A CSS/interaction lock,
-  // never the disabled attribute (disabled fields drop out of FormData and
-  // readConfig would lose the key). The hint lives on the wrapping label.
-  function syncAnchorKeyLock() {
-    const keyEl = document.querySelector('#virtuoso_lab-controls [name="key"]');
-    if (!keyEl) return;
-    const locked = !!($('virtuoso_lab-anchor-station')?.value) && activePathwayId && activePathwayId !== 'custom';
-    keyEl.classList.toggle('virtuoso_lab-key-locked', locked);
-    keyEl.setAttribute('aria-disabled', locked ? 'true' : 'false');
-    const label = keyEl.closest('label');
-    if (label) label.title = locked ? 'This lesson anchors on your lowest string — the key is derived from your tuning (change it in Setup).' : '';
-  }
 
   // Re-derive the active rung's DERIVED fields after an instrument/tuning change:
   // the anchor key, the L1 transpose adapt metadata, and the goal-card readout
@@ -11753,40 +10909,25 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // design — it must NOT re-run the full applyPathwayConfig form write: the
   // user's mid-rung instrument pick (and any hand-set fields) stick; only the
   // derived outputs refresh against the form's CURRENT declaration.
-  // When an instrument switch makes the active Ladder pathway non-offerable on the
-  // new instrument (e.g. a guitar-only sweep lesson → bass), drop to Custom so the
-  // goal card doesn't lie and the exercise becomes a safe default for the new
-  // instrument (syncInstrumentClass's mustSwitch already moved the practice type to
-  // a playable one). Only in Ladder (guided) mode — Workout/Jam don't surface
-  // activePathwayId. Returns true when it switched, so the caller skips its own
-  // reapply/regenerate (selectMode → the pathway-select change handler regenerates).
-  function dropPathwayIfUnplayable() {
-    let mode = 'guided'; try { mode = localStorage.getItem(MODE_STORAGE_KEY) || 'guided'; } catch (_) {}
-    if (mode !== 'guided') return false;
-    if (!activePathwayId || activePathwayId === 'custom') return false;
-    if (!isHiddenNode(activePathwayId)) return false;
-    selectMode('custom');
-    return true;
-  }
 
   function reapplyActivePathway() {
-    if (!(activePathwayId && activePathwayId !== 'custom' && PATHWAYS[activePathwayId])) return;
-    const pw = PATHWAYS[activePathwayId];
+    if (!(practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' && PATHWAYS[practiceSelection.pathwayId])) return;
+    const pw = PATHWAYS[practiceSelection.pathwayId];
     const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
-    const idx = ((activePathwayVariationIdx % vary.length) + vary.length) % vary.length;
+    const idx = ((practiceSelection.variationIndex % vary.length) + vary.length) % vary.length;
     const merged = Object.assign({}, pw.base, vary[idx] || {});
     if (merged.anchor === 'open_lowest') {
       // Derive from the form's CURRENT effective opens (the player's declaration
       // — or the rung step's own L3 CSV, which also lives in the form).
       const setupName = document.querySelector('#virtuoso_lab-controls [name="stringSetup"]')?.value;
-      const setup = STRING_SETUPS[setupName] || STRING_SETUPS.guitar_6_standard;
+      const setup = STRING_SETUPS[String(setupName)] || STRING_SETUPS.guitar_6_standard;
       let opens = setup.openMidis;
       const csv = ($('virtuoso_lab-custom-open-midis')?.value || '').trim();
       if (csv) {
         const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
         if (list.length === setup.openMidis.length) opens = list;
       }
-      const af = Math.max(0, Math.min(11, parseInt(merged.anchorFret, 10) || 0));
+      const af = Math.max(0, Math.min(11, parseInt(/** @type {string} */ (/** @type {unknown} */ (merged.anchorFret)), 10) || 0));
       setFieldSilent('key', NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12]);
       setFieldSilent('anchorStation', af === 0 ? 'open' : `fret ${af}`);
     } else if (merged.key) {
@@ -11795,6 +10936,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // structural tuning, family mismatch) the key resets to nominal and the
       // stale adapt metadata clears — the form's CSV (the player's tuning) is
       // deliberately left untouched.
+      /** @type {import('./src/types/authored-config.js').AuthoredConfig} */
       const probe = { key: merged.key, stringSetup: merged.stringSetup, customOpenMidis: merged.customOpenMidis };
       applyTuningAdaptL1(probe);
       if (probe.tuningOffset) {
@@ -11810,19 +10952,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     } else {
       return;   // no derived pitch fields on this rung — nothing to refresh
     }
-    updatePathwayGoalCard(activePathwayId, $('virtuoso_lab-pathway-goal-card')?.classList.contains('modified'));
-    syncAnchorKeyLock();
+    practicePresentation.renderGoal(practiceSelection.pathwayId, $('virtuoso_lab-pathway-goal-card')?.classList.contains('modified'));
+    practiceSelection.syncAnchorKeyLock();
   }
 
-  function applyPathwayById(id, variationIdx) {
-    pendingInitialPathway = null;
-    if (id === PATHWAY_FIRST_VISIT_DEFAULT && !PATHWAYS[id]) {
-      showStatus(practiceCatalog?.state.error ? 'Chromatic Warmup unavailable' : 'Chromatic Warmup loading…');
-      return;
-    }
-    const isNewPathway = id !== activePathwayId;
-    activePathwayId = id;
-    const picker = $('virtuoso_lab-pathway'); if (picker) picker.value = id;
+  /** @param {string} id @param {number} [variationIdx] */
+  function applyPathwayById(id, variationIdx) { practiceSelection.applyPathway(id, variationIdx); }
+  /** @param {string} id @param {import('./src/types/authored-config.js').AuthoredConfig | null} tieredConfig @param {import('./src/content/pathways.js').PathwayConfig | null} variation */
+  function applySelectedConfig(id, tieredConfig, variation) {
     if (id === 'custom') {
       setPathwayModeClass(false);
       // Leaving the Ladder: the adapt metadata is pathway-scoped — clear it so
@@ -11830,34 +10967,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       setFieldSilent('keyNominal', '');
       setFieldSilent('tuningOffset', '');
       setFieldSilent('anchorStation', '');
-      syncAnchorKeyLock();   // Custom mode: the key select is always live
+      practiceSelection.syncAnchorKeyLock();   // Custom mode: the key select is always live
       // Custom mode hides the goal card via CSS, so no card update needed.
       return;
     }
-    // Selecting a pathway jumps the picker list to that pathway's band.
-    _activeBandId = pathwayBandId(id) || _activeBandId;
     const pw = PATHWAYS[id];
-    if (pw && pw.base) {
-      const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
-      const len = vary.length;
-      // Selecting a pathway opens deterministically on its first variation (the
-      // named entry / "first step" of the curriculum rung); Next Variation is the
-      // explicit "give me another on-theme shape/key" control (decided 2026-05-31).
-      const idx = variationIdx != null
-        ? ((variationIdx % len) + len) % len
-        : 0;
-      activePathwayVariationIdx = idx;
-      const variation = vary[idx] || {};
-      // Reset tier to Slow when switching to a different pathway; preserve it on variation rotation
-      if (isNewPathway) activeTempoTierIdx = 0;
-      // Apply tier BPM over the pathway base BPM
-      const tieredConfig = Object.assign({}, pw.base, variation);
-      if (pw.practiceFile) {
-        // A fixed chart validates the player's declaration; it never retunes it.
-        tieredConfig.stringSetup = document.querySelector('[name="stringSetup"]')?.value;
-        tieredConfig.customOpenMidis = $('virtuoso_lab-custom-open-midis')?.value || '';
-        delete tieredConfig.renderer;
-      }
+    if (tieredConfig && variation && pw?.base) {
       // Instrument-agnostic bands (the Rhythm ladder teaches pure TIME) ADAPT to the
       // player's current instrument instead of forcing the rung's coded string-setup —
       // the time skill transfers to guitar OR bass, so a bassist isn't bounced to a
@@ -11870,7 +10985,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (pathwayBandId(id) === 'concept_rhythm' || pw.instAgnostic) {
         const formSetup = document.querySelector('#virtuoso_lab-controls [name="stringSetup"]')?.value;
         const fs = formSetup && STRING_SETUPS[formSetup];
-        const rungInst = (STRING_SETUPS[tieredConfig.stringSetup] || {}).instrument;
+        const rungInst = (STRING_SETUPS[String(tieredConfig.stringSetup)] || {}).instrument;
         if (fs && fs.instrument !== rungInst) {
           tieredConfig.stringSetup = formSetup;
           // A guitar rung's custom-tuning CSV is meaningless on the other family's
@@ -11888,225 +11003,28 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // rungs get the same-family uniform-offset transpose (concert key +
       // player opens, identical frets). Mutually exclusive by design.
       if (!pw.practiceFile && !applyAnchorPolicy(tieredConfig)) applyTuningAdaptL1(tieredConfig);
-      if (pw.tempoTiers && pw.tempoTiers[activeTempoTierIdx] != null) {
-        tieredConfig.bpm = pw.tempoTiers[activeTempoTierIdx];
-        // Density ladder (panel 2026-06-12): a tier may carry a subdivision/bars
-        // step alongside its BPM — the beginner rungs climb density (quarters →
-        // eighths → sixteenths) before speed. Null-guarded like bpm.
-        if (pw.tempoTierSubdivs && pw.tempoTierSubdivs[activeTempoTierIdx]) tieredConfig.subdivision = pw.tempoTierSubdivs[activeTempoTierIdx];
-        if (pw.tempoTierBars && pw.tempoTierBars[activeTempoTierIdx] != null) tieredConfig.bars = pw.tempoTierBars[activeTempoTierIdx];
-      }
+      practiceSelection.tierConfig(id, tieredConfig);
       applyPathwayConfig(tieredConfig);
       setPathwayModeClass(true);
-      updatePathwayGoalCard(id, false);
+      practicePresentation.renderGoal(id, false);
       // Resolve the pathway's intended shape. New-style pathways can set
       // `fretboardSystem` + `shape` directly; legacy pathways pass `fretMin`
       // (and we pick the closest shape on the current key).
-      const shapeEl = $('virtuoso_lab-shape');
-      if (shapeEl) {
-        const system = tieredConfig.fretboardSystem || 'caged';
-        const keyEl = $('virtuoso_lab-controls')?.querySelector('[name="key"]');
-        const keyPc = keyEl ? (NOTE_ALIASES[keyEl.value] ?? 0) : 0;
-        const scale = tieredConfig.scale || 'major';
-        const openMidis = STRING_SETUPS.guitar_6_standard.openMidis;
-        let chosenShape = tieredConfig.shape;
-        if (chosenShape == null && isShapeAwareSystem(system)) {
-          const fretHint = variation.fretMin != null ? variation.fretMin : pw.base.fretMin;
-          chosenShape = shapeFromFretHint(system, fretHint, keyPc, scale, openMidis)
-            || defaultShapeForSystem(system, keyPc, scale, openMidis);
-        }
-        syncShapeDropdown();
-        if (chosenShape != null) {
-          shapeEl.value = String(chosenShape);
-          syncShapeDropdownSelectionToHidden();
-        }
-      }
+      practiceSelection.selectShape(id, tieredConfig, variation);
       syncTempoTierButtons();
-      syncScaleDropdown(id);
-      updatePositionStepper();
+      practiceSelection.syncScaleDropdown(id);
+      practicePresentation.renderPosition();
       renderSkillTree();
-      syncAnchorKeyLock();   // anchor rungs: the key select is a derived readout
+      practiceSelection.syncAnchorKeyLock();   // anchor rungs: the key select is a derived readout
       return;
     }
-    const preset = window.__virtuoso_labFavorites && window.__virtuoso_labFavorites[id];
+    const preset = practicePresets.get(id);
     if (preset && preset.config) {
       applyPathwayConfig(preset.config);
       setPathwayModeClass(true);
-      updatePathwayGoalCard(null, false, preset);
+      practicePresentation.renderGoal(null, false, preset);
     }
     renderSkillTree();
-  }
-
-  // ── The universal Position / variation stepper ─────────────────────────────
-  // The ◄ [select/readout] ► row walks the active pathway's variation axis. For a
-  // shape-aware guitar pathway the axis is the fretboard Position (CAGED/3NPS) and
-  // the #virtuoso_lab-shape select drives it. For everything else the axis is the
-  // pathway's curated vary[] list, stepped through applyPathwayById(). This
-  // replaces the old bottom "Next variation" button (its ► was redundant with
-  // this row's ►), so non-shape pathways must be steppable HERE.
-
-  // Is the active row stepping shapes (true) or vary[] entries (false)?
-  function positionStepperIsShapeMode() {
-    const sysEl = $('virtuoso_lab-fretboard-system');
-    const shapeEl = $('virtuoso_lab-shape');
-    const root = $('virtuoso_lab-root');
-    const isBass = root && root.classList.contains('virtuoso_lab-bass-instrument');
-    const system = sysEl ? sysEl.value : 'caged';
-    // Shapes are a guitar concept and only render when the select has ≥2 options.
-    return !isBass && isShapeAwareSystem(system) && shapeEl && shapeEl.options.length > 1;
-  }
-
-  // Infer the human axis name for a pathway's vary[] list by which field changes
-  // across its entries. Avoids the generic "Variation" wherever a real axis exists.
-  function variationAxisLabel(pw) {
-    const vary = (pw && pw.vary) || [];
-    if (vary.length < 2) return 'Variation';
-    const changes = (field) => new Set(vary.map(v => v[field])).size > 1;
-    // Order matters: pick the most specific musical axis that actually varies.
-    if (changes('voices')) return 'Voicing';
-    if (changes('inversion')) return 'Inversion';
-    if (changes('progression')) return 'Progression';
-    if (changes('scale')) return 'Scale';
-    if (changes('sequence') || changes('chromaticPattern')) return 'Pattern';
-    if (changes('swing')) return 'Feel';
-    if (changes('key')) return 'Key';
-    return 'Variation';
-  }
-
-  // Short label for the current vary[] entry, e.g. "A" (key), "Dorian" (scale).
-  function variationValueLabel(pw, idx, axis) {
-    if (pw.practiceFile) return pw.practiceFile.pathway.variations[idx].title;
-    const v = (pw.vary && pw.vary[idx]) || {};
-    switch (axis) {
-      case 'Voicing':     return v.voices ? v.voices.replace(/_/g, ' ') : `#${idx + 1}`;
-      case 'Inversion':   return v.inversion != null ? `Inv ${v.inversion}` : `#${idx + 1}`;
-      case 'Progression': return v.progression || `#${idx + 1}`;
-      case 'Scale':       return v.scale ? v.scale.replace(/_/g, ' ') : `#${idx + 1}`;
-      case 'Pattern':     return v.chromaticPattern || v.sequence || `#${idx + 1}`;
-      case 'Feel':        return v.swing || `#${idx + 1}`;
-      case 'Key':         return v.key || `#${idx + 1}`;
-      default:            return `Variation ${idx + 1}`;
-    }
-  }
-
-  // Update the stepper row: label by axis, show the right control (select vs
-  // readout), and hide the whole row when there is nothing to step.
-  function updatePositionStepper() {
-    const row = $('virtuoso_lab-position-row');
-    const label = $('virtuoso_lab-position-label');
-    const select = $('virtuoso_lab-shape');
-    const readout = $('virtuoso_lab-position-readout');
-    if (!row || !label || !select || !readout) return;
-
-    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
-    const shapeMode = positionStepperIsShapeMode();
-
-    if (shapeMode) {
-      // Fretboard Position — the shape select is the control.
-      row.classList.remove('no-variations');
-      label.textContent = 'Position';
-      select.hidden = false;
-      readout.hidden = true;
-      return;
-    }
-
-    // vary[] stepping — show the read-only value + counter; hide the empty select.
-    select.hidden = true;
-    const varyLen = pw && pw.vary ? pw.vary.length : 0;
-    if (!pw || varyLen < 2) {
-      // Nothing to step (single-variation pathway with no shapes) — hide the row.
-      row.classList.add('no-variations');
-      readout.hidden = true;
-      return;
-    }
-    row.classList.remove('no-variations');
-    const axis = variationAxisLabel(pw);
-    label.textContent = axis === 'Variation' ? 'Change' : axis;
-    readout.hidden = false;
-    const idx = ((activePathwayVariationIdx % varyLen) + varyLen) % varyLen;
-    readout.textContent = `${variationValueLabel(pw, idx, axis)} (${idx + 1}/${varyLen})`;
-  }
-
-  // Walk the active pathway's variation axis by `dir` (+1 / -1). Shape mode steps
-  // the shape select; otherwise rotates the curated vary[] list.
-  function positionStep(dir) {
-    if (positionStepperIsShapeMode()) {
-      const sel = $('virtuoso_lab-shape');
-      if (!sel || !sel.options.length) return;
-      const n = sel.options.length;
-      sel.selectedIndex = (sel.selectedIndex + dir + n) % n;
-      // The delegated #virtuoso_lab-controls change handler mirrors + regenerates.
-      sel.dispatchEvent(new Event('change', { bubbles: true }));
-      updatePositionStepper();
-      return;
-    }
-    // vary[] rotation for non-shape pathways.
-    if (!activePathwayId || activePathwayId === 'custom') return;
-    const pw = PATHWAYS[activePathwayId];
-    if (!pw || !pw.vary || pw.vary.length < 2) return;
-    const n = pw.vary.length;
-    const nextIdx = ((activePathwayVariationIdx + dir) % n + n) % n;
-    applyPathwayById(activePathwayId, nextIdx);
-    onGenerate();
-  }
-  function loadPathwayFavorites() {
-    const select = $('virtuoso_lab-pathway'); if (!select) return;
-    const favoritesGroup = select.querySelector('optgroup[label="Favorites"]'); if (!favoritesGroup) return;
-    const picker = $('virtuoso_lab-preset-picker');
-    fetch('/api/plugins/virtuoso_lab/presets').then(r => r.ok ? r.json() : null).then(data => {
-      const presets = (data && Array.isArray(data.presets)) ? data.presets : [];
-      if (!presets.length) return;
-      window.__virtuoso_labFavorites = window.__virtuoso_labFavorites || {};
-      presets.forEach(p => {
-        if (!p || !p.id) return;
-        const key = 'fav__' + p.id;
-        window.__virtuoso_labFavorites[key] = p;
-        if (!favoritesGroup.querySelector('option[value="' + key + '"]')) {
-          const opt = document.createElement('option'); opt.value = key; opt.textContent = p.name || p.id;
-          favoritesGroup.appendChild(opt);
-        }
-        // Mirror saved presets into the Custom-mode preset picker.
-        if (picker && !picker.querySelector('option[value="' + key + '"]')) {
-          const o = document.createElement('option'); o.value = key; o.textContent = p.name || p.id;
-          picker.appendChild(o);
-        }
-      });
-      if (favoritesGroup.children.length) favoritesGroup.hidden = false;
-      const wrap = $('virtuoso_lab-preset-picker-wrap');
-      if (wrap && picker && picker.options.length > 1) wrap.hidden = false;
-    }).catch(() => {});
-  }
-  function applyInitialPathway() {
-    const select = $('virtuoso_lab-pathway'); if (!select) return;
-    let stored = null; try { stored = localStorage.getItem(PATHWAY_STORAGE_KEY); } catch (_) {}
-    // 'custom' means the user opted out of any pathway; treat it as a non-choice
-    // on plugin open so beginners always land on a real exercise. The user can
-    // re-select Custom mid-session from the dropdown.
-    // Instrument-aware default: reject a stored pathway coded for the other instrument
-    // (it would yank the player's instrument on open), landing on this instrument's
-    // Core on-ramp instead (bass → bass_rh_pulse; guitar → chromatic_warmup).
-    const useStored = stored && stored !== 'custom' && PATHWAYS[stored] && !isHiddenNode(stored);
-    const initial = useStored ? stored : (currentFamily() === 'bass' ? 'bass_rh_pulse' : PATHWAY_FIRST_VISIT_DEFAULT);
-    if (!initial) return;
-    if (!Array.from(select.options).some(o => o.value === initial)) return;
-    select.value = initial;
-    if (initial === PATHWAY_FIRST_VISIT_DEFAULT && !PATHWAYS[initial]) {
-      activePathwayId = initial;
-      setPathwayModeClass(true);
-      if (!practiceCatalog?.state.error) pendingInitialPathway = { id:initial, visit:catalogVisitIdentity };
-      else applyPathwayById('custom');
-      return;
-    }
-    applyPathwayById(initial);
-    try { localStorage.setItem(PATHWAY_STORAGE_KEY, initial); } catch (_) {}
-  }
-  // Resume-last-mode: first-ever launch lands on Pathways (the primed START CTA);
-  // a returning user who last left in Custom/Workout/Jam resumes there. Called only
-  // when there's no share link (a share URL wins). applyInitialPathway has already
-  // set up the Pathways defaults, so a non-Pathways resume just switches the view.
-  function resumeLastMode() {
-    let m = null; try { m = localStorage.getItem(MODE_STORAGE_KEY); } catch (_) {}
-    if (m && m !== 'guided' && (m === 'custom' || m === 'session' || m === 'jam')) selectMode(m);
   }
 
   // The LCD readout no longer surfaces highway-inverted (it's a menu setting,
@@ -12122,6 +11040,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // explicit, student-DRIVEN, never auto). Travel(keys/positions) + Support-off are
   // the follow-on increments; here we only ship the smallest atom that proves the
   // invite model where the grinder currently hits a wall.
+  /** @type {Set<string | null | undefined>} */
   const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);   // the practice types that consume cfg.sequence
   function depthSequenceField() { return document.querySelector('#virtuoso_lab-controls [name="sequence"]'); }
   function depthIsPatterned() { const f = depthSequenceField(); return !!(f && f.value && f.value !== 'none'); }
@@ -12131,8 +11050,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // already patterned). Pentatonic/blues are <7-note, where `thirds` ([0,2]) is NOT
   // a diatonic third — offer `fours` instead (degree-agnostic, always correctly
   // labelled) per guitar-pedagogy's relabel gate.
+  /** @param {import('./src/content/pathways.js').Pathway | null} pw */
   function depthPatternOffer(pw) {
-    const pt = pw && pw.base && pw.base.practiceType;
+    if (!pw) return null;
+    const pt = pw.base && pw.base.practiceType;
     if (!SEQ_SUPPORTING.has(pt)) return null;
     const adv = document.querySelector('#virtuoso_lab-controls [name="advancedMode"]');
     if (!adv || !adv.checked) return null;                 // would be stripped → never offer a no-op
@@ -12142,20 +11063,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const sevenNote = (SCALE_INTERVALS[scale] || []).length === 7;
     return sevenNote ? { seq: 'thirds', label: 'in 3rds' } : { seq: 'fours', label: 'in 4ths' };
   }
-  // Density-ladder tier realization (panel 2026-06-12). A rung's tier can carry a
-  // subdivision/bars step alongside its BPM; every tier-ENTRY path (the pathway
-  // apply above, the tier buttons, the results-modal ladder CTAs) realizes the
-  // same fields through this one helper so the form never half-applies a tier.
-  function applyTierFields(pw, idx) {
-    if (!pw || !pw.tempoTiers || pw.tempoTiers[idx] == null) return;
-    setFieldSilent('bpm', String(pw.tempoTiers[idx]));
-    if (pw.tempoTierSubdivs && pw.tempoTierSubdivs[idx]) setFieldSilent('subdivision', pw.tempoTierSubdivs[idx]);
-    if (pw.tempoTierBars && pw.tempoTierBars[idx] != null) setFieldSilent('bars', String(pw.tempoTierBars[idx]));
-  }
   // Note-value glyph for a tier chip — once subdivision varies across tiers, a
   // bare BPM can lie about difficulty ("♩ 60" and "♬ 60" are different climbs;
   // gamification ruling). Only rendered when the rung declares tempoTierSubdivs.
+  /** @type {Record<string, string>} */
   const TIER_SUBDIV_GLYPH = { quarter:'♩', eighth:'♪', triplet:'♪₃', eighth_triplet:'♪₃', sixteenth:'♬', sixteenth_triplet:'♬₃' };
+  /** @param {import('./src/content/pathways.js').Pathway} pw @param {number} i */
   function tierChipLabel(pw, i) {
     const bpm = pw.tempoTiers[i];
     const sub = pw.tempoTierSubdivs && pw.tempoTierSubdivs[i];
@@ -12168,16 +11081,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     container.innerHTML = '';
     const signpost = $('virtuoso_lab-climb-next');
     if (signpost) { signpost.textContent = ''; signpost.classList.remove('summit'); }
-    const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+    const pw = practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' ? PATHWAYS[practiceSelection.pathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
     if (!tiers || !tiers.length) return;
+    const activePathway = /** @type {import('./src/content/pathways.js').Pathway} */ (pw);
     const ptData = pathwayTiersLoad();
-    const highestCleared = (ptData[activePathwayId] || {}).highest_tier ?? -1;
-    tiers.forEach((bpm, i) => {
+    const highestCleared = (ptData[String(practiceSelection.pathwayId)] || {}).highest_tier ?? -1;
+    tiers.forEach((_bpm, i) => {
       const btn = document.createElement('button');
       btn.type = 'button';
       let cls = 'virtuoso_lab-tier-btn';
-      if (i === activeTempoTierIdx) cls += ' active';
+      if (i === practiceSelection.tierIndex) cls += ' active';
       if (i <= highestCleared) cls += ' cleared';
       if (i === _newlyUnlockedTier) cls += ' tier-glow';
       btn.className = cls;
@@ -12185,10 +11099,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // equal boxes. Label is the speed name; BPM is the readout below it.
       btn.innerHTML = `<span class="tier-step">Rung ${i + 1}</span>` +
         `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span>` +
-        `<span class="tier-bpm">${tierChipLabel(pw, i)}</span>`;
+        `<span class="tier-bpm">${tierChipLabel(activePathway, i)}</span>`;
       btn.addEventListener('click', () => {
-        activeTempoTierIdx = i;
-        applyTierFields(pw, i);   // bpm + the tier's subdivision/bars step (density ladder)
+        practiceSelection.setTier(i);
+        practiceSelection.applyTier(activePathway, i);   // bpm + the tier's subdivision/bars step (density ladder)
         syncTempoTierButtons();
         onGenerate();
       });
@@ -12214,51 +11128,23 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         }
       } else {
         const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
-        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(pw, nextIdx)}`;
+        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(activePathway, nextIdx)}`;
       }
     }
   }
 
-  // Shared node-visibility predicate (lifted out of renderSkillTree so the list and
-  // the SVG tree never diverge): bending is a guitar technique — hidden on bass.
-  function isHiddenNode(id) {
-    // Instrument-aware picker filter (cross-instrument parity, 2026-06-03): hide a
-    // pathway whose practice type isn't offered on the current instrument — so a bass
-    // player sees the bass-native + transferable ladders, not guitar-only ones (and
-    // vice versa: the bass ladder is hidden on guitar). Subsumes the old bend_drill
-    // case (bending is n-a on bass). Reads the live stringSetup; offerable() + the
-    // PRACTICE_APPLICABILITY ternary tags are the single source of truth.
-    const setup = document.querySelector('[name="stringSetup"]');
-    const inst = (setup && (STRING_SETUPS[setup.value] || {}).instrument) || 'guitar';
-    const pw = PATHWAYS[id];
-    const pt = pw && pw.base && pw.base.practiceType;
-    if (pt && !offerable(pt, inst)) return true;
-    // Family match (2026-06-07): a pathway CODED for the other instrument family is
-    // also hidden — its base.stringSetup yanks the player's instrument when selected
-    // (applyPathwayConfig writes every config key incl. stringSetup). This catches
-    // the bass Scales/Arpeggios ladders on guitar (their practice types — scale,
-    // diatonic_arpeggios — ARE offered on guitar, so the practice-type test above
-    // misses them) and, symmetrically, guitar-coded ladders on bass. EXCEPT the
-    // instrument-agnostic rungs (the Rhythm ladder + any pw.instAgnostic), which are
-    // built to ADAPT to the player's instrument rather than force their coded setup
-    // (same condition as applyPathwayById's adapt branch).
-    const pwInst = (STRING_SETUPS[pw && pw.base && pw.base.stringSetup] || {}).instrument;
-    const agnostic = pathwayBandId(id) === 'concept_rhythm' || (pw && pw.instAgnostic);
-    if (pwInst && pwInst !== inst && !agnostic) return true;
-    return false;
-  }
   // A pathway's prerequisite = the first incoming edge in the prereq graph. Used for
   // the soft "Builds on …" hint (gamification: prereqs suggest, never gate).
+  /** @param {string} id */
   function pathwayPrereq(id) {
     const e = SKILL_TREE_EDGES.find(([, b]) => b === id);
     return e ? e[0] : null;
   }
-  function pathwayBandId(id) {
-    const b = PATHWAY_BANDS.find(band => band.pathways.includes(id));
-    return b ? b.id : null;
-  }
+  /** @param {string} id */
+  function pathwayBandId(id) { return practiceSelection.bandFor(id); }
   // Single source of truth for a node's progress state — used by the picker list now
   // and the P-sheet skill rack later (one data, two surfaces). Reads pathway_tiers.
+  /** @param {string} id @param {Record<string, import('./src/types/progress-data.js').TierRecord>} ptData */
   function nodeProgressState(id, ptData) {
     const pw = PATHWAYS[id];
     const tierCount = (pw && pw.tempoTiers && pw.tempoTiers.length) || 0;
@@ -12292,8 +11178,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Available column (the "+"), not the picker.
     const bands = visiblePackOrder()
       .map(id => PATHWAY_BANDS.find(b => b.id === id))
-      .filter(Boolean)
-      .map(b => ({ id:b.id, label:b.label, kind:b.kind, ids:b.pathways.filter(id => PATHWAYS[id] && !isHiddenNode(id)) }))
+      .filter(b => b !== undefined)
+      .map(b => ({ id:b.id, label:b.label, kind:b.kind, ids:b.pathways.filter(id => PATHWAYS[id] && !practiceSelection.isHidden(id)) }))
       .filter(b => b.ids.length);
     if (!bands.length) {
       // No bands have a playable rung for this instrument — show an empty-state line
@@ -12307,16 +11193,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
     // active pathway's band when unset/stale. Band-chip clicks set _activeBandId directly
     // (browse); selecting a pathway sets it in applyPathwayById (list follows selection).
-    if (!_activeBandId || !bands.find(b => b.id === _activeBandId)) {
-      const pwBand = bands.find(b => b.ids.includes(activePathwayId));
-      _activeBandId = pwBand ? pwBand.id : bands[0].id;
+    if (!practiceSelection.bandId || !bands.find(b => b.id === practiceSelection.bandId)) {
+      const pwBand = bands.find(b => b.ids.includes(/** @type {string} */ (practiceSelection.pathwayId)));
+      practiceSelection.browseBand(pwBand ? pwBand.id : bands[0].id);
     }
-    const activeBand = bands.find(b => b.id === _activeBandId) || bands[0];
+    const activeBand = bands.find(b => b.id === practiceSelection.bandId) || bands[0];
     // L1 — band bar
     bandBar.innerHTML = '';
     // Two axes (§12): the Core bands (Beginner→Advanced) are an ordered CLIMB;
     // the Style bands are LATERAL branches. Render them as two groups separated
     // by a hairline, so the bar doesn't read as one undifferentiated row.
+    /** @type {string | null} */
     let _prevKind = null;
     bands.forEach(b => {
       if (_prevKind === 'core' && b.kind !== 'core') {
@@ -12331,7 +11218,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       btn.textContent = b.label;
       btn.setAttribute('role', 'tab');
       btn.setAttribute('aria-selected', b.id === activeBand.id ? 'true' : 'false');
-      btn.addEventListener('click', () => { _activeBandId = b.id; renderPathwayList(); });
+      btn.addEventListener('click', () => { practiceSelection.browseBand(b.id); renderPathwayList(); });
       bandBar.appendChild(btn);
       _prevKind = b.kind;
     });
@@ -12348,15 +11235,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     bandBar.appendChild(addBtn);
     // L2 — ordered pathway list for the active band
     const states = activeBand.ids.map(id => ({ id, st: nodeProgressState(id, ptData) }));
-    const nextId = (states.find(s => !s.st.cleared && s.id !== activePathwayId) || {}).id;
+    const nextId = (states.find(s => !s.st.cleared && s.id !== practiceSelection.pathwayId) || {}).id;
     list.innerHTML = '';
     states.forEach(({ id, st }) => {
       const pw = PATHWAYS[id];
       const row = document.createElement('div');
       row.className = 'virtuoso_lab-segment-card virtuoso_lab-pw-row'
-        + (id === activePathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
+        + (id === practiceSelection.pathwayId ? ' active' : '') + (st.cleared ? ' cleared' : '');
       row.setAttribute('role', 'option');
-      row.setAttribute('aria-selected', id === activePathwayId ? 'true' : 'false');
+      row.setAttribute('aria-selected', id === practiceSelection.pathwayId ? 'true' : 'false');
       // Tier dots, now LABELLED (§12): each dot names its tempo tier (Slow→Push)
       // + cleared state, so the picker reads the climb, not just anonymous pips.
       const dots = (pw.tempoTiers || []).map((_, i) => {
@@ -12364,14 +11251,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         const lbl = TIER_LABELS[i] || ('Tier ' + (i + 1));
         return `<span class="tree-tier-dot${done ? ' cleared' : ''}" title="${lbl} — ${done ? 'cleared' : 'not yet'}" aria-label="${lbl}, ${done ? 'cleared' : 'not cleared'}"></span>`;
       }).join('');
-      const marker = id === activePathwayId ? '<span class="virtuoso_lab-pw-here">you are here</span>'
+      const marker = id === practiceSelection.pathwayId ? '<span class="virtuoso_lab-pw-here">you are here</span>'
         : id === nextId ? '<span class="virtuoso_lab-pw-next">→ next</span>' : '';
       // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
       // pathway pointing back to its Core foundation). Within a band the top→bottom
       // order already communicates sequence, so the hint there is just noise.
       const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
-      const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[st.prereq])
-        ? `<div class="virtuoso_lab-pw-sub">Builds on ${PATHWAYS[st.prereq].label} — suggested first</div>` : '';
+      const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[String(st.prereq)])
+        ? `<div class="virtuoso_lab-pw-sub">Builds on ${PATHWAYS[String(st.prereq)].label} — suggested first</div>` : '';
       // Depth-ladder pip (Phase 9 Slice 5): a 5-rung mastery overview from the
       // progress store — Speed → Travel → Clean → Ears-off → Master. Off mode →
       // no pip (st.depth is null; the whole layer collapses). A filled rung means
@@ -12420,7 +11307,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           + `<span class="virtuoso_lab-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
           + `<span class="virtuoso_lab-pw-nextband-band">in ${cross.band.label}</span>`;
         const go = () => {
-          _activeBandId = cross.band.id; renderPathwayList();
+          practiceSelection.browseBand(cross.band.id); renderPathwayList();
           const sel = $('virtuoso_lab-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
         };
         cue.addEventListener('click', go);
@@ -12441,10 +11328,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const container = $('virtuoso_lab-skill-tree');
     if (!container || container.classList.contains('virtuoso_lab-tree-shelved')) return;
     const ptData = pathwayTiersLoad();
-    const hiddenNode = isHiddenNode;
+    const hiddenNode = practiceSelection.isHidden;
     // Build inner wrapper + SVG edge layer + node buttons
     container.innerHTML = '<div class="virtuoso_lab-tree-inner" id="virtuoso_lab-tree-inner"></div>';
-    const inner = container.firstChild;
+    const inner = /** @type {HTMLElement} */ (container.firstChild);
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'virtuoso_lab-tree-edges');
@@ -12456,8 +11343,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const a = nodeMap[aId], b = nodeMap[bId];
       if (!a || !b || hiddenNode(aId) || hiddenNode(bId)) return;
       const line = document.createElementNS(NS, 'line');
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      line.setAttribute('x1', String(a.x)); line.setAttribute('y1', String(a.y));
+      line.setAttribute('x2', String(b.x)); line.setAttribute('y2', String(b.y));
       line.setAttribute('class', 'tree-edge');
       svg.appendChild(line);
     });
@@ -12467,7 +11354,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const pw = PATHWAYS[node.id];
       if (!pw || hiddenNode(node.id)) return;
       const highestTier = (ptData[node.id] || {}).highest_tier ?? -1;
-      const isActive = node.id === activePathwayId;
+      const isActive = node.id === practiceSelection.pathwayId;
       const wrapper = document.createElement('div');
       wrapper.className = 'virtuoso_lab-tree-node' + (isActive ? ' active' : '');
       wrapper.style.left = node.x + '%';
@@ -12489,34 +11376,6 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
   }
 
-  function syncScaleDropdown(pathwayId) {
-    const el = $('virtuoso_lab-pathway-scale');
-    const wrap = $('virtuoso_lab-pathway-scale-wrap');
-    if (!el) return;
-    const pw = pathwayId && pathwayId !== 'custom' ? PATHWAYS[pathwayId] : null;
-    const scales = pw && pw.scales ? pw.scales : [];
-    if (!scales.length) { if (wrap) wrap.style.display = 'none'; return; }
-    if (wrap) wrap.style.display = '';
-    // Pull human-readable labels from the existing custom scale select
-    const sourceOpts = document.querySelectorAll('[name="scale"] option');
-    const labelMap = {};
-    sourceOpts.forEach(o => { labelMap[o.value] = o.textContent; });
-    // Rebuild options
-    el.innerHTML = '';
-    const currentScale = document.querySelector('[name="scale"]')?.value || '';
-    scales.forEach(s => {
-      const opt = document.createElement('option');
-      opt.value = s;
-      opt.textContent = labelMap[s] || s;
-      if (s === currentScale) opt.selected = true;
-      el.appendChild(opt);
-    });
-    // If current scale isn't in the list, snap to first
-    if (!scales.includes(currentScale)) {
-      el.value = scales[0];
-      setFieldSilent('scale', scales[0]);
-    }
-  }
 
   function syncChromaticVisibility() {
     const practiceTypeEl = document.querySelector('[name="practiceType"]');
@@ -12540,14 +11399,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // no input path, so nothing real to credit and nothing to wrongly block; the
   // detector's pitch/comb evidence still has to fire). All times are JUDGE time
   // (currentPracticeTime − ptLatency()), matching the window table both ears read.
+  /** @param {number} raw */
   function _lvlPushSample(raw) {
     if (!(raw >= 0)) raw = 0;
-    const jt = currentPracticeTime - ptLatency();
+    const jt = transport.time - ptLatency();
     // Input-presence (arms miss gems + the recap ●/○): real signal ≥ the host
     // floor. No onset/baseline/calibration — the host's gate is level-only.
     if (raw >= PT_LVL_FLOOR_MIN) { _ptHadInput = true; markBlockInput(); }
     _lvlSamples.push({ jt, L: raw }); if (_lvlSamples.length > 512) _lvlSamples.shift();
   }
+  /** @param {number} lo @param {number} hi */
   function ptPeakLevelIn(lo, hi) {
     let pk = 0;
     for (let i = _lvlSamples.length - 1; i >= 0; i--) {
@@ -12557,6 +11418,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     return pk;
   }
+  /** @param {number} lo @param {number} hi */
   function ptHasSamplesIn(lo, hi) {               // did the level meter cover this window at all?
     for (let i = _lvlSamples.length - 1; i >= 0; i--) {
       const s = _lvlSamples[i];
@@ -12582,6 +11444,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Gate instead on the input level over a short window ENDING at the current
   // judge clock — "is the player sounding NOW?": a real note has level in its
   // ring at the credit moment; a silent residual does not.
+  /** @param {import('./src/types/judgment-data.js').JudgmentWindow} w */
   function ptCreditGatePasses(w) {
     // Contained verifier: the engine owns silence/onset/persistence gating
     // inside each note's timing window, so Virtuoso's level veto is redundant
@@ -12592,14 +11455,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (_lvlMode === 'none') return true;         // no host level source → gate inactive
     let lo, hi;
     if (w.span) { lo = w.t; hi = w.spanEnd; }
-    else { hi = currentPracticeTime - ptLatency(); lo = hi - PT_LVL_RECENT_WIN; }
+    else { hi = transport.time - ptLatency(); lo = hi - PT_LVL_RECENT_WIN; }
     if (!ptHasSamplesIn(lo, hi)) return true;     // meter hasn't covered this window yet (startup) → honest skip
     return ptPeakLevelIn(lo, hi) >= PT_LVL_FLOOR_MIN;   // silent → forced miss; else credit stands
   }
   function startLevelMeter() {
     stopLevelMeter();
     _lvlMode = 'none'; _lvlSamples = [];
-    const bridge = hostDesktop() && hostDesktop().audio;
+    const bridge = hostDesktop()?.audio;
     if (bridge && typeof bridge.getLevels === 'function') {
       // getLevels() is ASYNC on the desktop bridge — `ipcRenderer.invoke(...)`
       // returns a Promise (note_detect itself awaits it). Reading `.inputLevel`
@@ -12616,7 +11479,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         if (inFlight) return;
         inFlight = true;
         let p = null;
-        try { p = bridge.getLevels(); } catch (_) { p = null; }
+        try { p = (/** @type {NonNullable<typeof bridge> & {getLevels: NonNullable<NonNullable<typeof bridge>['getLevels']>}} */ (bridge)).getLevels(); } catch (_) { p = null; }
         Promise.resolve(p).then((lv) => {
           if (myGen !== _lvlGen) return;   // meter was stopped/restarted while this IPC was in flight
           if (!lv || typeof lv.inputLevel !== 'number') { if (!okOnce) fallBack(); return; }
@@ -12641,9 +11504,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         _lvlMode = 'web';
         const tick = () => {
           if (_lvlMode !== 'web' || !_lvlAnalyser) return;
-          _lvlAnalyser.getFloatTimeDomainData(_lvlData);
-          let s = 0; for (let i = 0; i < _lvlData.length; i++) s += _lvlData[i] * _lvlData[i];
-          _lvlPushSample(Math.min(1, Math.sqrt(s / _lvlData.length) * 5));   // → the host's 0..1 inputLevel scale
+          (/** @type {AnalyserNode} */ (_lvlAnalyser)).getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (_lvlData));
+          let s = 0; for (let i = 0; i < (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData)).length; i++) s += (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))[i] * (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))[i];
+          _lvlPushSample(Math.min(1, Math.sqrt(s / (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData)).length) * 5));   // → the host's 0..1 inputLevel scale
           _lvlRaf = requestAnimationFrame(tick);
         };
         _lvlRaf = requestAnimationFrame(tick);
@@ -12665,6 +11528,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return typeof hostMinigames()?.scoring?.createContinuous === 'function';
   }
 
+  /** @param {ReturnType<typeof makeBundle>} bundle */
   function startPitchTracker(bundle) {
     _ptRunInfo = null;   // a run with no scorer leaves no stale diagnostics
     if (!ptAvailable() && !ndVerifyAvailable()) return;
@@ -12687,6 +11551,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // (emitStrum rake-staggers strings 6–18ms, so time can't group them), or
     // notes at EXACTLY equal t (block chords / double-stops / harmonized lines).
     // Never a time-tolerance window — fast runs must stay individually judged.
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
     const _gCounts = new Map();
     for (const n of allNotes) { const k = _gk(n); _gCounts.set(k, (_gCounts.get(k) || 0) + 1); }
@@ -12697,6 +11562,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // the judge for that register (bass-pedagogy ruling: change the judge,
     // never relocate the lesson).
     const _opens = bundle.openMidis || [];
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _audible = (n) => { const m = _opens[n.s]; return m == null || midiToFreq(m + n.f) >= DETECTOR_MIN_HZ; };
     // Verifier mode lifts the chord exemption: the harmonic-comb verifier is
     // polyphonic, so chords/diads become judged (shown AND scored), not exempt.
@@ -12735,7 +11601,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     for (let i = 0; i < _onsets.length; i++) _nextOnset.set(_onsets[i], i + 1 < _onsets.length ? _onsets[i + 1] : Infinity);
     const _spanKeyByNote = new Map();
     { // span detection: same (s,f), tr-flagged, gap ≤ 0.35s, ≥2 members
-      let run = [], spanId = 0;
+      let /** @type {import('./src/types/entry-data.js').EntryNote[]} */ run = [], spanId = 0;
       const flush = () => { if (run.length >= 2) { const k = 'tr@' + (spanId++); for (const n of run) _spanKeyByNote.set(ptKey(n), k); } run = []; };
       for (const n of _base) {
         if (!n.tr || n.ho || n.po) { flush(); continue; }
@@ -12746,6 +11612,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       flush();
       _ptSpanCount = spanId;
     }
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _legato = (n) => (n.ho || n.po) && !_spanKeyByNote.has(ptKey(n));
     // Effective ring: written-STACCATO (sus meaningfully shorter than the IOI —
     // the damping is the lesson, the player's string really stops at sus) caps
@@ -12753,6 +11620,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // player's string rings into the next same-string attack) ring ≈ IOI.
     // Without this split the builders' cosmetic sus would exempt every fast
     // run via its own chart data (incl. the 160-BPM acceptance run).
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _effRing = (n) => {
       const ioi = _nextOnset.get(n.t) - n.t;
       if (!isFinite(ioi)) return Infinity;   // the chart's last note rings into silence — always certifiable
@@ -12767,6 +11635,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       }
       return ioi;   // legato-ish run: continuous string energy re-locks fast — no speak debit
     };
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _tooFast = (n) => !_legato(n) && !_spanKeyByNote.has(ptKey(n)) && _effRing(n) < _floor;
     _ptNotes = _base.filter(n => !_legato(n) && !_tooFast(n));
     _ptScored = new Set();
@@ -12774,6 +11643,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _ptHadInput = false;
     // Group key: span members share their span's key (one window per span);
     // everything else keeps the chord/onset grouping.
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const _gkS = (n) => _spanKeyByNote.get(ptKey(n)) || _gk(n);
     ptBuildWindows(_ptNotes, _gkS);   // the one window table both ears read
     _ptExempt = { legato: _base.filter(_legato).length, fast: _base.filter(_tooFast).length,
@@ -12835,7 +11705,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         // EMA made a semitone step read ~47¢ on its FIRST frame — at the ±50¢ gate
         // boundary for exactly the chromatic content this judge must catch. The
         // meter strip re-smooths for display in ptOnPitch; scoring uses raw frames.
-        _ptHandle = hostMinigames().scoring.createContinuous({ smoothingMs: 12 });
+        _ptHandle = (/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames())).scoring.createContinuous({ smoothingMs: 12 });
       } catch (_) { _ptHandle = null; }
       if (_ptHandle && typeof _ptHandle.on === 'function') {
         _ptHandle.on('pitch', ptOnPitch);
@@ -12873,17 +11743,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     syncStripTuneBtn();   // the scorer owns the strip — hide the idle Tune… button
   }
 
+  /** @param {Pick<import('./src/types/host-interfaces.js').PitchFrame, 'freqHz' | 'confidence'>} arg */
   function ptOnPitch({ freqHz, confidence }) {
     // Paused: the handle stays alive (gem states keep painting) but frames are
     // discarded — a note held across a frozen clock must never accumulate
     // evidence or score against the note sitting under the playhead.
-    if (paused) return;
-    if (_preRollUntil > 0 && currentPracticeTime < _preRollUntil) return;   // resume pre-roll runway — the player is re-orienting, not playing
+    if (transport.paused) return;
+    if (transport.preRollUntil > 0 && transport.time < transport.preRollUntil) return;   // resume pre-roll runway — the player is re-orienting, not playing
     // Judge on the latency-shifted clock: mic capture + analysis means evidence
     // for an attack at t ARRIVES ~80ms later. The host's grader subtracts the
     // same offset before matching; we judged at the raw clock until 2026-06-06,
     // grading an on-time player ~80ms late on every note.
-    const tJudge = currentPracticeTime - ptLatency();
+    const tJudge = transport.time - ptLatency();
     const passedTotal = ptWinPassedCount(tJudge);
     // Input-presence: the level meter owns _ptHadInput when a host level source
     // exists (a confident YIN lock can come from a steady inaudible residual —
@@ -12899,7 +11770,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // line until the async contained verdict lands — else the provider-cull deletes it
     // ~100ms past the line, before our verdict exists → no green flare. DISPLAY ONLY:
     // it never credits (credit stays verifier-only, _ptScored) and never judges.
-    _ptLive = { t: currentPracticeTime, f: freqHz, c: confidence };
+    _ptLive = { t: transport.time, f: freqHz, c: confidence };
     // Fresh-lock gate: only frames the detector locked THIS frame may score
     // (≤0.85 = a fade re-emitting the previous pitch — display-only).
     const fresh = confidence > PT_CONF_FRESH;
@@ -12916,7 +11787,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Calibration log (Slice 3): every confident frame, offset-FREE (raw
     // practice time + float MIDI) — the host-mirror sweep consumes it at run
     // end. Bounded; recording stops at the cap, never wraps.
-    if (_ptCalLog.length < PT_CAL_MAX) _ptCalLog.push({ bt: currentPracticeTime, m: 69 + 12 * Math.log2(freqHz / 440) });
+    if (_ptCalLog.length < PT_CAL_MAX) _ptCalLog.push({ bt: transport.time, m: 69 + 12 * Math.log2(freqHz / 440) });
     if (!_ndVerifyMode && fresh) {
       let best = null, bestAbs = Infinity;
       for (let i = _ptWinLo; i < _ptWin.length; i++) {
@@ -13020,13 +11891,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // _ptHadInput so an idle player (mic not started) never sees a sea of red; hits/active
   // need no gate — they're the reward. 'active' = a sustain currently ringing correctly;
   // a short note that's hit stays 'hit' (the strike flare).
+  /** @param {import('./src/types/entry-data.js').EntryNote} note */
   function ptGetNoteState(note) {
     if ((!_ptHandle && !_ndVerifyMode) || !note) return null;
     if (_ptJamRun) return null;   // Jam is a MIRROR, never a judge — no hit/miss paint on any surface
 
     const k = ptKey(note), tn = _ptByKey.get(k);
     if (!tn) return null;                                   // not a judged note (e.g. count-in lead-in)
-    const now = currentPracticeTime, end = tn.t + (tn.sus || 0.24);
+    const now = transport.time, end = tn.t + (tn.sus || 0.24);
     if (_ptScored.has(k)) {
       const isSustain = (tn.sus || 0) > 0.3;
       return (isSustain && now <= end + 0.05) ? 'active' : 'hit';
@@ -13096,6 +11968,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     meter.style.paddingRight = intruded > 0 ? `${intruded + 24}px` : '';
   }
 
+  /** @param {import('./src/types/results-data.js').MeterState} state */
   function ptUpdateMeter({ show, active, cents, note, hits, total }) {
     const meter = $('virtuoso_lab-pitch-meter');
     if (!meter) return;
@@ -13131,20 +12004,23 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // "Judging N of M notes" line so the denominator is visible BEFORE play.
   // Kept consistent with the live classifier by a smoke-gems row (preview
   // judged === run-info judged on the same bundle).
+  /** @param {ReturnType<typeof makeBundle> | null} bundle */
   function ptPreviewJudgeCounts(bundle) {
     const all = ((bundle && bundle.notes) || []).filter(n => !n._tail);
     if (!all.length) return null;
-    const opens = bundle.openMidis || [];
+    const opens = (/** @type {NonNullable<ReturnType<typeof makeBundle>>} */ (bundle)).openMidis || [];
     const verify = ndVerifyAvailable();
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
     const gc = new Map(); for (const n of all) gc.set(gk(n), (gc.get(gk(n)) || 0) + 1);
+    /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const audible = (n) => { const m = opens[n.s]; return m == null || midiToFreq(m + n.f) >= DETECTOR_MIN_HZ; };
     const base = all.filter(n => audible(n) && !n.mt && (verify || gc.get(gk(n)) === 1)).sort((a, b) => a.t - b.t);
     const floor = verify ? PT_MIN_RING_VERIFIER : PT_MIN_RING_YIN;
     const onsets = [...new Set(base.map(n => n.t))].sort((a, b) => a - b);
     const nxt = new Map(); for (let i = 0; i < onsets.length; i++) nxt.set(onsets[i], i + 1 < onsets.length ? onsets[i + 1] : Infinity);
     const spanKeys = new Set(); let spans = 0;
-    { let run = [];
+    { let /** @type {import('./src/types/entry-data.js').EntryNote[]} */ run = [];
       const flush = () => { if (run.length >= 2) { spans++; for (const n of run) spanKeys.add(ptKey(n)); } run = []; };
       for (const n of base) {
         if (!n.tr || n.ho || n.po) { flush(); continue; }
@@ -13175,7 +12051,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   function ptShowIdleStrip() {
     if (!ptAvailable() && !ndVerifyAvailable()) return;
-    if (playing || _tunerHandle) return;   // a live owner is already painting the strip
+    if (transport.playing || _tunerHandle) return;   // a live owner is already painting the strip
     ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
     // The pre-run denominator line ("Judging 20 of 24 notes — …") — disclosure
     // BEFORE play, so the player never discovers an exemption from the score.
@@ -13202,7 +12078,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Dwell chip (Slice-2 disclosure): while the playhead sits on a MERGED run of
   // shown-not-judged content ≥0.5s long, name the class on the strip. Built
   // per run by startPitchTracker; advanced by tick.
-  let _ptExemptIv = [], _ptChipIdx = 0, _ptChipLastT = -Infinity;
+  let /** @type {{t0: number, t1: number, label: string}[]} */ _ptExemptIv = [], _ptChipIdx = 0, _ptChipLastT = -Infinity;
+  /** @param {number} now */
   function ptUpdateJudgeChip(now) {
     const el = $('virtuoso_lab-judge-chip'); if (!el) return;
     if (now < _ptChipLastT - 0.25) _ptChipIdx = 0;   // loop wrap / seek-back
@@ -13223,7 +12100,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // drive per-string cents).
   function syncStripTuneBtn() {
     const btn = $('virtuoso_lab-strip-tune');
-    if (btn) btn.style.display = (!playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
+    if (btn) btn.style.display = (!transport.playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
   }
   // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
   // Runs the same continuous detector OUTSIDE playback to tune against the
@@ -13236,12 +12113,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // leave (self-healing in the pitch callback, mirroring the screen-scoped
   // AudioContext discipline). This is also the hand-off surface for the
   // tuning-model retune prompts ("drop your low D to C → Tune…", Phase 2).
-  let _tunerHandle = null, _tunerTargets = [], _tunerHold = { idx: -1, count: 0 }, _tunerLocked = new Set();
+  let /** @type {import('./src/types/host-interfaces.js').ContinuousPitchHandle | null} */ _tunerHandle = null, /** @type {{midi: number, name: string}[]} */ _tunerTargets = [], _tunerHold = { idx: -1, count: 0 }, /** @type {Set<number>} */ _tunerLocked = new Set();
   const TUNER_LOCK_FRAMES = 12;   // ~500ms at the 40ms smoothing cadence
   const TUNER_LOCK_CENTS = 5;
 
   function startTuner() {
-    if (!ptAvailable() || playing) return;
+    if (!ptAvailable() || transport.playing) return;
     stopTuner();
     let opens = null;
     try { opens = openMidisForConfig(readConfig()); } catch (_) { return; }
@@ -13249,7 +12126,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     _tunerTargets = opens.map((midi) => ({ midi, name: NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1) }));
     _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
     // Same guarded SDK call as startPitchTracker — no mic / no SDK degrades to a no-op.
-    try { _tunerHandle = hostMinigames().scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
+    try { _tunerHandle = (/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames())).scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
     if (!_tunerHandle || typeof _tunerHandle.on !== 'function') { _tunerHandle = null; return; }
     _tunerHandle.on('pitch', tunerOnPitch);
     _tunerHandle.on('end', () => { _tunerHandle = null; });
@@ -13274,9 +12151,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     ptDodgeOverlays();
   }
 
+  /** @param {Pick<import('./src/types/host-interfaces.js').PitchFrame, 'freqHz' | 'confidence'>} arg */
   function tunerOnPitch({ freqHz, confidence }) {
     // Self-heal: Virtuoso backgrounded or playback started → the tuner ends.
-    if (!$('virtuoso_lab-root')?.offsetParent || playing) { stopTuner(); return; }
+    if (!$('virtuoso_lab-root')?.offsetParent || transport.playing) { stopTuner(); return; }
     if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
     const midiF = 69 + 12 * Math.log2(freqHz / 440);
     // Nearest target — with an OCTAVE FOLD for sub-floor strings (70 Hz plan):
@@ -13299,6 +12177,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     tunerPaint(idx, cents, true);
   }
 
+  /** @param {number | null} idx @param {number} cents @param {boolean} active */
   function tunerPaint(idx, cents, active) {
     const noteEl = $('virtuoso_lab-pitch-note'), centsEl = $('virtuoso_lab-pitch-cents'), needleEl = $('virtuoso_lab-cents-needle');
     const t = (idx != null && _tunerTargets[idx]) || null;
@@ -13346,6 +12225,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     catch { return []; }
   }
 
+  /** @param {import('./src/types/results-data.js').SessionLog[]} arr */
   function sessionsSave(arr) {
     try { localStorage.setItem('virtuoso_lab.sessions', JSON.stringify(arr.slice(0, 500))); }
     catch (e) { console.warn('[Virtuoso] session save failed', e); }
@@ -13362,18 +12242,21 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     try { return JSON.parse(localStorage.getItem('virtuoso_lab.pathway_tiers') || '{}'); }
     catch { return {}; }
   }
+  /** @param {object} obj */
   function pathwayTiersSave(obj) {
     try { localStorage.setItem('virtuoso_lab.pathway_tiers', JSON.stringify(obj)); }
     catch (e) { console.warn('[Virtuoso] pathway tier save failed', e); }
   }
+  /** @param {string} pathwayId @param {number} tier */
   function _updatePathwayTier(pathwayId, tier) {
     const all = pathwayTiersLoad();
     const cur = all[pathwayId] || { highest_tier: -1 };
     if (tier <= (cur.highest_tier ?? -1)) return null;
     all[pathwayId] = Object.assign({}, cur, { highest_tier: tier });   // MERGE — never drop bestBpm/feltBpm
     pathwayTiersSave(all);
-    if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso_lab:tier:unlocked', {
+    const bus = hostBus();
+    if (bus && typeof bus.emit === 'function') {
+      bus.emit('virtuoso_lab:tier:unlocked', {
         pathway: pathwayId, tier, label: TIER_LABELS[tier] || `T${tier + 1}`
       });
     }
@@ -13392,7 +12275,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // label); jitter-loose-but-centered → null+untight (encouraging "keep working it",
   // NOT shaming). Thresholds bass-ped, v1 dogfood-tunable.
   const FELT = { MIN_N: 12, MIN_BARS: 4, JITTER_LOCK: 25, JITTER_SETTLE: 45, LEAN_AHEAD: -18, LEAN_BEHIND: 28, DRIFT_FAIL: 35 };
+  /** @param {number[]} a */
   function _feltMedian(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  /** @param {{t: number, d: number}[]} pts */
   function _feltTheilSen(pts) {   // median pairwise slope (ms per second) over { t:sec, d:ms }
     const sl = [];
     for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
@@ -13403,9 +12288,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // devs = [{ d:sec, t:sec }]; opts.barSec. Returns { verdict, leanMs, driftMs,
   // jitterMs, n, spanBars, untight } — verdict null = no pocket read (untight true →
   // loose-but-played, false → too little evidence). Pure; no host/DOM.
+  /** @param {import('./src/types/results-data.js').TimingDeviation[] | null} devs @param {{barSec?: number}} [opts] @returns {import('./src/types/results-data.js').FeltAnalysis} */
   function feltHoldAnalyze(devs, opts) {
     opts = opts || {};
-    const barSec = opts.barSec > 0 ? opts.barSec : 2;
+    const barSec = opts.barSec !== undefined && opts.barSec > 0 ? opts.barSec : 2;
     if (!Array.isArray(devs) || devs.length < FELT.MIN_N) return { verdict: null, n: devs ? devs.length : 0, untight: false };
     // D3 (v1.1): subtract each deviation's register-dependent speak-budget EXCESS
     // (`sb`, s — see the window-build comment) so a low note's late-arriving
@@ -13432,7 +12318,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const resid = seg.map(p => p.d - slope * (p.t - seg[0].t));   // detrend
     const medR = _feltMedian(resid);
     const jitterMs = Math.round(1.4826 * _feltMedian(resid.map(r => Math.abs(r - medR))));
-    let verdict, untight = false;
+    let /** @type {import('./src/types/results-data.js').FeltAnalysis['verdict']} */ verdict, untight = false;
     if (Math.abs(driftMs) >= FELT.DRIFT_FAIL) verdict = driftMs > 0 ? 'dragging' : 'rushing';   // trend first (+ = behind)
     else if (leanMs >= FELT.LEAN_BEHIND) verdict = 'dragging';
     else if (leanMs <= FELT.LEAN_AHEAD) verdict = 'rushing';
@@ -13446,6 +12332,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // gained-only feltBpm PB ("grooves you own"). NO lenient self-confirm — a flip needs
   // a real verdict (real onsets above the floor), so a sub-floor block self-enforces
   // "practiced only". Returns the credit summary or null.
+  /** @param {string} pwId @param {number | null | undefined} bpm @param {import('./src/types/results-data.js').FeltAnalysis | null} fh */
   function creditFeltRung(pwId, bpm, fh) {
     const pw = PATHWAYS[pwId]; if (!pw || !pw.feltGate || !fh) return null;
     const v = fh.verdict;
@@ -13476,10 +12363,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // asserts). The card / claim / share-text branch on the kind. Add a pilot by id.
   const PROOF_PILOTS = new Map([['blues_foundation', 'tempo'], ['vl_connect', 'guide_tones']]);
   function proofLoopOn() { try { return localStorage.getItem('virtuoso_lab.proofloop') === 'on'; } catch { return false; } }
+  /** @param {string | null} id @returns {id is string} */
   function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
+  /** @param {string} id */
   function proofKind(id) { return PROOF_PILOTS.get(id) || 'tempo'; }
   // The settling-tax window: the run must have HELD the standard — ≥ max(20s, 85% of
   // the content length). Kills the 22s fluke on a long run; ≥1 real pass on a short one.
+  /** @param {import('./src/types/results-data.js').ProofDuration} session */
   function proofHeld(session) {
     const contentMs = session.content_ms || session.duration_ms || 0;
     return (session.duration_ms || 0) >= Math.max(20000, 0.85 * contentMs);
@@ -13493,6 +12383,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // backing agree on the harmony. Returns null when not a measurable changes-run.
   // Used to (a) NAME the device in the claim and (b) guard against a FALSE claim
   // (config drift) — never to make the tier harder to clear.
+  /** @param {import('./src/types/entry-data.js').EntryChart | null} chart @param {import('./src/types/entry-data.js').EntryConfig | null} cfg */
   function measureGuideToneLandings(chart, cfg) {
     if (!chart || !cfg) return null;
     const timeline = (chart.timeline && chart.timeline.length)
@@ -13516,8 +12407,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return { changes, landings, rootRestarts, ratio: landings / changes };
   }
   // The progression token, prettified for a claim ('ii-V-I' → 'ii–V–I').
+  /** @param {string | null | undefined} p */
   function prettyProgression(p) { return p ? String(p).replace(/-/g, '–') : ''; }
   // One forward-looking "use it off the screen" line per pilot (north-star nod, not a nag).
+
+  /** @type {Record<string, string>} */
   const PROOF_TRANSFER = {
     blues_foundation: 'Next time you play a blues, reach for the ♭5 and resolve it up to the 5th — that one note is the blues.',
     vl_connect: 'Next time you solo over a ii–V–I, aim your line at the next chord\'s 3rd or 7th across the bar line — that is playing the changes.',
@@ -13535,20 +12429,25 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // never a judge); a Custom passive ±5 flip is NEVER the public hero. Level behind
   // XP-Off. `isShareworthy` is repurposed: it now means "leads with an achievement"
   // (the content fork), not "does the card exist".
+  /** @param {string | null | undefined} sc */
   function _scaleLabel(sc) { return sc ? String(sc).replace(/_/g, ' ') : ''; }
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function isShareworthy(s) {
     if (!s) return false;
     return !!(s.proof || (s.tierCleared && s.mode === 'pathway') || (s.feltResult && s.feltResult.flip)
       || (s.depth && (s.depth.travelRung || s.depth.cleanRung || s.depth.travelKey)) || (s.badgesNew && s.badgesNew.length));
   }
   // The single content model — { lane, eyebrow, hero, heroGreen, sub, dur, stats[], extra[] }.
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function shareCardModel(s) {
     if (!s) return null;
     const isWorkout = s.mode === 'session' && Array.isArray(s.chapters) && s.chapters.length > 1;
     const lane = s.jam ? 'JAM' : isWorkout ? 'WORKOUT' : s.mode === 'pathway' ? 'LADDER' : 'CUSTOM';
     const mins = Math.floor((s.duration_ms || 0) / 60000), secs = Math.round(((s.duration_ms || 0) % 60000) / 1000);
     const dur = `${mins}:${String(secs).padStart(2, '0')}`;
+    /** @type {import('./src/types/results-data.js').ShareModel} */
     const m = { lane, dur, eyebrow: '', hero: '', heroGreen: false, sub: '', stats: [], extra: [] };
+    /** @param {string} label @param {string | number | null | undefined} value */
     const stat = (label, value) => { if (value != null && value !== '') m.stats.push({ label, value: String(value) }); };
     if (lane === 'JAM') {
       m.eyebrow = 'JAMMED';
@@ -13561,14 +12460,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (lane === 'WORKOUT') {
       m.eyebrow = 'COMPLETED'; m.hero = s.displayName || 'Workout';
       try {
-        const seen = []; s.chapters.forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
+        /** @type {string[]} */
+        const seen = []; (/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
         const arc = seen.map(r => (SEGMENT_ROLES[r] && SEGMENT_ROLES[r].label) || r).filter(Boolean).join(' → ');
         if (arc) m.sub = arc;
       } catch (_) {}
       const cleared = (s.chapters || []).filter(c => c.earned).length;
-      const longest = (s.chapters || []).reduce((a, c) => (c && c.durSec > (a ? a.durSec : -1)) ? c : a, null);
-      stat('BLOCKS', s.chapters.length);
-      stat('CLEARED', `${cleared}/${s.chapters.length}`);
+      const longest = (s.chapters || []).reduce((/** @type {import('./src/types/results-data.js').Chapter | null} */ a, c) => (c && c.durSec > (a ? a.durSec : -1)) ? c : a, null);
+      stat('BLOCKS', (/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).length);
+      stat('CLEARED', `${cleared}/${(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).length}`);
       stat('TIME', dur);
       if (longest && (longest.name || longest.role)) stat('TOP BLOCK', longest.name || longest.role);
       if (s.streak > 0) stat('DAY', String(s.streak));
@@ -13621,10 +12521,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (s.badgesNew && s.badgesNew.length) s.badgesNew.forEach(b => m.extra.push(`${b.name} — ${b.desc}`));
     return m;
   }
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function shareCardText(s) {
     const m = shareCardModel(s); if (!m) return '';
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
-    const what = m.lane === 'JAM' ? 'Jam' : (s.displayName || m.hero);
+    const what = m.lane === 'JAM' ? 'Jam' : ((/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).displayName || m.hero);
     const lines = [`Virtuoso — ${what}`];
     if (m.heroGreen) lines.push(`✓ ${m.hero}${m.sub ? ` — ${m.sub}` : ''}`);
     else if (m.lane === 'JAM') lines.push(`Jammed over ${m.hero}`);
@@ -13632,12 +12533,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     else lines.push(`Practiced ${m.hero}`);
     m.extra.forEach(e => lines.push(`✓ ${e}`));
     const tail = [`Practiced ${m.dur}`];
-    if (s.streak > 0) tail.push(`Day ${s.streak}`);
+    if ((/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).streak > 0) tail.push(`Day ${(/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).streak}`);
     if (!xpOff) { try { const lv = xpLevelInfo(progressLoad().xp); tail.push(`Level ${lv.level} · ${lv.name}`); } catch (_) {} }
     lines.push(tail.join(' · '));
     return lines.join('\n');
   }
-  function proofCardText(s) { return shareCardText(s); }   // back-compat alias
+  /** @param {CanvasRenderingContext2D} ctx @param {string | null} text @param {number} maxW */
   function _fitCanvasText(ctx, text, maxW) {
     text = String(text == null ? '' : text);
     if (ctx.measureText(text).width <= maxW) return text;
@@ -13671,8 +12572,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // The card IMAGE — a canvas render of the SAME model (ux spec: 1200×630, verdict-led,
   // green ✓ only on a true clear, theme palette/font read live off --virtuoso_lab_vir-card-*; same-origin
   // → toBlob won't taint). Returns the canvas, or null.
-  // LOCAL FALLBACK ONLY: shareCardAction prefers note_detect's canonical card
-  // (window.noteDetect.renderResultsCard) and uses this when it's absent.
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function renderShareCardImage(s) {
     const m = shareCardModel(s); if (!m) return null;
     const W = 1200, H = 630, P = 64;
@@ -13684,7 +12584,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const GREEN = '#22c55e';
     let accent = '#60a5fa', accentSoft = 'rgba(96,165,250,0.18)', cardBg = null;
     let skin = 'signature', glow = true, radius = 18;
-    let TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8', FAINT = '#64748b';
+    let TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8';
     const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
     const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
     let DISP = `'VirtuosoLabDisplay', 'Orbitron', ${SANS}`;
@@ -13693,6 +12593,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (root) {
         const cs = getComputedStyle(root);
         skin = root.getAttribute('data-virtuoso_lab_vir-cardskin') || 'signature';
+        /** @template {string | null} Fallback @param {string} n @param {Fallback} f @returns {string | Fallback} */
         const gv = (n, f) => { const v = cs.getPropertyValue(n).trim(); return v || f; };
         if (skin === 'signature') {
           accent = gv('--virtuoso_lab_vir-accent-edge', accent);
@@ -13703,7 +12604,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           cardBg = gv('--virtuoso_lab_vir-card-bg', null);
           TXT = gv('--virtuoso_lab_vir-card-text', TXT);
           DIM = gv('--virtuoso_lab_vir-card-dim', DIM);
-          MUT = gv('--virtuoso_lab_vir-card-faint', MUT); FAINT = MUT;
+          MUT = gv('--virtuoso_lab_vir-card-faint', MUT);
           glow = gv('--virtuoso_lab_vir-card-glow', '1') !== '0';
           radius = parseInt(gv('--virtuoso_lab_vir-card-radius', '18'), 10); if (!isFinite(radius)) radius = 18;
           // Plain, NAMESPACED family names — the DOM font token nests a var() the canvas
@@ -13712,6 +12613,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           // base64-inline face over a URL-loaded first font, so the skin face would lose.
           // A plain sans fallback lets the (warmed) skin face win; it only shows if the
           // skin font genuinely failed to load.
+          /** @type {Record<string, string>} */
           const CF = { neon: "'VirtuosoLabDisplay'", esports: "'VirtuosoLabEsports'", metal: "'VirtuosoLabMetal'", warm: "'Rockwell','Roboto Slab','Zilla Slab',Georgia,serif" };
           DISP = CF[skin] ? `${CF[skin]}, ${SANS}` : SANS;   // focus has no display face → base sans
         }
@@ -13721,7 +12623,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // toggle-back rule (display face in Lit only, system face in Calm).
     let lit = false; try { lit = !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-lit'); } catch (_) {}
     const HEAD = (skin !== 'signature' || lit) ? 'disp' : false;
+    /** @param {number} px @param {number} w @param {string | boolean} [m] */
     const font = (px, w, m) => ctx.font = `${w} ${px}px ${m === 'disp' ? DISP : m ? MONO : SANS}`;
+    /** @param {number} x @param {number} y @param {number} w @param {number} h @param {number} r */
     const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
     // Background: Signature keeps its subtle gradient; Metal paints a brushed-steel
     // gradient (the feTurbulence grunge is DOM-only); other skins paint an opaque base
@@ -13780,6 +12684,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // the wordmark already brands the card.
     const cols = m.stats.slice(0, 6), sy = 470;
     const colW = cols.length ? (W - P * 2) / cols.length : 0;
+    /** @param {string} label */
     const valColor = (label) => (label === 'TEMPO' || label === 'BEST') ? accent : (label === 'TIME' || label === 'DAY') ? MUT : TXT;
     cols.forEach((st, i) => {
       const cx = P + i * colW;
@@ -13790,6 +12695,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // A safe "Virtuoso - <hero> - <date>.png" basename for the saved card (mirrors
   // note_detect's "Artist - Title - date.png" convention, adapted to practice).
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function shareCardFilename(s) {
     let what = 'Practice';
     try { const m = shareCardModel(s); what = (m && (m.hero || m.lane)) || what; } catch (_) {}
@@ -13802,6 +12708,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // so both plugins write their cards to the same place. Returns the server result,
   // or null when the route/server isn't there (caller falls back to a download).
   // auto=true preserves every take (the server never overwrites on a name clash).
+  /** @param {HTMLCanvasElement | null} cv @param {import('./src/types/results-data.js').RunSummary | null} s @param {boolean} [auto] */
   async function saveCardToServer(cv, s, auto) {
     if (!cv) return null;
     let dir = ''; try { dir = localStorage.getItem('slopsmith_notedetect_save_dir') || ''; } catch (_) {}
@@ -13815,54 +12722,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return (j && j.ok) ? j : null;
     } catch (_) { return null; }
   }
-  // ── Consume note_detect's ONE canonical results card when present (don't
-  // duplicate it). note_detect (PR #43, ≥1.18) exposes window.noteDetect.
-  // renderResultsCard / copyResultsCard / saveResultsCard so plugins reuse a
-  // single card implementation; we FEED Virtuoso's data + its --vir palette
-  // (via a passed overlay element) and FEATURE-DETECT — renderShareCardImage
-  // above stays a thin local fallback so Virtuoso still runs with note_detect
-  // absent (must not hard-depend).
-  function _ndCardApi() {
-    const nd = (typeof window !== 'undefined') ? window.noteDetect : null;
-    return (nd && typeof nd.renderResultsCard === 'function'
-      && typeof nd.copyResultsCard === 'function'
-      && typeof nd.saveResultsCard === 'function') ? nd : null;
-  }
-  // Map Virtuoso's share-card model → note_detect's card `data`. The stats[]
-  // override drives our non-note_detect layout; eyebrow/hero/sub/brand are all
-  // overridden so the shared renderer reproduces Virtuoso's card from its data.
-  function _resultsCardData(s) {
-    const m = shareCardModel(s); if (!m) return null;
-    return {
-      eyebrow: m.eyebrow,
-      hero: (m.heroGreen ? '✓ ' : '') + m.hero,
-      artist: m.sub || undefined,        // descriptive line → the card's sub
-      instrument: m.lane,                // LADDER / CUSTOM / JAM / WORKOUT
-      stats: (m.stats || []).slice(0, 4),
-      brand: 'virtuoso_lab · practice studio for guitar & bass',
-    };
-  }
-  // A detached element carrying Virtuoso's palette as the --nd-* vars the shared
-  // renderer reads off opts.overlayEl. Attached under #virtuoso_lab-root so
-  // getComputedStyle resolves; the caller removes it after the render.
-  function _virCardOverlay() {
-    let accent = '#60a5fa';
-    try { const root = $('virtuoso_lab-root'); if (root) { const v = getComputedStyle(root).getPropertyValue('--virtuoso_lab_vir-accent-edge').trim(); if (v) accent = v; } } catch (_) {}
-    const el = document.createElement('div');
-    el.style.cssText = 'position:absolute;left:-9999px;top:-9999px;width:0;height:0;pointer-events:none;';
-    const set = (k, v) => el.style.setProperty(k, v);
-    set('--nd-accent', accent); set('--nd-accent2', accent);
-    set('--nd-hit', '#22c55e'); set('--nd-miss', '#ef4444');
-    set('--nd-text', '#f8fafc'); set('--nd-dim', '#94a3b8'); set('--nd-warn', '#fbbf24');
-    set('--nd-bg', 'rgba(8,8,18,0.96)');
-    set('--nd-font-display', 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif');
-    ($('virtuoso_lab-root') || document.body).appendChild(el);
-    return el;
-  }
-  // Copy/download. PREFER note_detect's canonical card+ladder; else the local
-  // host-checked fallback ladder (feedback-compatibility): image→clipboard
+  // Copy/download the owned card: image→clipboard
   // (Promise to keep the click activation) → download PNG → text.
   // Returns 'copied' | 'saved' | 'copied-text' | 'failed'.
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s @param {string} action */
   async function shareCardAction(s, action) {
     // Virtuoso renders its OWN verdict-led, skinned card — the ratified v0.1.4
     // decision (memory project_card_theme_skins): "KEEP our renderer, don't
@@ -13875,13 +12738,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // as the v0.1.8 leak) — while our real numbers only reached the stats[] row,
     // and (b) suppressed every skin + the crest on desktop (the headless smoke
     // host lacks note_detect's card API, so the skin probes never exercised this
-    // path). _ndCardApi/_resultsCardData/_virCardOverlay are kept dormant below
-    // in case a host-level card capability ever supersedes ours.
+    // path). The unused private delegation adapters have been retired.
     // Ensure the active theme's display face is loaded before the canvas rasterizes
     // (the DOM card gets it via CSS font-display; the canvas needs it resident).
     await loadCardFonts();
     const cv = renderShareCardImage(s);
-    const toBlob = () => new Promise(r => cv.toBlob(r, 'image/png'));
+    const toBlob = () => new Promise(r => (/** @type {HTMLCanvasElement} */ (cv)).toBlob(r, 'image/png'));
     const download = async () => { const b = await toBlob(); if (!b) return false; const url = URL.createObjectURL(b); const a = document.createElement('a'); a.href = url; a.download = shareCardFilename(s); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); return true; };
     if (action === 'download') {
       // Save to the configured (shared) folder via the local server; fall back to a
@@ -13905,6 +12767,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Shared click logic for a Copy card / Save button (called from the modal + the
   // P-sheet card handlers — both pass the session the card describes).
+  /** @param {HTMLElement} btn @param {import('./src/types/results-data.js').RunSummary | null} s */
   async function shareCardClick(btn, s) {
     if (!btn || !s) return;
     const res = await shareCardAction(s, btn.dataset.act === 'download-card' ? 'download' : 'copy');
@@ -13912,6 +12775,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const orig = btn.textContent; btn.textContent = label;
     setTimeout(() => { if (btn.isConnected) btn.textContent = orig; }, 1600);
   }
+  /** @param {import('./src/types/results-data.js').SessionLog} session */
   function advancePathwayTier(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
     // Below PT_MIN_JUDGED the evidence can't grade — lenient self-confirm,
@@ -13931,7 +12795,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         if (pw.practiceFile) continue; // Authored lessons require run-bound identity, never fuzzy BPM credit.
         const tiers = pw.tempoTiers || [];
         let matchedTier = -1;
-        tiers.forEach((t, i) => { if (Math.abs(session.bpm - t) <= 5) matchedTier = Math.max(matchedTier, i); });
+        tiers.forEach((t, i) => { if (Math.abs((/** @type {number} */ (session.bpm)) - t) <= 5) matchedTier = Math.max(matchedTier, i); });
         if (matchedTier >= 0) {
           const r = _updatePathwayTier(pwId, matchedTier);
           if (r) return r;
@@ -13962,6 +12826,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   //      once per sitting), zero bonus. Returns the flip {pathwayId,…} or null.
   const CREDIT_ROLES = new Set(['technique', 'scale_arp', 'application', 'review']);
   const CREDIT_KIND_EXCLUDE = new Set(['chromatic', 'modal_vamp']);
+  /** @param {string | null | undefined} templateId @param {number | null | undefined} bpm @param {{hits: number, judged: number} | null} score */
   function creditBlockTier(templateId, bpm, score) {
     const tmpl = templateId ? SEGMENT_TEMPLATES[templateId] : null;
     if (!tmpl || !tmpl.creditsPathway) return null;                      // (1) no tag → practiced only
@@ -13988,7 +12853,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // { pwId, felt } | null (null = not a felt block → fall through to the %-gate).
   // devsOpt: test seam — the harness passes a synthetic dev vector; live callers
   // omit it (the run's _ptDevs).
+  /** @param {import('./src/core/session-types.js').SegmentBound | null} b @param {import('./src/types/results-data.js').TimingDeviation[]} [devsOpt] */
   function blockFeltInfo(b, devsOpt) {
+    if (!b) return null;
     const tmpl = b && b.templateId ? SEGMENT_TEMPLATES[b.templateId] : null;
     if (!tmpl || !tmpl.creditsPathway) return null;
     const pw = PATHWAYS[tmpl.creditsPathway];
@@ -14034,13 +12901,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       return o;
     } catch { return { mode:'casual', xp:0, byNode:{} }; }
   }
+  /** @param {object} o */
   function progressSave(o) {
     try { localStorage.setItem(PROGRESS_KEY, JSON.stringify(o)); }
     catch (e) { console.warn('[Virtuoso] progress save failed', e); }
   }
+  /** @param {{byNode: Record<string, import('./src/types/progress-data.js').ProgressNode>}} o @param {string} id */
   function progressNode(o, id) {
     return o.byNode[id] || (o.byNode[id] = { reps:0, depth:{ travel:null, clean:null, eyesOff:null }, masteredAt:null, keysCleared:[] });
   }
+  /** @param {string} mode */
   function progressSetMode(mode) {
     if (mode !== 'off' && mode !== 'casual' && mode !== 'hardcore') return;
     const o = progressLoad(); o.mode = mode; progressSave(o);
@@ -14049,9 +12919,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // until the host subscribes; the internal store NEVER depends on it. (The host's
   // actual XP-intake surface is for feedback-compatibility to verify when the live
   // hook lands; this only defines the outbound shape.)
+  /** @param {string} kind @param {string | null} nodeId @param {object} [extra] */
   function emitProgress(kind, nodeId, extra) {
-    if (hostBus() && typeof hostBus().emit === 'function') {
-      try { hostBus().emit('virtuoso_lab:progress', Object.assign({ source:'virtuoso_lab', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
+    const bus = hostBus();
+    if (bus && typeof bus.emit === 'function') {
+      try { bus.emit('virtuoso_lab:progress', Object.assign({ source:'virtuoso_lab', kind, nodeId, at:Date.now() }, extra || {})); } catch (_) {}
     }
   }
   // A run is "clean" by the same signal the Speed climb uses (≥65% of judged notes
@@ -14063,12 +12935,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // path as mic-less (sparse evidence = no evidence, not weak evidence); the
   // results modal discloses it. One constant, every gate consumer.
   const PT_MIN_JUDGED = 8;
+  /** @param {Pick<import('./src/types/results-data.js').SessionLog, 'hit_count' | 'miss_count'>} session */
   function runIsClean(session) {
     const total = (session.hit_count || 0) + (session.miss_count || 0);
     return total < PT_MIN_JUDGED || (session.hit_count || 0) / total >= 0.65;
   }
   // XP difficulty multiplier — gently weights the tempo tier, never penalizes easy
   // play (floor 1.0). The time base means a maxed exercise keeps earning for PLAYING.
+  /** @param {Pick<import('./src/types/results-data.js').SessionLog, 'bpm_tier'>} session */
   function xpDifficultyMult(session) {
     const tier = Math.max(0, session.bpm_tier != null ? session.bpm_tier : 0);
     return 1 + tier * 0.25;   // Slow 1.0 → Push 1.75
@@ -14078,9 +12952,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Speed climb is already cleared gets a clean Push pass in a not-yet-credited key
   // (this is how a refresh-into-a-new-key "makes it count" — the session records the
   // refreshed key, we credit it here). Returns a gained-only summary, or null.
+  /** @param {import('./src/types/results-data.js').SessionLog} session */
   function advanceDepthLadder(session) {
     const store = progressLoad();
     if (store.mode === 'off') return null;                    // Off collapses the layer
+    /** @type {import('./src/types/results-data.js').DepthGain} */
     const out = { xpGained:0, travelKey:null, travelRung:false, cleanRung:false };
     const pwId = session.pathway_id;
     // XP — derived time×difficulty, gained-only (accrues for any run, pathway or not).
@@ -14149,6 +13025,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     { at: 180000, name: 'Old Hand' },
     { at: 300000, name: 'Lifer' },
   ];
+  /** @param {number | null | undefined} xp */
   function xpLevelInfo(xp) {
     xp = Math.max(0, xp || 0);
     let idx = 0;
@@ -14162,6 +13039,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Competency badges — every test reads ONLY the gained-only artifact stores, so
   // the set is a pure function of real competency (no rep/time/streak inputs).
+  /** @type {{id: string, name: string, desc: string, test: (context: ReturnType<typeof badgeContext>) => boolean}[]} */
   const BADGES = [
     { id: 'first_clear', name: 'On the Board',   desc: 'Cleared your first tempo rung.',          test: (c) => c.clearedPathways >= 1 },
     { id: 'push',        name: 'Up to Speed',    desc: 'Reached Push — the top rung — on a skill.', test: (c) => c.pushPathways >= 1 },
@@ -14194,6 +13072,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const c = badgeContext();
     return BADGES.filter(b => { try { return b.test(c); } catch (_) { return false; } }).map(b => b.id);
   }
+  /** @param {string} id */
   const badgeMeta = (id) => { const b = BADGES.find(x => x.id === id); return { id, name: b ? b.name : id, desc: b ? b.desc : '' }; };
   // Persist earned badges (gained-only) + return the NEW-this-run diff. Null in Off
   // mode (the layer is collapsed). Called from sessionEnd AFTER the tier/depth stores
@@ -14215,6 +13094,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // loss-aversion, forbidden). XP-Off → rank 0 (no crest). The descriptor names the SKILL
   // built, never the tally. The three routes to each rank (badges / depth rungs / breadth)
   // are parallel by design — no per-badge weighting (that would smuggle in a hidden score).
+  /** @type {Record<number, {label: string, desc: string}>} */
   const CREST_META = {
     1: { label: 'Proven', desc: 'You’ve proven your first real skill.' },
     2: { label: 'Versed', desc: 'You’re versed across several skills.' },
@@ -14258,6 +13138,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // NEVER --virtuoso_lab_vir-meter). Rank 1 hollow aegis + spark · 2 filled + laurel sprigs · 3 full wreath.
   const CREST_STAR = '<path d="M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z" fill="currentColor"/>';
   const CREST_SHIELD = 'M12 2.4l7 2.5v5.3c0 4.6-2.9 8.1-7 10.4-4.1-2.3-7-5.8-7-10.4V4.9z';
+  /** @param {number} rank */
   function crestSvg(rank) {
     if (!rank) return '';
     let inner = '';
@@ -14277,6 +13158,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return `<svg viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
   }
   // Canvas twin for the copy-card PNG (same paths → same emblem). color = accent (never green).
+  /** @param {CanvasRenderingContext2D} ctx @param {number} cx @param {number} cy @param {number} size @param {string} color @param {number} rank */
   function drawCrestCanvas(ctx, cx, cy, size, color, rank) {
     if (!rank || typeof Path2D === 'undefined') return;
     ctx.save();
@@ -14300,6 +13182,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
   // Paint the header-chip crest (leading child of #virtuoso_lab-progress-strip). rose=true adds
   // the one-shot earn-bloom (Lit only; RM/Calm just show the new rank). Hidden at rank 0.
+  /** @param {boolean} [rose] */
   function syncCrest(rose) {
     const el = $('virtuoso_lab-crest'); if (!el) return;
     const st = crestState();
@@ -14313,7 +13196,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
 
   function sessionBegin() {
     const isSessionMode = $('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode');
-    let mode, pathway_id, bpm, bpm_tier, scale, key, practice_type;
+    let mode, pathway_id, /** @type {number | null} */ bpm, bpm_tier, scale, key, practice_type;
     // Tuning-adapt credit fields (panel 2026-06-05): `key` stays CONCERT (what
     // sounded — display honesty); key_credit = the rung's nominal key (what
     // Travel credits — a retune + replay of the same fingering must not
@@ -14349,7 +13232,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       bpm_tier = null;
       if (mode === 'pathway' && PATHWAYS[pathwayId]) {
         const tiers = PATHWAYS[pathwayId].tempoTiers;
-        bpm_tier = authored ? authored.tierIndex : tiers.reduce((best, t, i) => bpm >= t ? i : best, 0);
+        bpm_tier = authored ? authored.tierIndex : tiers.reduce((best, t, i) => /** @type {number} */ (bpm) >= t ? i : best, 0);
       }
     }
 
@@ -14388,10 +13271,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // judged (units whose window fully passed = the denominator). A looped run
   // judged the whole chart; a partial run only up to where it reached. Pure read
   // of _ptWin + segmentBounds; target-independent. Feeds the recap chapters.
+  /** @param {import('./src/core/session-types.js').SegmentBound[]} sb */
   function perBlockScore(sb) {
     const out = sb.map(() => ({ hits: 0, judged: 0 }));
+    /** @param {number} t */
     const findBlock = (t) => { for (let i = 0; i < sb.length; i++) if (t >= sb[i].start - 1e-3 && t < sb[i].end + 1e-3) return i; return -1; };
-    const maxJudge = _runLooped ? Infinity : (currentPracticeTime - ptLatency());
+    const maxJudge = _runLooped ? Infinity : (transport.time - ptLatency());
     for (const w of _ptWin) {
       const bi = findBlock(w.t); if (bi < 0) continue;
       const units = w.span ? 1 : (w.notes ? w.notes.length : 1);
@@ -14410,11 +13295,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // lies about coverage (the instrument lanes' honesty rules).
   function ptHeatSnapshot() {
     if (!_ptWin.length || !activeBundle) return null;
+    /** @type {Map<string, import('./src/types/results-data.js').HeatCell>} */
     const cells = new Map();
+    /** @param {number} s @param {number} f */
     const cellOf = (s, f) => { const k = s + '|' + f; let c = cells.get(k); if (!c) { c = { s, f, hit: 0, miss: 0, ex: 0 }; cells.set(k, c); } return c; };
     const windowed = new Set();
-    const fgMiss = {}, transMiss = {};
-    let missTotal = 0, fgMissN = 0, prevS = null;
+    const /** @type {Record<string, number>} */ fgMiss = {}, /** @type {Record<string, number>} */ transMiss = {};
+    let missTotal = 0, fgMissN = 0, /** @type {number | null} */ prevS = null;
     const wins = _ptWin.slice().sort((a, b) => a.t - b.t);
     for (const w of wins) {
       for (const n of (w.notes || [])) {
@@ -14426,7 +13313,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           // The guitar-lane diagnostics: misses by FINGER (names a mechanic) and
           // by string transition (crossing weakness) — surfaced as ONE quiet
           // text row, never extra paint on the map.
-          if (n.fg >= 1 && n.fg <= 4) { fgMiss[n.fg] = (fgMiss[n.fg] || 0) + 1; fgMissN++; }
+          if (n.fg !== undefined && n.fg >= 1 && n.fg <= 4) { fgMiss[n.fg] = (fgMiss[n.fg] || 0) + 1; fgMissN++; }
           if (prevS != null && prevS !== n.s) { const k = prevS + '>' + n.s; transMiss[k] = (transMiss[k] || 0) + 1; }
         }
       }
@@ -14447,12 +13334,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (!cfg) return null;
     const meas = measureSeconds(cfg), lead = activeBundle.leadIn || 0;
     if (!(meas > 0)) return null;
+    /** @type {Map<number, number[]>} */
     const byBar = new Map();
     for (const x of _ptDevs) {
       const b = Math.max(0, Math.floor((x.t - lead) / meas + 1e-6));
       if (!byBar.has(b)) byBar.set(b, []);
-      byBar.get(b).push(x.d * 1000);
+      (/** @type {number[]} */ (byBar.get(b))).push(x.d * 1000);
     }
+    /** @param {number[]} a */
     const med = a => a[Math.floor(a.length / 2)];
     const bars = [...byBar.entries()].sort((a, b) => a[0] - b[0]).map(([i, ds]) => {
       ds.sort((a, b) => a - b);
@@ -14468,7 +13357,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const devsSorted = _ptDevs.slice().sort((a, b) => a.t - b.t);
       const leans = [];
       for (let ci = 1; ci < tl.length; ci++) {
-        const t0 = (tl[ci].startSec != null ? tl[ci].startSec : tl[ci].t) + lead;
+        const event = tl[ci];
+        if (!event) continue;
+        const eventSec = event.startSec != null ? event.startSec : event.t;
+        if (eventSec == null) continue;
+        const t0 = eventSec + lead;
         if (!(t0 >= 0)) continue;
         const x = devsSorted.find(d => d.t >= t0 - 1e-3 && d.t < t0 + meas * 0.5);
         if (x) leans.push(x.d * 1000);
@@ -14486,8 +13379,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (durationMs < 2000) { _activeSession = null; return; }
     // Settle any tremolo span whose end has passed, then count in UNITS
     // (a span = 1; a chord = its member count — matching the denominator).
-    ptFinalizeSpans(currentPracticeTime - ptLatency());
-    const passedTotal = ptWinPassedCount(currentPracticeTime - ptLatency());
+    ptFinalizeSpans(transport.time - ptLatency());
+    const passedTotal = ptWinPassedCount(transport.time - ptLatency());
     _activeSession.duration_ms = durationMs;
     _activeSession.hit_count   = _ptScoredUnits;
     _activeSession.miss_count  = Math.max(0, passedTotal - _ptScoredUnits);
@@ -14537,7 +13430,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const _feltGate = !!(_pw && PATHWAYS[_pw] && PATHWAYS[_pw].feltGate);
     let felt = null, feltResult = null, unlock;
     if (_feltGate) {
-      const barSec = (function () { try { return measureSeconds(activeBundle.config); } catch (_) { return 2; } })();
+      const barSec = (function () { try { return measureSeconds((/** @type {NonNullable<typeof activeBundle>} */ (activeBundle)).config); } catch (_) { return 2; } })();
       felt = feltHoldAnalyze(_ptDevs, { barSec });
       feltResult = creditFeltRung(_pw, _activeSession.bpm, felt);
       unlock = (feltResult && feltResult.flip) ? { pathwayId: _pw, tier: feltResult.tier } : null;
@@ -14593,6 +13486,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
             : (_activeSession.mode + ':' + (_activeSession.practice_type || '')),
           _activeSession.bpm ?? '', _activeSession.key_credit || _activeSession.key || ''
         ].join('|');
+        /** @type {Record<string, {best: number, runs: number}>} */
         let store = {}; try { store = JSON.parse(localStorage.getItem('virtuoso_lab.spec_best') || '{}'); } catch (_) {}
         const cur = store[specKey] || { best: 0, runs: 0 };
         cur.runs += 1;
@@ -14611,7 +13505,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Snapshot for the P-sheet "Last session" card — descriptive + gained-only,
     // no score/accuracy (mirror not judge; see docs/plugin/design-system.md §13).
     let displayName;
-    if (_activeSession.mode === 'pathway' && PATHWAYS[_activeSession.pathway_id]) displayName = PATHWAYS[_activeSession.pathway_id].label;
+    if (_activeSession.mode === 'pathway' && PATHWAYS[String(_activeSession.pathway_id)]) displayName = PATHWAYS[String(_activeSession.pathway_id)].label;
     else if (_activeSession.mode === 'session') displayName = (BUILT_IN_SESSIONS[workoutEditor.selectedId]?.name || 'Session practice');
     else displayName = 'Custom practice';
     // Workout RECAP chapters (Tier 3 + engagement Tier A) — the per-block chapter
@@ -14655,9 +13549,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     }
     // Proof-loop competency claim (flagged, pilot, ONLY on a real flip — the
     // anti-inflation spine: a "you proved" claim exists only when something was proven).
+    /** @type {import('./src/types/results-data.js').ProofClaim | null} */
     let proof = null;
     if (proofPilot(_activeSession.pathway_id) && unlock) {
-      const pw = PATHWAYS[_activeSession.pathway_id];
+      const pw = PATHWAYS[String(_activeSession.pathway_id)];
       let kind = proofKind(_activeSession.pathway_id);
       proof = { kind, label: pw.label, tierName: TIER_LABELS[unlock.tier] || `Tier ${unlock.tier + 1}`,
                 bpm: _activeSession.bpm, key: _activeSession.key,
@@ -14747,6 +13642,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // bad day never nukes weeks of work (the market/gamification ruling against
   // streak-guilt). `count` = practiced days in the surviving run (rest days don't
   // increment it). The display celebrates the return, never punishes the break.
+  /** @param {{date: string}[]} sessions */
   function streakCount(sessions) {
     const DAY = 86400000;
     const practiced = new Set(sessions.map(s => s.date));
@@ -14762,6 +13658,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     return count;
   }
 
+  /** @param {{date: string}[]} sessions */
   function last7Days(sessions) {
     const practiced = new Set(sessions.map(s => s.date));
     const DAY_LETTERS = ['S','M','T','W','T','F','S'];
@@ -14778,7 +13675,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const streak = streakCount(sessions);
     const numEl = $('virtuoso_lab-streak-num');
     if (numEl) {
-      numEl.textContent = streak;
+      numEl.textContent = String(streak);
       numEl.classList.toggle('active', streak > 0);
     }
     const calEl = $('virtuoso_lab-cal-dots');
@@ -14798,13 +13695,14 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   const workoutEditor = createWorkoutEditor(async index => {
     if (!activeBundle || activeBundle.config?.mode !== 'session') {
       const pending = onLaunchSession();
-      const generation = generationIdentity;
+      const request = rendererLifecycle.currentRequest();
       await pending;
-      if (generation !== generationIdentity) return;
+      if (!rendererLifecycle.isCurrentRequest(request)) return;
     }
-    if (catalogVisitActive && activeBundle?.config?.mode === 'session') jumpToSegment(index);
+    if (practiceSelection.active && activeBundle?.config?.mode === 'session') jumpToSegment(index);
   });
 
+  /** @param {string} mode */
   function syncSessionMode(mode) {
     const root = $('virtuoso_lab-root'); if (!root) return;
     root.classList.toggle('virtuoso_lab-session-mode', mode === 'session');
@@ -14812,10 +13710,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   }
 
   async function onLaunchSession() {
-    clearPracticeFile();
-    const launch = ++sessionLaunchIdentity;
-    const generation = generationIdentity;
-    let attachment = rendererAttachIdentity;
+    practiceSelection.clearFile();
+    const launch = {};
+    sessionLaunch = launch;
+    let request = rendererLifecycle.currentRequest();
     const sessionId = workoutEditor.selectedId || Object.keys(BUILT_IN_SESSIONS)[0];
     const baseSession = BUILT_IN_SESSIONS[sessionId];
     if (!baseSession) return;
@@ -14830,59 +13728,38 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // (before any await). Without this, new AudioContext() created inside the
     // async continuation below may start in 'suspended' state on some hosts,
     // causing notes scheduled with the frozen currentTime to fire in the past.
-    ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const launchAudioCtx = ensureAudioCtx();
+    if (launchAudioCtx.state === 'suspended') launchAudioCtx.resume().catch(() => {});
     const formStringSetup = document.querySelector('[name="stringSetup"]')?.value || null;
     const session = workoutEditor.launchConfig({ audio, stringSetup: formStringSetup,
       customOpenMidis: document.querySelector('#virtuoso_lab-controls [name="customOpenMidis"]')?.value || '',
       countInBars: countInDefaultBars() });
     try {
       if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
-      if (playing) stopPlayback();
+      if (transport.playing) stopPlayback();
       showStatus('Building session…');
+      if (!session) { showStatus('Build a Workout first.'); return; }
       const exercise = generateSession(session);
       lastExercise = exercise;
       if (summary) summary.innerHTML = summarize(exercise);
-      const pending = preparePlayback(exercise);
-      attachment = rendererAttachIdentity;
-      if (!await pending || attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
-      startPlayback();
+      const pending = attachRenderer(exercise);
+      request = rendererLifecycle.currentRequest();
+      if (!await transport.runStart(pending, () => {})) return;
       refreshStatusFromState();
     } catch (e) {
-      if (attachment !== rendererAttachIdentity || generation !== generationIdentity) return;
-      showStatus(`Session error: ${e.message || e}`);
+      if (!rendererLifecycle.isCurrentRequest(request)) return;
+      showStatus(`Session error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] session launch failed', e);
     } finally {
-      if (btn && launch === sessionLaunchIdentity) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
+      if (btn && launch === sessionLaunch) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
     }
   }
 
   // ── End Session UI ──────────────────────────────────────────────────────────
 
+  /** @param {string} kind */
   function syncViewSwitcher(kind) {
-    // The view dropdown mirrors what's ACTUALLY rendered (saved-pref restore,
-    // the >8-string force in attachRenderer) — value-set only, no change event,
-    // so syncing never re-triggers onViewSwitch.
-    const viewSel = $('virtuoso_lab-view-select');
-    if (viewSel && viewSel.value !== kind) viewSel.value = kind;
-    // Theme toggle is only meaningful for the themed renderers (Tab,
-    // Notation); the highway renderers have their own visual identity.
-    const root = $('virtuoso_lab-root');
-    if (root) {
-      root.classList.toggle('virtuoso_lab-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
-      // Fretboard strip is offered on every stringed-instrument view — 3D
-      // Highway, 2D Highway, Jumping Tab, Tab, and Notation; the user can
-      // toggle it off. (Always hidden for the Piano instrument via CSS.)
-      root.classList.toggle('virtuoso_lab-fb-capable',
-        kind === 'highway_3d' || kind === 'highway_2d' || kind === 'builtin_2d' || kind === 'tab_2d' || kind === 'notation_2d');
-      // The HUD title only shows for 3D Highway — every other renderer draws
-      // the exercise name in-canvas itself, so showing it here too would double.
-      root.classList.toggle('virtuoso_lab-hud-title-on', kind === 'highway_3d');
-    }
-    // Hand-marks can't ride the 3D Highway's gems (host-closed render). On that view
-    // the pill dims and points to where the marks DO live (the fretboard strip below +
-    // the Tab/Notation views) — an honest "off-view" affordance, not a dead control.
-    $('virtuoso_lab-handmarks-toggle-wrap')?.classList.toggle('virtuoso_lab_vir-offview', kind === 'highway_3d');
+    rendererLifecycle.syncView(kind);
   }
   function syncThemeButtons() {
     document.querySelectorAll('.virtuoso_lab-theme-btn').forEach(btn => {
@@ -14890,12 +13767,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
   }
 
+  /** @param {string} kind */
   async function onViewSwitch(kind) {
-    syncViewSwitcher(kind);
-    localStorage.setItem('virtuoso_lab.renderer', kind);
-    // Keep the Advanced renderer dropdown in sync (if visible / accessible)
-    const rendererSel = document.querySelector('[name="renderer"]');
-    if (rendererSel && rendererSel.value !== kind) rendererSel.value = kind;
+    rendererLifecycle.selectView(kind);
     if (!lastExercise) return;
     lastExercise.session.renderer = kind;
     const summary = $('virtuoso_lab-summary');
@@ -14903,38 +13777,38 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // new view, so we treat that as a transport break. stopPlayback() resets
     // the playhead, kills audio, AND updates the Play button label back to
     // "▶ Play" so the user isn't left looking at a stale "■ Stop".
-    if (playing) stopPlayback();
+    if (transport.playing) stopPlayback();
     const exercise = lastExercise;
-    let attachment;
+    let request;
     try {
       const pending = attachRenderer(exercise);
-      attachment = rendererAttachIdentity;
-      if (!await pending || attachment !== rendererAttachIdentity) return;
+      request = rendererLifecycle.currentRequest();
+      if (!await pending || !rendererLifecycle.isCurrentRequest(request)) return;
       // Refresh the LCD so a prior failed-attach state doesn't linger after a
       // successful switch.
       if (summary) summary.innerHTML = summarize(lastExercise);
     } catch (e) {
-      if (attachment !== rendererAttachIdentity || lastExercise !== exercise) return;
+      if (!rendererLifecycle.isCurrentRequest(request) || lastExercise !== exercise) return;
       console.error('[Virtuoso] renderer switch failed', e);
       // Auto-fall back to 2D Highway, which is in-tree and handles any
       // string count. Without this, a 3D-Highway failure leaves the user
       // staring at a stuck error with no obvious way out. Status line carries
       // the message; the LCD stays a clean chart readout.
       if (kind !== 'builtin_2d') {
-        showStatus(`${kind} unavailable — falling back to 2D Highway (${e.message || e})`);
+        showStatus(`${kind} unavailable — falling back to 2D Highway (${(/** @type {Error} */ (e)).message || e})`);
         try {
           syncViewSwitcher('builtin_2d');
           const preference = document.querySelector('[name="renderer"]'); if (preference) preference.value = 'builtin_2d';
           localStorage.setItem('virtuoso_lab.renderer', 'builtin_2d');
           lastExercise.session.renderer = 'builtin_2d';
-          if (!await attachRenderer(exercise)) return;
+          if (!await rendererLifecycle.attach(exercise, true)) return;
           if (summary) summary.innerHTML = summarize(lastExercise);
         } catch (e2) {
           console.error('[Virtuoso] fallback to 2D Highway failed', e2);
-          showStatus(`Renderer failed: ${e2.message || e2}`);
+          showStatus(`Renderer failed: ${(/** @type {Error} */ (e2)).message || e2}`);
         }
       } else {
-        showStatus(`Renderer failed: ${e.message || e}`);
+        showStatus(`Renderer failed: ${(/** @type {Error} */ (e)).message || e}`);
       }
     }
   }
@@ -14948,6 +13822,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function snapshotFormState() {
     const form = $('virtuoso_lab-controls'); if (!form) return null;
     const data = new FormData(form);
+    /** @type {Record<string, FormDataEntryValue>} */
     const out = {};
     for (const [k, v] of data.entries()) out[k] = v;
     // FormData omits unchecked checkboxes; restore them explicitly so the
@@ -14955,18 +13830,21 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // form.elements (not a DOM descendant query) so it also reaches the
     // form-associated audio mute pills that live in the stage view-bar.
     Array.from(form.elements).forEach(cb => {
-      if (cb.type === 'checkbox' && cb.name && !(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
+      if (cb instanceof HTMLInputElement && cb.type === 'checkbox' && cb.name && !(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
     });
     return out;
   }
+  /** @param {Record<string, string | boolean> | null} state */
   function applyFormState(state) {
-    pendingInitialPathway = null;
+    practiceSelection.cancelInitial();
     const form = $('virtuoso_lab-controls'); if (!form || !state || typeof state !== 'object') return;
     for (const [name, value] of Object.entries(state)) {
       // form.elements[name] reaches form-associated controls regardless of DOM
       // position (the relocated audio mute pills), and never throws on a crafted
       // share-payload key the way an attribute selector could.
-      let field = form.elements[name];
+      /** @typedef {{type?: unknown, checked?: boolean, value?: string | boolean, length?: number, 0?: FormStateField}} FormStateField */
+      /** @type {FormStateField | null | undefined} */
+      let field = (/** @type {{[name: string]: FormStateField | null | undefined}} */ (/** @type {unknown} */ (form.elements)))[name];
       // A radio/checkbox group resolves to a RadioNodeList; we only carry single
       // controls, so take the first element if a list comes back.
       if (field && typeof field.length === 'number' && !('value' in field)) field = field[0];
@@ -14975,11 +13853,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       else field.value = value;
     }
   }
+  /** @param {object | null} state */
   function encodeShareHash(state) {
     if (!state) return '';
     try { return btoa(unescape(encodeURIComponent(JSON.stringify(state)))).replace(/=+$/, ''); }
     catch (_) { return ''; }
   }
+  /** @param {string | null} s */
   function decodeShareHash(s) {
     if (!s) return null;
     try {
@@ -15018,6 +13898,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // Paste-share-link handler: accept either a full URL containing an
   // #s=<base64> param, or just the raw base64 string. Restores form state,
   // refreshes every dependent control, and triggers a regenerate.
+  /** @param {string} raw */
   function onPasteShareLink(raw) {
     const el = $('virtuoso_lab-paste-share');
     if (!raw || !raw.trim()) { if (el) el.classList.remove('flash-ok', 'flash-bad'); return; }
@@ -15038,13 +13919,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     applyFormState(state);
     // Re-run every downstream sync so dependent controls follow the
     // restored form values (Shape dropdown, instrument-aware UI bits, etc.).
-    syncShapeDropdown();
-    syncShapeDropdownSelectionToHidden();
-    updatePositionStepper();
+    practiceSelection.syncShapes();
+    practiceSelection.syncShapeHidden();
+    practicePresentation.renderPosition();
     syncInstrumentFamilyButtons();
     syncInstrumentClass();
     syncStringCountChips();
-    syncTuningOptions();
+    tuningSettings.sync();
     syncAdvancedMode();
     syncChromaticVisibility();
     writeShareHash();
@@ -15063,18 +13944,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   function bind() {
     const root = $('virtuoso_lab-root'); if (!root || root.dataset.virtuoso_labInit === '1') return false; root.dataset.virtuoso_labInit = '1';
     { const verEl = $('virtuoso_lab-version'); if (verEl) verEl.textContent = 'v' + VIRTUOSO_VERSION; }   // header version badge (mirrors plugin.json)
-    const fileSelect = $('virtuoso_lab-file-select');
-    syncPracticeCatalog();
-    fileSelect?.addEventListener('change', () => { cancelPracticeLoad(); });
-    $('virtuoso_lab-file-load')?.addEventListener('click', onLoadPracticeFile);
-    $('virtuoso_lab-file-variant')?.addEventListener('change', e => onPracticeVariant(e.target.value));
-    $('virtuoso_lab-file-next')?.addEventListener('click', () => {
-      if (!loadedPracticeFile) return;
-      const variants = loadedPracticeFile.variants;
-      const index = variants.findIndex(variant => variant.id === practiceVariantId);
-      return onPracticeVariant(variants[(index + 1) % variants.length].id);
-    });
-    $('virtuoso_lab-file-unload')?.addEventListener('click', () => { clearPracticeFile(); onGenerate(); });
+    practiceSelection.mount('files');
     const instrument = document.querySelector('[name="instrument"]'), setup = document.querySelector('[name="stringSetup"]'), advancedToggle = $('virtuoso_lab-advanced-toggle');
     // LCD tempo is EDITABLE in place (DAW transport convention) — two-way with
     // the Inspector BPM field. Delegated on the strip (the LCD re-renders on
@@ -15085,19 +13955,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const formBpm = document.querySelector('#virtuoso_lab-controls [name="bpm"]');
     if (lcdHost) {
       lcdHost.addEventListener('keydown', (e) => {
-        if (e.target && e.target.id === 'virtuoso_lab-lcd-bpm' && e.key === 'Enter') { e.preventDefault(); e.target.blur(); }
+        const target = eventValueElement(e.target);
+        if (target?.id === 'virtuoso_lab-lcd-bpm' && e.key === 'Enter' && 'blur' in target && typeof target.blur === 'function') { e.preventDefault(); target.blur(); }
       });
       // LCD select cells (Key · Meter · Count-in) commit the same way the Tempo
       // input does: write the (possibly Custom-only-hidden) Inspector field,
       // dispatch change so dependent logic runs, regenerate — a live override in
       // any mode. Map the LCD id → form field name.
+      /** @type {Record<string, string>} */
       const LCD_SELECT_FIELD = { 'virtuoso_lab-lcd-key': 'key', 'virtuoso_lab-lcd-meter': 'meter', 'virtuoso_lab-lcd-countin': 'countIn' };
       lcdHost.addEventListener('change', (e) => {
-        const id = e.target && e.target.id;
+        const target = eventValueElement(e.target); if (!target) return;
+        const id = target.id;
         if (id === 'virtuoso_lab-lcd-bpm') {
-          const v = Math.max(30, Math.min(260, parseInt(e.target.value, 10) || 0));
-          if (!v || !formBpm) { if (formBpm) e.target.value = formBpm.value; return; }
-          e.target.value = String(v);
+          const v = Math.max(30, Math.min(260, parseInt(target.value, 10) || 0));
+          if (!v || !formBpm) { if (formBpm) target.value = formBpm.value; return; }
+          target.value = String(v);
           if (String(formBpm.value) !== String(v)) {
             formBpm.value = String(v);
             formBpm.dispatchEvent(new Event('change', { bubbles: true }));
@@ -15106,9 +13979,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
           return;
         }
         const name = LCD_SELECT_FIELD[id]; if (!name) return;
-        const field = document.querySelector('#virtuoso_lab-controls [name="' + name + '"]');
-        if (!field || String(field.value) === String(e.target.value)) return;
-        field.value = e.target.value;
+        const field = eventValueElement(document.querySelector('#virtuoso_lab-controls [name="' + name + '"]'));
+        if (!field || String(field.value) === String(target.value)) return;
+        field.value = target.value;
         field.dispatchEvent(new Event('change', { bubbles: true }));
         onGenerate();
       });
@@ -15126,7 +13999,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       const hidden = $('virtuoso_lab-custom-open-midis'); if (hidden) hidden.value = '';
       syncInstrumentClass();
       syncStringCountChips();   // a direct instrument-select change (not via the chips) must refresh these too
-      syncTuningOptions();
+      tuningSettings.sync();
       // Switching FAMILY is the player's L1 declaration — persist it so it survives a
       // reload (the bug: the programmatic setup.value above dispatches no 'change',
       // so the setup handler's instrumentStoreSave never ran, and the stale L1 store
@@ -15135,12 +14008,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       renderPathwayList();      // repaint the instrument-aware picker (bass packs in / guitar-only out)
       // If the active Ladder rung can't be played on the new instrument, drop to
       // Custom (that path regenerates); otherwise re-derive the rung + regenerate.
-      if (dropPathwayIfUnplayable()) return;
+      if (practiceSelection.dropIfUnplayable()) return;
       reapplyActivePathway();   // re-derive the active rung for the new instrument
-      if (activeBundle || loadedPracticeFile || hasActivePathwayFile()) onGenerate();
+      if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate();
     });
     setup?.addEventListener('change', (e) => {
-      syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); syncTuningOptions();
+      syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); tuningSettings.sync();
       // User-driven setup change = the player's L1 instrument declaration.
       // (Pathway writes go through setFieldSilent — no 'change' — so a rung's
       // coded setup never overwrites the player's durable store.)
@@ -15148,7 +14021,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       renderPathwayList();      // a setup change can cross families (guitar setup → bass setup): repaint the picker
       // If this setup change crossed families and orphaned the active Ladder rung,
       // drop to Custom (that path regenerates) instead of re-deriving a hidden rung.
-      if (dropPathwayIfUnplayable()) return;
+      if (practiceSelection.dropIfUnplayable()) return;
       // Re-derive the active rung AGAINST the new declaration (anchor key, L1
       // adapt, goal-card readout) — save first so the derivation reads it.
       reapplyActivePathway();
@@ -15158,7 +14031,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // handlers, which already regenerate. (Programmatic value-sets that must
       // NOT regenerate, e.g. the instrument handler's reset, assign .value
       // without dispatching 'change', so they don't reach here.)
-      if (activeBundle || loadedPracticeFile || hasActivePathwayFile()) onGenerate();
+      if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate();
     });
     // Top-level instrument-family chips (Bass / Guitar / Piano).
     document.querySelectorAll('.virtuoso_lab-instr-btn').forEach(btn => {
@@ -15166,16 +14039,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
     // Tuning preset dropdown — wired here since the chip row populates its
     // contents dynamically and we still want a single change handler.
-    $('virtuoso_lab-tuning-select')?.addEventListener('change', () => {
-      onTuningPresetChange();
-      if (activeBundle || loadedPracticeFile || hasActivePathwayFile()) onGenerate();
-    });
-    $('virtuoso_lab-save-tuning')?.addEventListener('click', onSaveTuningClick);
+    tuningSettings.mount();
     // The Climb signpost's summit invite (depth slice — the summit-invite atom):
     // arm the offered next-depth pattern on the live form, then regenerate. The
     // signpost re-renders its innerHTML each sync, so delegate from the container.
     $('virtuoso_lab-climb-next')?.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-act="depth-pattern"]');
+      const btn = eventClosest(e.target, '[data-act="depth-pattern"]');
       if (!btn) return;
       setFieldSilent('sequence', btn.dataset.seq || 'thirds');
       syncTempoTierButtons();   // flip the signpost to the "pattern cleared" forward hook immediately
@@ -15184,7 +14053,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // Fetch any tunings the user saved in a prior session and pull them
     // into the dropdown. Async; the dropdown is repainted by the fetch
     // callback so users see saved entries the moment the request lands.
-    loadSavedTunings();
+    tuningSettings.load();
     // Restore the player's saved instrument (the L1 store: setup + tuning)
     // before first sync, so reload lands on their declared physical instrument
     // — D Standard survives a restart, not just the family. Falls back to the
@@ -15209,10 +14078,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     syncStringSetupControls();
     syncInstrumentClass();
     syncStringCountChips();
-    syncTuningOptions();
-    advancedToggle?.addEventListener('change', syncPracticeFileControls); syncAdvancedMode(); syncChromaticVisibility();
-    $('virtuoso_lab-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
-    $('virtuoso_lab-play').addEventListener('click', onPlayToggle);
+    tuningSettings.sync();
+    advancedToggle?.addEventListener('change', practiceSelection.syncFileControls); syncAdvancedMode(); syncChromaticVisibility();
+    $('virtuoso_lab-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', (/** @type {HTMLSelectElement} */ (ev.target)).value); if (activeBundle) onGenerate(); });
+    $('virtuoso_lab-play')?.addEventListener('click', onPlayToggle);
     $('virtuoso_lab-stop')?.addEventListener('click', onStop);
     $('virtuoso_lab-listen')?.addEventListener('click', previewListen);   // PR 2.1 · audition the phrase
     // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.
@@ -15224,38 +14093,41 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // commitLoop() the A/B buttons use — one loop system. Seek is continuous.
     const rulerCanvas = $('virtuoso_lab-ruler-canvas');
     if (rulerCanvas) {
-      let mode = null, anchorT = 0, startTpA = 0, startTpB = 0, prevA = null, prevB = null;
+      let /** @type {string | null} */ mode = null, anchorT = 0, startTpA = 0, startTpB = 0, /** @type {number | null} */ prevA = null, /** @type {number | null} */ prevB = null;
       const dur = () => activeBundle?.songInfo?.duration || 0;
       // Map clientX↔time through the SAME scrolling window the ruler draws with, so
       // seek + loop-drag track the visible bars (not the whole-session fit).
+      /** @param {number} clientX */
       const timeAt = (clientX) => { const m = rulerMap(); return m ? m.tAt(clientX) : 0; };
       // Which loop edge (if any) the pointer is within ~6px of, in screen px. An
       // off-screen edge returns null (can't grab it on a scrolling ruler — that's
       // what the overview strip is for).
+      /** @param {number} clientX */
       const edgeNear = (clientX) => {
-        if (tpA == null || tpB == null || dur() <= 0) return null;
+        if (transport.markerA == null || transport.markerB == null || dur() <= 0) return null;
         const m = rulerMap(); if (!m) return null;
-        const xa = m.g.rect.left + m.xAt(Math.min(tpA, tpB));
-        const xb = m.g.rect.left + m.xAt(Math.max(tpA, tpB));
+        const xa = m.g.rect.left + m.xAt(Math.min(transport.markerA, transport.markerB));
+        const xb = m.g.rect.left + m.xAt(Math.max(transport.markerA, transport.markerB));
         if (xa >= m.g.rect.left && Math.abs(clientX - xa) <= 6) return 'resizeA';
         if (xb <= m.g.rect.left + m.g.rect.width && Math.abs(clientX - xb) <= 6) return 'resizeB';
         return null;
       };
       rulerCanvas.addEventListener('pointerdown', (e) => {
         if (!activeBundle || dur() <= 0) return;
+        const g = rulerGeom(); if (!g) return;
         e.preventDefault();
         try { rulerCanvas.setPointerCapture(e.pointerId); } catch (_) {}
-        prevA = tpA; prevB = tpB;
-        const g = rulerGeom(); const y = e.clientY - g.rect.top;
+        prevA = transport.markerA; prevB = transport.markerB;
+        const y = e.clientY - g.rect.top;
         const lz = Math.min(RULER_LOOP_ZONE, g.rect.height * 0.4);
         const edge = edgeNear(e.clientX);
         const t = timeAt(e.clientX);
         if (edge) { mode = edge; }
         else if (y <= lz) {
           // Loop zone: move an existing band if clicked inside it, else start new.
-          const inBand = tpA != null && tpB != null && t >= Math.min(tpA, tpB) && t <= Math.max(tpA, tpB);
-          if (inBand) { mode = 'move'; anchorT = t; startTpA = Math.min(tpA, tpB); startTpB = Math.max(tpA, tpB); }
-          else { mode = 'new'; anchorT = snapToDownbeat(t, e.altKey); tpA = anchorT; tpB = anchorT; paintLoopRegion(); }
+          const inBand = transport.markerA != null && transport.markerB != null && t >= Math.min(transport.markerA, transport.markerB) && t <= Math.max(transport.markerA, transport.markerB);
+          if (inBand) { mode = 'move'; anchorT = t; startTpA = Math.min(transport.markerA, transport.markerB); startTpB = Math.max(transport.markerA, transport.markerB); }
+          else { mode = 'new'; anchorT = snapToDownbeat(t, e.altKey); transport.markLoop(anchorT, anchorT); paintLoopRegion(); }
         } else {
           mode = 'seek'; seekTo(t);
         }
@@ -15271,17 +14143,18 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         const raw = timeAt(e.clientX);
         if (mode === 'seek') { seekTo(raw); return; }
         const t = snapToDownbeat(raw, e.altKey);
-        if (mode === 'new') { tpA = Math.min(anchorT, t); tpB = Math.max(anchorT, t); }
-        else if (mode === 'resizeA') { tpA = t; }
-        else if (mode === 'resizeB') { tpB = t; }
+        if (mode === 'new') { transport.markLoop(Math.min(anchorT, t), Math.max(anchorT, t)); }
+        else if (mode === 'resizeA') { transport.markLoop(t, transport.markerB); }
+        else if (mode === 'resizeB') { transport.markLoop(transport.markerA, t); }
         else if (mode === 'move') {
           const width = startTpB - startTpA;
           let na = snapToDownbeat(startTpA + (raw - anchorT), e.altKey);
           na = Math.max(0, Math.min(Math.max(0, dur() - width), na));
-          tpA = na; tpB = na + width;
+          transport.markLoop(na, na + width);
         }
         paintLoopRegion();
       });
+      /** @param {PointerEvent} e */
       const endRuler = (e) => {
         if (!mode) return;
         const wasSeek = mode === 'seek', wasNew = mode === 'new';
@@ -15289,7 +14162,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         try { rulerCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
         if (wasSeek) return;  // seek commits live; nothing to finalize
         // A click (no real drag) in the empty loop zone shouldn't wipe a loop.
-        if (wasNew && Math.abs((tpA ?? 0) - (tpB ?? 0)) < 0.02) { tpA = prevA; tpB = prevB; }
+        if (wasNew && Math.abs((transport.markerA ?? 0) - (transport.markerB ?? 0)) < 0.02) { transport.markLoop(prevA, prevB); }
         commitLoop();
       };
       rulerCanvas.addEventListener('pointerup', endRuler);
@@ -15300,13 +14173,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     const ovCanvas = $('virtuoso_lab-overview-canvas');
     if (ovCanvas) {
       const ovGeom = () => { const c = $('virtuoso_lab-overview-canvas'); if (!c) return null; const rect = c.getBoundingClientRect(); const padX = 2, usableW = Math.max(1, rect.width - padX * 2); const d = activeBundle?.songInfo?.duration || 0; return { rect, padX, usableW, dur: d }; };
+      /** @param {number} cx */
       const ovT = (cx) => { const g = ovGeom(); if (!g || g.dur <= 0) return 0; return Math.max(0, Math.min(g.dur, (cx - g.rect.left - g.padX) / g.usableW * g.dur)); };
-      const ovEdge = (cx) => { if (tpA == null || tpB == null) return null; const g = ovGeom(); if (!g || g.dur <= 0) return null; const xa = g.rect.left + g.padX + Math.min(tpA, tpB) / g.dur * g.usableW; const xb = g.rect.left + g.padX + Math.max(tpA, tpB) / g.dur * g.usableW; if (Math.abs(cx - xa) <= 6) return 'resizeA'; if (Math.abs(cx - xb) <= 6) return 'resizeB'; return null; };
-      let ovMode = null, ovAnchor = 0, ovDownX = 0, ovPrevA = null, ovPrevB = null, ovMoved = false;
+      /** @param {number} cx */
+      const ovEdge = (cx) => { if (transport.markerA == null || transport.markerB == null) return null; const g = ovGeom(); if (!g || g.dur <= 0) return null; const xa = g.rect.left + g.padX + Math.min(transport.markerA, transport.markerB) / g.dur * g.usableW; const xb = g.rect.left + g.padX + Math.max(transport.markerA, transport.markerB) / g.dur * g.usableW; if (Math.abs(cx - xa) <= 6) return 'resizeA'; if (Math.abs(cx - xb) <= 6) return 'resizeB'; return null; };
+      let /** @type {string | null} */ ovMode = null, ovAnchor = 0, ovDownX = 0, /** @type {number | null} */ ovPrevA = null, /** @type {number | null} */ ovPrevB = null, ovMoved = false;
       ovCanvas.addEventListener('pointerdown', (e) => {
         const g = ovGeom(); if (!activeBundle || !g || g.dur <= 0) return; e.preventDefault();
         try { ovCanvas.setPointerCapture(e.pointerId); } catch (_) {}
-        ovPrevA = tpA; ovPrevB = tpB; ovDownX = e.clientX; ovMoved = false;
+        ovPrevA = transport.markerA; ovPrevB = transport.markerB; ovDownX = e.clientX; ovMoved = false;
         const edge = ovEdge(e.clientX);
         if (edge) ovMode = edge;
         else { ovMode = 'pending'; ovAnchor = snapToDownbeat(ovT(e.clientX), e.altKey); }   // drag→loop, click→seek (decided on up)
@@ -15315,16 +14190,17 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         if (!ovMode) { ovCanvas.style.cursor = ovEdge(e.clientX) ? 'ew-resize' : 'pointer'; return; }
         const t = snapToDownbeat(ovT(e.clientX), e.altKey);
         if (Math.abs(e.clientX - ovDownX) > 3) ovMoved = true;
-        if (ovMode === 'pending' && ovMoved) { ovMode = 'new'; tpA = ovAnchor; tpB = ovAnchor; }
-        if (ovMode === 'new') { tpA = Math.min(ovAnchor, t); tpB = Math.max(ovAnchor, t); paintLoopRegion(); }
-        else if (ovMode === 'resizeA') { tpA = t; paintLoopRegion(); }
-        else if (ovMode === 'resizeB') { tpB = t; paintLoopRegion(); }
+        if (ovMode === 'pending' && ovMoved) { ovMode = 'new'; transport.markLoop(ovAnchor, ovAnchor); }
+        if (ovMode === 'new') { transport.markLoop(Math.min(ovAnchor, t), Math.max(ovAnchor, t)); paintLoopRegion(); }
+        else if (ovMode === 'resizeA') { transport.markLoop(t, transport.markerB); paintLoopRegion(); }
+        else if (ovMode === 'resizeB') { transport.markLoop(transport.markerA, t); paintLoopRegion(); }
       });
+      /** @param {PointerEvent} e */
       const ovEnd = (e) => {
         if (!ovMode) return; const m = ovMode; ovMode = null;
         try { ovCanvas.releasePointerCapture(e.pointerId); } catch (_) {}
         if (m === 'pending' && !ovMoved) { seekTo(ovT(e.clientX)); return; }   // a click = seek
-        if (m === 'new' && Math.abs((tpA ?? 0) - (tpB ?? 0)) < 0.02) { tpA = ovPrevA; tpB = ovPrevB; }
+        if (m === 'new' && Math.abs((transport.markerA ?? 0) - (transport.markerB ?? 0)) < 0.02) { transport.markLoop(ovPrevA, ovPrevB); }
         commitLoop();
       };
       ovCanvas.addEventListener('pointerup', ovEnd);
@@ -15334,8 +14210,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-nudge-back')?.addEventListener('click', () => nudgeBar(-1));
     $('virtuoso_lab-nudge-fwd')?.addEventListener('click', () => nudgeBar(1));
     if (!window.__virtuoso_labKeysBound) { window.__virtuoso_labKeysBound = true; document.addEventListener('keydown', onTransportKey); }
-    $('virtuoso_lab-loop-a')?.addEventListener('click', () => { tpA = currentPracticeTime; commitLoop(); });
-    $('virtuoso_lab-loop-b')?.addEventListener('click', () => { tpB = currentPracticeTime; commitLoop(); });
+    $('virtuoso_lab-loop-a')?.addEventListener('click', () => { transport.markLoop(transport.time, transport.markerB); commitLoop(); });
+    $('virtuoso_lab-loop-b')?.addEventListener('click', () => { transport.markLoop(transport.markerA, transport.time); commitLoop(); });
     $('virtuoso_lab-loop-clear')?.addEventListener('click', resetTransportLoop);
     document.querySelectorAll('.virtuoso_lab-tp-seg').forEach(btn => {
       // Count-in is baked into the chart as lead-in rest bars (applyCountIn in
@@ -15346,7 +14222,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         const v = btn.dataset.countin;
         setFieldSilent('countIn', v); syncTransport();
         if (!lastExercise) return;
-        if (playing) stopPlayback();
+        if (transport.playing) stopPlayback();
         lastExercise.session.countInBars = Math.max(0, Math.min(8, parseInt(v, 10) || 0));
         try { await attachRenderer(lastExercise); } catch (e) { console.error('[Virtuoso] count-in re-attach failed', e); }
       });
@@ -15358,7 +14234,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-next-seg')?.addEventListener('click', nextSegment);
     $('virtuoso_lab-loop-seg')?.addEventListener('click', loopCurrentSegment);
     $('virtuoso_lab-session-progress')?.addEventListener('click', (e) => {
-      const seg = e.target.closest('.virtuoso_lab-progress-seg');
+      const seg = eventClosest(e.target, '.virtuoso_lab-progress-seg');
       if (seg) jumpToSegment(parseInt(seg.dataset.segIndex, 10));
     });
     workoutEditor.unmount();
@@ -15383,26 +14259,25 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       });
       pasteEl.addEventListener('change', () => onPasteShareLink(pasteEl.value));
     }
-    $('virtuoso_lab-go-library')?.addEventListener('click', () => { catalogVisitActive = false; catalogVisitIdentity++; practiceCatalog?.cancel(); clearPracticeFile(); activeBundle = null; lastExercise = null; goScreen('home'); });
-    $('virtuoso_lab-go-plugins')?.addEventListener('click', () => { catalogVisitActive = false; catalogVisitIdentity++; practiceCatalog?.cancel(); clearPracticeFile(); activeBundle = null; lastExercise = null; goScreen('plugins'); });
-    $('virtuoso_lab-controls').addEventListener('change', (ev) => {
+    $('virtuoso_lab-go-library')?.addEventListener('click', () => { practicePresets.unmount(); practiceSelection.leave(); activeBundle = null; lastExercise = null; goScreen('home'); });
+    $('virtuoso_lab-go-plugins')?.addEventListener('click', () => { practicePresets.unmount(); practiceSelection.leave(); activeBundle = null; lastExercise = null; goScreen('plugins'); });
+    $('virtuoso_lab-controls')?.addEventListener('change', (ev) => {
+      const target = ev.target;
+      if (!target || !('value' in target) || typeof target.value !== 'string'
+          || !('name' in target) || typeof target.name !== 'string'
+          || !('closest' in target) || typeof target.closest !== 'function') return;
       // The Jam inspector's controls live inside this form but are NOT form
       // fields: they have their own live-change path (wrap-quantized, J-2 D-J3).
       // Without this bail, any jam select change regenerated the FORM's exercise
       // and killed a running jam (latent since J-1; exposed by J-2's live edits).
-      if (ev && ev.target && ev.target.closest && ev.target.closest('.virtuoso_lab-jam-inspector')) return;
-      const name = ev && ev.target ? ev.target.name : '';
-      if (ev.target?.closest?.('#virtuoso_lab-file-practices')) return;
-      if (pendingInitialPathway) applyPathwayById('custom');
-      const leavingFile = name === 'practiceType' && !!loadedPracticeFile;
-      if (name === 'practiceType') {
-        if (hasActivePathwayFile()) applyPathwayById('custom');
-        clearPracticeFile();
-      }
-      if (name === 'shape') syncShapeDropdownSelectionToHidden();
+      if (target.closest('.virtuoso_lab-jam-inspector')) return;
+      const name = target.name;
+      if (target.closest('#virtuoso_lab-file-practices')) return;
+      const leavingFile = practiceSelection.controlChanged(name);
+      if (name === 'shape') practiceSelection.syncShapeHidden();
       if (name === 'practiceType') syncChromaticVisibility();
-      if (name === 'keyCycle') { const h = $('virtuoso_lab-keycycle-help'); if (h) h.style.display = ev.target.value !== 'none' ? '' : 'none'; }
-      if (name === 'renderer') syncViewSwitcher(ev.target.value);
+      if (name === 'keyCycle') { const h = $('virtuoso_lab-keycycle-help'); if (h) h.style.display = target.value !== 'none' ? '' : 'none'; }
+      if (name === 'renderer') syncViewSwitcher(target.value);
       // Meter-aware Division default: a user meter change bumps a too-coarse pick
       // up to the pulse (quarter→eighth under an /8) BEFORE the share-hash + the
       // regenerate below, so both reflect the corrected subdivision. The caption
@@ -15410,10 +14285,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (name === 'meter') meterAwareSubdivisionBump();
       if (name === 'meter' || name === 'subdivision') syncDivisionHelp();
       syncAdvancedMode();
-      syncPracticeFileControls();
+      practiceSelection.syncFileControls();
       markPathwayModifiedIfApplicable(name);
       writeShareHash();
-      if (activeBundle || loadedPracticeFile || hasActivePathwayFile() || leavingFile) onGenerate();
+      if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile() || leavingFile) onGenerate();
     });
     syncDivisionHelp();   // paint the Division pulse caption on first load
     // Practice mute pills (Notes / Backing / Click) live in the stage view-bar but
@@ -15425,7 +14300,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       inp.addEventListener('change', () => { writeShareHash(); if (activeBundle) onGenerate(); });
     });
     // View dropdown in the render stage — independent of exercise mode
-    $('virtuoso_lab-view-select')?.addEventListener('change', (e) => onViewSwitch(e.target.value));
+    $('virtuoso_lab-view-select')?.addEventListener('change', (e) => onViewSwitch((/** @type {HTMLSelectElement} */ (e.target)).value));
     // Hand-marks pill (hand-marks Slice 1): default ON, persisted, never
     // auto-flipped. Renderers + the strip read handMarksOn() per frame, so a
     // flip shows on the next draw with no re-attach.
@@ -15511,37 +14386,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // transient view affordance, not a saved pref) — also reset on screen:changed.
     panelCollapsed = false;
     syncPanelToggle();
-    // Key or fretboardSystem change → repopulate the Shape dropdown for the
-    // new (key, system) combination.
-    // Position / variation stepper: ◄ / ► walk the pathway's variation axis
-    // (shapes when shape-aware; otherwise the curated vary[] list). See
-    // positionStep() / updatePositionStepper().
-    $('virtuoso_lab-shape-prev')?.addEventListener('click', () => positionStep(-1));
-    $('virtuoso_lab-shape-next')?.addEventListener('click', () => positionStep(1));
-    $('virtuoso_lab-fretboard-system')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('virtuoso_lab-controls')?.querySelector('[name="key"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
-    $('virtuoso_lab-controls')?.querySelector('[name="scale"]')?.addEventListener('change', () => { syncShapeDropdown(); syncShapeDropdownSelectionToHidden(); updatePositionStepper(); });
+    practiceSelection.mount('position');
     $('virtuoso_lab-controls')?.querySelector('[name="stringSetup"]')?.addEventListener('change', () => { syncJamHighlightUI(); syncFretboardUI(); });
-    const pathwaySelect = $('virtuoso_lab-pathway');
-    pathwaySelect?.addEventListener('change', () => {
-      if (pathwaySelect.value === PATHWAY_FIRST_VISIT_DEFAULT && !PATHWAYS[PATHWAY_FIRST_VISIT_DEFAULT]) {
-        showStatus(practiceCatalog?.state.error ? 'Chromatic Warmup unavailable' : 'Chromatic Warmup loading…');
-        return;
-      }
-      const wasPending = !!pendingInitialPathway;
-      applyPathwayById(pathwaySelect.value);
-      try { localStorage.setItem(PATHWAY_STORAGE_KEY, pathwaySelect.value); } catch (_) {}
-      // The form-change listener above will pick up the silent field updates
-      // on its own next tick, but kick a generate now so the initial pick
-      // does not feel sluggish.
-      if (wasPending || activeBundle || hasActivePathwayFile()) onGenerate();
-    });
-    // Four-mode shell switcher: Pathways / Custom / Workout / Jam (data-mode tokens
-    // stay guided/custom/session/jam).
-    ['guided', 'custom', 'session', 'jam'].forEach(m => {
-      $('virtuoso_lab-mode-' + m)?.addEventListener('click', () => selectMode(m));
-    });
-    $('virtuoso_lab-mode-select')?.addEventListener('change', (e) => selectMode(e.target.value));   // narrow-width fallback
+    practiceSelection.mount('selection');
     renderJamStyles();
     // Jam controls: feel toggle + the Jam action.
     document.querySelectorAll('#virtuoso_lab-jam-feel .virtuoso_lab-jam-feel-btn').forEach(b => {
@@ -15649,12 +14496,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-library-open')?.addEventListener('click', () => toggleLibrary());
     $('virtuoso_lab-library-close')?.addEventListener('click', () => toggleLibrary(false));
     $('virtuoso_lab-library-filters')?.addEventListener('click', (e) => {
-      const chip = e.target.closest('[data-filter]'); if (!chip) return;
+      const chip = eventElement(e.target)?.closest('[data-filter]'); if (!chip) return;
       _libFilters[chip.dataset.filter] = chip.dataset.value;
       renderLibrary();
     });
     $('virtuoso_lab-library-body')?.addEventListener('click', (e) => {
-      const add = e.target.closest('.virtuoso_lab-lib-add'); if (!add) return;
+      const add = eventElement(e.target)?.closest('.virtuoso_lab-lib-add'); if (!add) return;
       workoutEditor.add(add.dataset.templateId);
       const orig = add.textContent;                          // "Added ✓" flash — visual only (§5/§13), drawer stays open
       add.classList.add('added'); add.textContent = 'Added ✓';
@@ -15665,16 +14512,16 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-starters-open')?.addEventListener('click', () => toggleStarters());
     $('virtuoso_lab-starters-close')?.addEventListener('click', () => toggleStarters(false));
     $('virtuoso_lab-starters-filters')?.addEventListener('click', (e) => {
-      const chip = e.target.closest('[data-sfilter]'); if (!chip) return;
+      const chip = eventElement(e.target)?.closest('[data-sfilter]'); if (!chip) return;
       _starterFilters[chip.dataset.sfilter] = chip.dataset.value;
       renderStarters();
     });
     $('virtuoso_lab-starters-body')?.addEventListener('click', (e) => {
-      const rload = e.target.closest('.virtuoso_lab-routine-load');
+      const rload = eventElement(e.target)?.closest('.virtuoso_lab-routine-load');
       if (rload) { loadRoutine(rload.dataset.routineId); return; }
-      const rdel = e.target.closest('.virtuoso_lab-routine-del');
+      const rdel = eventElement(e.target)?.closest('.virtuoso_lab-routine-del');
       if (rdel) { deleteRoutine(rdel.dataset.routineId); return; }
-      const load = e.target.closest('.virtuoso_lab-starter-load'); if (!load) return;
+      const load = eventElement(e.target)?.closest('.virtuoso_lab-starter-load'); if (!load) return;
       loadStarter(load.dataset.starterId);
     });
     // "Save routine" — reveal the inline name affordance; save on go/Enter.
@@ -15693,14 +14540,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
     $('virtuoso_lab-routine-name')?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('virtuoso_lab-routine-save-go')?.click(); } });
     $('virtuoso_lab-starters-confirm')?.addEventListener('click', (e) => {
-      if (e.target.closest('.virtuoso_lab-starter-confirm-yes')) loadStarter(e.target.closest('.virtuoso_lab-starter-confirm-yes').dataset.starterId, true);
-      else if (e.target.closest('.virtuoso_lab-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
+      const yes = eventClosest(e.target, '.virtuoso_lab-starter-confirm-yes');
+      if (yes) loadStarter(yes.dataset.starterId, true);
+      else if (eventClosest(e.target, '.virtuoso_lab-starter-confirm-no')) { _pendingStarter = null; renderStarters(); }
     });
     // "Last session" card dismiss (delegated — the sheet body is re-rendered each open).
     $('virtuoso_lab-progress-sheet-body')?.addEventListener('click', (e) => {
-      if (e.target.closest('[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
+      if (eventClosest(e.target, '[data-act="dismiss-summary"]')) { _lastEndedSession = null; renderProgressSheet(); }
       else {
-        const sbtn = e.target.closest('[data-act="copy-card"], [data-act="download-card"]');
+        const sbtn = eventClosest(e.target, '[data-act="copy-card"], [data-act="download-card"]');
         if (sbtn) shareCardClick(sbtn, _lastEndedSession);   // image card → clipboard / PNG, silent
       }
     });
@@ -15722,55 +14570,56 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       if (_packsSel && _packsSel.col === 'installed') { _packUninstall(_packsSel.id); _packsSel = null; renderPackManager(); }
     });
     const _instCol = $('virtuoso_lab-packs-installed'), _availCol = $('virtuoso_lab-packs-available');
-    _instCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    _instCol?.addEventListener('dragover', (e) => { e.preventDefault(); const dt = e.dataTransfer; if (!dt) return; dt.dropEffect = 'move'; });
     _instCol?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
+      e.preventDefault(); const dt = e.dataTransfer; if (!dt) return;
+      const id = dt.getData('text/plain'); if (!id || !_packsDraft) return;
       const beforeId = _packRowUnder(_instCol, e.clientY);
       if (!_packsDraft.order.includes(id)) _packInstall(id);
       _packReorder(id, beforeId);
       _packsSel = null; renderPackManager();
     });
-    _availCol?.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; });
+    _availCol?.addEventListener('dragover', (e) => { e.preventDefault(); const dt = e.dataTransfer; if (!dt) return; dt.dropEffect = 'move'; });
     _availCol?.addEventListener('drop', (e) => {
-      e.preventDefault();
-      const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;
+      e.preventDefault(); const dt = e.dataTransfer; if (!dt) return;
+      const id = dt.getData('text/plain'); if (!id || !_packsDraft) return;
       _packUninstall(id); _packsSel = null; renderPackManager();
     });
     // Mixer view tabs (Console | Rig) + the Rig view actions (per-amp cab IR +
     // output trim). The Rig manages the 3 amps' cabs (per-amp, not per-strip).
     const mixEl = $('virtuoso_lab-mixer'), rigHost = $('virtuoso_lab-mixer-rig');
     mixEl?.addEventListener('click', (ev) => {
-      const tab = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-viewtab');
+      const tab = eventClosest(ev.target, '.virtuoso_lab-mixer-viewtab');
       if (!tab) return;
       const rig = tab.dataset.view === 'rig';
       mixEl.classList.toggle('virtuoso_lab_vir-rig-view', rig);
       mixEl.querySelectorAll('.virtuoso_lab-mixer-viewtab').forEach(b => { const on = b.dataset.view === tab.dataset.view; b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); });
       if (rig) renderRig();
     });
+    /** @type {string | null | undefined} */
     let _rigPendingAmp = null;
     rigHost?.addEventListener('click', (ev) => {
-      const load = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-load');
+      const load = eventClosest(ev.target, '.virtuoso_lab-rig-load');
       if (load) { _rigPendingAmp = load.dataset.amp; const fi = $('virtuoso_lab-rig-file'); if (fi) { fi.value = ''; fi.click(); } return; }
-      const rst = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-reset');
+      const rst = eventClosest(ev.target, '.virtuoso_lab-rig-reset');
       if (rst) { const amp = rst.dataset.amp; if (rst.dataset.what === 'out') rigResetOutput(amp); else rigResetIr(amp); }
     });
     rigHost?.addEventListener('change', (ev) => {
-      const fi = ev.target.closest && ev.target.closest('#virtuoso_lab-rig-file');
+      const fi = eventClosest(ev.target, '#virtuoso_lab-rig-file');
       if (fi && _rigPendingAmp && fi.files && fi.files[0]) { rigLoadIr(_rigPendingAmp, fi.files[0]); _rigPendingAmp = null; }
     });
     rigHost?.addEventListener('input', (ev) => {
-      const out = ev.target.closest && ev.target.closest('.virtuoso_lab-rig-out');
+      const out = eventClosest(ev.target, '.virtuoso_lab-rig-out');
       if (!out) return;
       const amp = out.dataset.amp, v = Math.max(0, Math.min(1.2, parseFloat(out.value) || 0));
       rigSetOutput(amp, v);
-      const db = rigHost.querySelector(`.virtuoso_lab-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = rigOutputDb(amp) + ' dB';
+      const db = rigHost.querySelector(`.virtuoso_lab-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = String(rigOutputDb(amp)) + ' dB';
     });
     const mixCh = $('virtuoso_lab-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
       // Fader (vertical, cube-law dB taper): the slider speaks positions, the
       // engine consumes linear gain; 'master' rides the master bus over MASTER_TRIM.
-      const f = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-fader');
+      const f = eventClosest(ev.target, '.virtuoso_lab-mixer-fader');
       if (f) {
         const k = f.dataset.k, g = faderGainFromPos(Math.max(0, Math.min(1, parseFloat(f.value) || 0)));
         if (k === 'master') mixerMasterLevel = g; else mixerState[k].level = g;
@@ -15778,13 +14627,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         applyMixer(); mixerSave();
         return;
       }
-      const pn = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-pan'); if (!pn) return;
+      const pn = eventClosest(ev.target, '.virtuoso_lab-mixer-pan'); if (!pn) return;
       mixerState[pn.dataset.k].pan = Math.max(-1, Math.min(1, parseFloat(pn.value) || 0));
       applyMixer(); mixerSave();
     });
     // Pan pot reset: double-click returns the channel to its stage default.
     mixCh?.addEventListener('dblclick', (ev) => {
-      const pn = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-pan'); if (!pn) return;
+      const pn = eventClosest(ev.target, '.virtuoso_lab-mixer-pan'); if (!pn) return;
       const k = pn.dataset.k, ch = channelFor(k);
       mixerState[k].pan = (ch && ch.pan) || 0;
       pn.value = String(mixerState[k].pan);
@@ -15792,9 +14641,9 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     });
     mixCh?.addEventListener('click', (ev) => {
       // INPUT-strip shortcuts: host settings (audio interface) / nam_tone screen.
-      const go = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-inbtn');
+      const go = eventClosest(ev.target, '.virtuoso_lab-mixer-inbtn');
       if (go) { toggleMixer(false); goScreen(go.dataset.go); return; }
-      const t = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-tog'); if (!t) return;
+      const t = eventClosest(ev.target, '.virtuoso_lab-mixer-tog'); if (!t) return;
       // Dim lives on the master strip now (a toggle button, not the old head checkbox).
       if (t.dataset.act === 'dim') {
         mixerBackingDim = !mixerBackingDim;
@@ -15816,7 +14665,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // needed (sounding voices flow through the new chain). Auto resolution
       // happens in the scheduler per pass; here we wire the explicit picks and
       // let the next chunk settle an Auto.
-      const ampSel = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-amp');
+      const ampSel = eventClosest(ev.target, '.virtuoso_lab-mixer-amp');
       if (ampSel) {
         const k = ampSel.dataset.k;
         mixerState[k].amp = ampSel.value || null;
@@ -15828,8 +14677,8 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
         }
         return;
       }
-      const kitSel = ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-kit');
-      const sel = kitSel || (ev.target.closest && ev.target.closest('.virtuoso_lab-mixer-instr')); if (!sel) return;
+      const kitSel = eventClosest(ev.target, '.virtuoso_lab-mixer-kit');
+      const sel = kitSel || eventClosest(ev.target, '.virtuoso_lab-mixer-instr'); if (!sel) return;
       if (kitSel) mixerState[sel.dataset.k].kit = sel.value || null;
       else mixerState[sel.dataset.k].instrument = sel.value || null;
       mixerSave();
@@ -15841,11 +14690,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-downshift-go')?.addEventListener('click', () => {
       const idx = parseInt($('virtuoso_lab-downshift-go')?.dataset.idx ?? '-1', 10);
       hideDownshiftChip();
-      const pw = activePathwayId && activePathwayId !== 'custom' ? PATHWAYS[activePathwayId] : null;
+      const pw = practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' ? PATHWAYS[practiceSelection.pathwayId] : null;
       if (!pw || !(idx >= 0)) return;
       stopPlayback();
-      activeTempoTierIdx = idx;
-      applyTierFields(pw, idx);
+      practiceSelection.setTier(idx);
+      practiceSelection.applyTier(pw, idx);
       syncTempoTierButtons();
       onGenerate();
       $('virtuoso_lab-play')?.focus();
@@ -15880,11 +14729,11 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     loadHostTunings().then(() => hostSettingsRead());
     initHostTopbar();
     setTimeout(initHostTopbar, 2000);
-    $('virtuoso_lab-tuning-select')?.addEventListener('change', updateSetupButton);
+    tuningSettings.mountDisplay();
     document.addEventListener('click', (e) => {
       const pop = $('virtuoso_lab-setup-popover'); if (!pop || pop.hidden) return;
       const btn = $('virtuoso_lab-setup-btn');
-      if (!pop.contains(e.target) && btn && !btn.contains(e.target)) toggleSetupPopover(false);
+      if (!pop.contains(/** @type {Node | null} */ (e.target)) && btn && !btn.contains(/** @type {Node | null} */ (e.target))) toggleSetupPopover(false);
     });
     updateSetupButton();
     // Header settings menu (⚙): toggle, items, close-on-outside-click.
@@ -15895,12 +14744,12 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     $('virtuoso_lab-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
     $('virtuoso_lab-settings-host')?.addEventListener('click', () => {
       toggleSettingsMenu(false);
-      try { if (hostBus() && typeof hostBus().navigate === 'function') hostBus().navigate('settings'); } catch (_) {}
+    try { const bus = hostBus(); if (bus && typeof bus.navigate === 'function') bus.navigate('settings'); } catch (_) {}
     });
     // Settings prefs: accent theme · default XP mode · default count-in.
     document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
     document.querySelectorAll('#virtuoso_lab-xp-mode .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
-    $('virtuoso_lab-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso_lab.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    $('virtuoso_lab-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso_lab.countInDefault', (/** @type {HTMLSelectElement} */ (e.target)).value); } catch (_) {} applyCountInDefault((/** @type {HTMLSelectElement} */ (e.target)).value); });
     document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso_lab.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
     document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
     renderCardSkinPicker('signature');
@@ -15909,45 +14758,40 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     document.addEventListener('click', (e) => {
       const menu = $('virtuoso_lab-settings-menu'); if (!menu || !menu.classList.contains('virtuoso_lab_vir-open')) return;
       const btn = $('virtuoso_lab-settings-btn');
-      if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
+      if (!menu.contains(/** @type {Node | null} */ (e.target)) && btn && !btn.contains(/** @type {Node | null} */ (e.target))) toggleSettingsMenu(false);
     });
-    // Preset picker (Custom): load a saved preset's config into the form.
-    $('virtuoso_lab-preset-picker')?.addEventListener('change', (ev) => {
-      const key = ev.target.value; if (!key) return;
-      const preset = window.__virtuoso_labFavorites && window.__virtuoso_labFavorites[key];
-      if (preset && preset.config) { applyPathwayConfig(preset.config); if (activeBundle) onGenerate(); }
-    });
+    practicePresets.mount();
     $('virtuoso_lab-launch-session')?.addEventListener('click', onLaunchSession);
     workoutEditor.mount('options');
     workoutEditor.select(Object.keys(BUILT_IN_SESSIONS)[0]);
 
-    loadPathwayFavorites();
+    practicePresets.load();
     loadSavedRoutines().then(() => { if ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab-session-mode')) renderStarters(); });   // surface the user's saved routines in the starter picker
     // Populate the Shape dropdown for the initial (key, system) before any
-    // pathway runs — applyInitialPathway may set the shape value, but it
+    // pathway runs — initial selection may set the shape value, but it
     // can't select an option that doesn't exist yet.
-    syncShapeDropdown();
-    syncShapeDropdownSelectionToHidden();
-    applyInitialPathway();
+    practiceSelection.syncShapes();
+    practiceSelection.syncShapeHidden();
+    practiceSelection.initial();
     renderSkillTree();
     syncTransport();
     // If the URL carries a share hash, replay the snapshotted form values
-    // *after* applyInitialPathway has set up the pathway-driven defaults.
+    // *after* initial selection has set up the pathway-driven defaults.
     // The share state wins over the pathway defaults, but the pathway
     // dropdown's value is part of the snapshot — so the GOAL card and the
     // pathway-mode CSS stay correctly applied.
     const sharedState = readShareHash();
     if (sharedState) {
-      pendingInitialPathway = null;
+      practiceSelection.cancelInitial();
       applyFormState(sharedState);
-      syncShapeDropdown();
-      syncShapeDropdownSelectionToHidden();
-      updatePositionStepper();
+      practiceSelection.syncShapes();
+      practiceSelection.syncShapeHidden();
+      practicePresentation.renderPosition();
       syncInstrumentClass();
       syncAdvancedMode();
       syncChromaticVisibility();
     } else {
-      resumeLastMode();   // returning user resumes their last mode; first-run stays on Pathways
+      practiceSelection.resumeMode();   // returning user resumes their last mode; first-run stays on Pathways
     }
     syncViewSwitcher(document.querySelector('[name="renderer"]')?.value || 'highway_3d');
     window.addEventListener('storage', (ev) => { if (ev.key === 'invertHighway' || ev.key === 'lefty' || ev.key === 'renderScale') refreshForHostSettingChange(); });
@@ -15956,21 +14800,13 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // don't redraw — so a paused view goes blank. Redraw after a debounce, which
     // also lands AFTER the renderers' own synchronous resize handlers. While
     // playing, the rAF loop already redraws, so this is a no-op there.
-    let _resizeT = null;
-    window.addEventListener('resize', () => {
-      if (_resizeT) clearTimeout(_resizeT);
-      _resizeT = setTimeout(() => {
-        _resizeT = null;
-        if (renderer && activeBundle && !playing) { try { renderer.resize && renderer.resize(); } catch (_) {} drawOnce(); }
-        ptDodgeOverlays();   // re-measure floating third-party chrome at the new scale
-      }, 120);
-    });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (playing && !paused) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide (not while paused — pause released it on purpose)
+    rendererLifecycle.mount();
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshForHostSettingChange(); if (transport.playing && !transport.paused) acquireWakeLock(); } });   // re-acquire the wake lock the browser auto-released on hide (not while paused — pause released it on purpose)
     // Flush any in-progress session on page hide / unload so duration is saved
     // even if the user closes the tab or navigates away while the preview plays.
     // Unload can be canceled and pagehide can enter BFCache. Keep DOM listeners;
     // confirmed SPA screen exits own teardown, destroyed documents clean themselves.
-    const onPageHide = () => { if (playing) sessionEnd(); };
+    const onPageHide = () => { if (transport.playing) sessionEnd(); };
     window.addEventListener('beforeunload', onPageHide);
     window.addEventListener('pagehide', onPageHide);
     syncProgressStrip();
@@ -15981,17 +14817,20 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     // size. A re-attach when the screen becomes visible is cheap and makes
     // the initial paint reliable. (Also covers re-entry after the user
     // navigated to Library or another screen and came back.)
+    /** @type {(() => void) | null} */
     let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     let screenVisible = false;
-    if (hostBus() && typeof hostBus().on === 'function') {
-      hostBus().on('screen:changed', (ev) => {
-        if (ev?.detail?.id !== 'plugin-virtuoso_lab') { workoutEditor.unmount(); screenVisible = false; catalogVisitActive = false; catalogVisitIdentity++; practiceCatalog?.cancel(); clearPracticeFile(); activeBundle = null; lastExercise = null; return; }
+    const screenBus = hostBus();
+    if (screenBus && typeof screenBus.on === 'function') {
+      screenBus.on('screen:changed', (ev) => {
+        if (ev?.detail?.id !== 'plugin-virtuoso_lab') { workoutEditor.unmount(); tuningSettings.unmount(); practicePresets.unmount(); screenVisible = false; practiceSelection.leave(); rendererLifecycle.unmount(); activeBundle = null; lastExercise = null; return; }
         if (screenVisible) return;
         screenVisible = true;
+        rendererLifecycle.mount();
         workoutEditor.unmount(); workoutEditor.mount('timeline'); workoutEditor.mount('options'); workoutEditor.render();
-        catalogVisitActive = true;
-        if (pendingInitialPathway) applyInitialPathway();
-        initializePracticeCatalog();
+        tuningSettings.unmount(); tuningSettings.mount(); tuningSettings.mountDisplay(); tuningSettings.syncInputs();
+        practicePresets.unmount(); practicePresets.mount(); practicePresets.load();
+        practiceSelection.enter();
         // Sidebar always shows when the plugin is (re)selected.
         panelCollapsed = false; syncPanelToggle();
         if (lastExercise) {
@@ -16029,14 +14868,15 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       // tell us about screen shows, defer instead: the RO keeps watching and
       // the screen:changed hook above fires the deferred initial generate.
       setTimeout(() => {
-        if (!host.offsetParent && hostBus() && typeof hostBus().on === 'function') return;
+        const bus = hostBus();
+        if (!host.offsetParent && bus && typeof bus.on === 'function') return;
         fire();
       }, 1000);
     })();
     return true;
   }
   function boot() {
-    initializePracticeCatalog();
+    practiceSelection.initialize();
     if (bind()) return;
     let tries = 0;
     const timer = setInterval(() => { tries += 1; if (bind() || tries > 40) clearInterval(timer); }, 250);
@@ -16045,6 +14885,7 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
   // A-B segment loop public API. See docs/archive/section-looping.md for the spec.
   // No UI yet — this is the transport-layer foundation that a phase-2 UI
   // (or a sibling plugin / driver script) can drive.
+  /** @param {unknown} a @param {unknown} b */
   function setSegmentLoop(a, b) {
     const aNum = Number(a), bNum = Number(b);
     if (!Number.isFinite(aNum) || !Number.isFinite(bNum) || bNum <= aNum) {
@@ -16054,11 +14895,10 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     if (aNum < 0 || bNum > duration + 0.0001) {
       throw new Error(`setSegmentLoop: endpoints must lie within [0, ${duration}] (got a=${aNum}, b=${bNum})`);
     }
-    segmentLoopA = aNum;
-    segmentLoopB = bNum;
+    transport.setLoop(aNum, bNum);
     // Seek the playhead to A so the next tick wraps cleanly inside the loop.
-    currentPracticeTime = aNum;
-    if (playing && !paused) {   // paused stays silent; resume re-anchors from A
+    transport.moveCursor(aNum);
+    if (transport.playing && !transport.paused) {   // paused stays silent; resume re-anchors from A
       // Re-anchor the play clock and re-schedule audio from A so the listener
       // hears the loop region immediately, not silence until the next wrap.
       // Use the chunk scheduler (not a one-shot schedule) so the rolling window
@@ -16070,21 +14910,22 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
     } else {
       drawOnce();
     }
-    if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso_lab:loop:set', { a: aNum, b: bNum });
+    const bus = hostBus();
+    if (bus && typeof bus.emit === 'function') {
+      bus.emit('virtuoso_lab:loop:set', { a: aNum, b: bNum });
     }
   }
   function clearSegmentLoop() {
-    if (segmentLoopA == null && segmentLoopB == null) return;
-    segmentLoopA = null;
-    segmentLoopB = null;
-    if (hostBus() && typeof hostBus().emit === 'function') {
-      hostBus().emit('virtuoso_lab:loop:clear', {});
+    if (transport.loopA == null && transport.loopB == null) return;
+    transport.setLoop(null, null);
+    const bus = hostBus();
+    if (bus && typeof bus.emit === 'function') {
+      bus.emit('virtuoso_lab:loop:clear', {});
     }
   }
-  function getSegmentLoop() { return { a: segmentLoopA, b: segmentLoopB }; }
+  function getSegmentLoop() { return { a: transport.loopA, b: transport.loopB }; }
 
-  window.VirtuosoLab = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy,
+  window.VirtuosoLab = { generateExercise, generateSession, makeBundle, resolveRendererFactory, readConfig, setSegmentLoop, clearSegmentLoop, getSegmentLoop, STYLE_PALETTES, stylePaletteConfig, SEGMENT_TEMPLATES, SEGMENT_ROLES, BUILT_IN_SESSIONS, rollSegment, refreshWorkout, applyLengthPreset, materializeSegment, progressLoad, progressSave, progressSetMode, advanceDepthLadder, nodeProgressState, woodshedLog, streakCount, creditBlockTier, xpLevelInfo, computeBadges, creditBadges, shareCardText, isShareworthy, feltHoldAnalyze, creditFeltRung, shareCardModel, renderShareCardImage,
     // J-2 + sampled-guitar probe surface (feature entry points / readouts, not new behavior)
     jamArmFromDrill, jamTargetPcs, jamNextGuidePcs,
     // Gold rung harness surface (smoke-gold.mjs): pure gate math + store.
@@ -16092,37 +14933,38 @@ import { createPracticeFileLoader, displayPracticeProse } from './src/shell/prac
       bar: GOLD_BAR,
       reset: goldReset,
       mirror: () => _goldMirror,
-      seed: (m) => { _goldMirror = Object.assign({ confirmed: 0, inChord: 0, inKey: 0, outside: 0, pcs: new Set(), chordHops: 0, lastSeg: null, comb: false }, m, m && m.pcs ? { pcs: new Set(m.pcs) } : {}); },
+      seed: (/** @type {Partial<{confirmed: number, inChord: number, inKey: number, outside: number, pcs: Iterable<number>, chordHops: number, lastSeg: string | null, comb: boolean}> | null} */ m) => { _goldMirror = Object.assign({ confirmed: 0, inChord: 0, inKey: 0, outside: 0, pcs: new Set(), chordHops: 0, lastSeg: null, comb: false }, m, m && m.pcs ? { pcs: new Set(m.pcs) } : {}); },
       evaluate: goldEvaluate,
       store: goldStore,
       midiTarget: goldMidiTarget,
       armed: () => _goldArmed,
     },
     getActiveBundleInfo: () => activeBundle ? { config: activeBundle.config, duration: activeBundle.songInfo && activeBundle.songInfo.duration, leadIn: activeBundle.leadIn } : null,
-    sgStats: () => { const out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
-  if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) globalThis.__virtuoso_lab_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, DRUMKIT_BANKS, KIT_REGISTRY, resolveDrumKit, recipeTracks, resolveHumanSeed, buildCompCellHits, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, activeBundleTimeline: () => activeBundle ? (activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline)) : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => currentPracticeTime, preRollUntil: () => _preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, sgHarmWanted, sgPadWanted, applyStyleMixerDefaults, sgFilesFor, bankDesc, bankLayerTag, SAMPLE_BANKS, compTargetMidis, COMP_GROOVES, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState, jamMirrorCapture, jamMirrorReset, jamMirrorDebugAdd, jamRecapAnalysisLines, jamBassIntents, jamSpotlightPhraseNotes, jamMirror: () => _jamMirror ? { noteCount: _jamMirror.noteCount, pcs: [..._jamMirror.pcs] } : null, jamPlayedLen: () => _jamPlayed.length, jamSpotlightTurn, activeBundleNotes: () => activeBundle ? activeBundle.notes : null,
-    busRms: () => { const out = {}; if (audioBus && audioBus.analysers) { for (const k in audioBus.analysers) { const an = audioBus.analysers[k]; const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; out[k] = Math.sqrt(s / buf.length); } } return out; },
-    busGains: () => { const out = {}; if (audioBus && audioBus.tracks) { for (const k in audioBus.tracks) out[k] = audioBus.tracks[k].gain.value; } return out; }, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs, playAnchorChartTime, playAnchorCtx, practiceTime: currentPracticeTime, playing, paused } : null) };
+    sgStats: () => { const /** @type {Record<string, number>} */ out = { ready: 0, loading: 0, failed: 0 }; for (const k of Object.keys(sgBuffers)) out[sgBuffers[k].state] = (out[sgBuffers[k].state] || 0) + 1; return out; } };
+  if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) globalThis.__virtuoso_lab_debug = { STRING_SETUPS, resolveCAGEDShape, resolveThreeNPSPosition, NOTE_ALIASES, chordRootForDegree, nearestPositionForPc, compileChordTimeline, MOTIF_CELLS, resolveMotifCell, buildMotifExercise, applyTimelinePush, resolveHumanSeed, parseMeter, BASS_FIGURES, bassFigureForConfig, DRUM_GROOVES, DRUM_PIECE_GAIN, resolveGroove, ARRANGEMENT_RECIPES, resolveArrangement, compCellForConfig, DRUMKIT_BANKS, KIT_REGISTRY, resolveDrumKit, recipeTracks, buildCompCellHits, activeBundleBacking: () => activeBundle ? activeBundle.backingEvents : null, activeBundleChords: () => activeBundle ? activeBundle.chords : null, activeBundleCfg: () => activeBundle ? activeBundle.config : null, activeBundleTimeline: () => activeBundle ? (activeBundle.timeline || (activeBundle.chart && activeBundle.chart.timeline)) : null, irState: () => Object.fromEntries(Object.entries(_irBufs).map(([k, v]) => [k, v.state])), rigState: () => JSON.parse(JSON.stringify(rigState)), buildDrumEvents, drawHeatmapHero, drawLeanStripHero, buildResultsHero, countInSubTicks, blockFeltInfo, ptPracticeTime: () => transport.time, preRollUntil: () => transport.preRollUntil, wrapAnim: () => _wrapAnim, ptWindows: () => _ptWin, ptRunInfo: () => _ptRunInfo, ptPreviewJudgeCounts, ptSpeakBudget, ptScoredUnits: () => _ptScoredUnits, lvlMode: () => _lvlMode, ndContainedMode: () => _ndContainedMode, ndContainedFallback: () => _ndContainedFallback, ndVerifyMode: () => _ndVerifyMode, ptCalibrateOffsetMs, ptLatency, pickSinkMatch, sinkTokens, applyHostSink, sinkState: () => ({ appliedId: _sinkAppliedId, mismatch: _sinkMismatch, outs: _sinkLastOuts }), audioCtxRef: () => audioCtx, resolveAudioProfile, resolveMix, resolveAmpId, sgNotesWanted, sgHarmWanted, sgPadWanted, applyStyleMixerDefaults, sgFilesFor, bankDesc, bankLayerTag, SAMPLE_BANKS, compTargetMidis, COMP_GROOVES, wafGmTrim, WAF_GM_TRIM, TONE_GM, liveInstrumentReady, prewarmMixerCandidates, jamApplyToken: () => _jamApplyToken, mixerStateRef: () => mixerState, jamMirrorCapture, jamMirrorReset, jamMirrorDebugAdd, jamRecapAnalysisLines, jamBassIntents, jamSpotlightPhraseNotes, jamMirror: () => _jamMirror ? { noteCount: _jamMirror.noteCount, pcs: [..._jamMirror.pcs] } : null, jamPlayedLen: () => _jamPlayed.length, jamSpotlightTurn, activeBundleNotes: () => activeBundle ? activeBundle.notes : null,
+    busRms: () => { const /** @type {Record<string, number>} */ out = {}; if (audioBus && audioBus.analysers) { for (const k in audioBus.analysers) { const an = audioBus.analysers[k]; const buf = new Float32Array(an.fftSize); an.getFloatTimeDomainData(buf); let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i]; out[k] = Math.sqrt(s / buf.length); } } return out; },
+    busGains: () => { const /** @type {Record<string, number>} */ out = {}; if (audioBus && audioBus.tracks) { for (const k in audioBus.tracks) out[k] = audioBus.tracks[k].gain.value; } return out; }, ampState: () => ({ want: { ..._ampWant }, wired: audioBus && audioBus.amps ? Object.fromEntries(Object.entries(audioBus.amps).map(([k, v]) => [k, v.id])) : null }), avSync: () => (audioCtx ? { ctxNow: audioCtx.currentTime, perfNow: performance.now(), outputLatency: Number(audioCtx.outputLatency) || 0, baseLatency: Number(audioCtx.baseLatency) || 0, scheduledUntilCtx, schedChartPos, playAnchorMs:transport.anchorMs, playAnchorChartTime:transport.anchorTime, playAnchorCtx:transport.anchorAudio, practiceTime: transport.time, playing:transport.playing, paused:transport.paused } : null) };
   // Keep test-only audio probes out of the characterized enumerable core API.
   if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) Object.defineProperty(globalThis.__virtuoso_lab_debug, 'audioRemoval', {
     value: { mixerLoad, sgToneFor, buildAmpChain, cabIrBuffer, AMP_PRESETS, MIXER_INSTRUMENTS }
   });
   if (typeof globalThis !== 'undefined' && globalThis.__VIRTUOSO_LAB_HARNESS__) Object.defineProperty(globalThis.__virtuoso_lab_debug, 'lifecycle', {
-    value: { bind, boot, initialize:initializePracticeCatalog, pathways:PATHWAYS, applyPathway:applyPathwayById,
+    value: { bind, boot, initialize:practiceSelection.initialize, pathways:PATHWAYS, applyPathway:applyPathwayById,
       sessionBegin, session:() => _activeSession, advanceTier:advancePathwayTier,
-      tier:idx => { activeTempoTierIdx = idx; applyTierFields(PATHWAYS[activePathwayId], idx); },
-      generate: onGenerate, load: onLoadPracticeFile, clear: clearPracticeFile, switchView: onViewSwitch, stop: stopRenderer,
+      tier:(/** @type {number} */ idx) => { practiceSelection.setTier(idx); practiceSelection.applyTier(PATHWAYS[String(practiceSelection.pathwayId)], idx); },
+      generate: onGenerate, load: practiceSelection.loadFile, clear: practiceSelection.clearFile, switchView: onViewSwitch, stop: stopRenderer,
       jam: jamPlay, workout: onLaunchSession,
-      customTuningSync: syncCustomTuningInputs,
-      playback: (start, voices) => { playbackProbe = start; voicesProbe = voices; },
-      resolveFactory: probe => { rendererFactoryProbe = probe; },
-      state: () => ({ renderer, activeBundle, lastExercise, loadedPracticeFile, currentPracticeTime }) }
+      customTuningSync: tuningSettings.syncInputs,
+      playback: (/** @type {((bundle: import('./src/types/entry-data.js').EntryBundle | null) => void) | null} */ start, /** @type {((bundle: import('./src/types/entry-data.js').EntryBundle | null) => Promise<void>) | null} */ voices) => { playbackProbe = start; voicesProbe = voices; },
+      resolveFactory: (/** @type {Parameters<typeof rendererLifecycle.setFactoryProbe>[0]} */ probe) => { rendererLifecycle.setFactoryProbe(probe); },
+      state: () => ({ renderer:rendererLifecycle.renderer, activeBundle, lastExercise, loadedPracticeFile:practiceSelection.file, currentPracticeTime:transport.time }) }
   });
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once:true }); else boot();
 })();
-import { STRING_SETUPS, TUNING_PRESETS, TUNING_TO_SETUP, openMidisForConfig, tuningOffsetsForConfig, isBassCfg, hostStandardMidisFor, parseNoteName, midiToNoteName } from './src/core/instrument-tuning.js';
+import { STRING_SETUPS, TUNING_PRESETS, TUNING_TO_SETUP, openMidisForConfig, tuningOffsetsForConfig, isBassCfg, hostStandardMidisFor } from './src/core/instrument-tuning.js';
 import { makeBuiltin2DTabRenderer as makeTabRenderer } from './src/shell/renderers/tab.js';
 import { makeBuiltin2DNotationRenderer as makeNotationRenderer } from './src/shell/renderers/notation.js';
 import { RENDER_THEMES, rhGlyph, stringLabelForMidi, chartBeatSeconds } from './src/shell/renderers/display-policy.js';
 import { createWorkoutEditor } from './src/shell/workout-editor.js';
 import { KIND_COLORS, KIND_LABELS } from './src/shell/workout-display.js';
+import { createTuningSettings } from './src/shell/tuning-settings.js';

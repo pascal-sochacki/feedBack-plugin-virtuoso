@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/** @typedef {{humanSeed?: number, practiceType?: string, key?: string, scale?: string, shape?: string | number, fretboardSystem?: string, bpm?: number, bars?: number, meter?: {numerator?: number, denominator?: number}, subdivision?: string, progression?: string, direction?: string, sequence?: string, stringSetup?: string, chromaticPattern?: string, chordDepth?: string, chordOverride?: string, repeatCount?: number}} SeedConfig */
+/** @typedef {{humanSeed?: number, practiceType?: string, key?: string, scale?: string, shape?: string | number | null, fretboardSystem?: string, bpm?: number, bars?: number, meter?: {numerator?: number, denominator?: number}, subdivision?: string, progression?: string, direction?: string, sequence?: string, stringSetup?: string, chromaticPattern?: string, chordDepth?: string, chordOverride?: string, repeatCount?: number}} SeedConfig */
 
 // ── Deterministic generation RNG (backing-engine step 1) ─────────────────────
 // ALL randomness in the generation path routes through a per-chart seeded PRNG:

@@ -2,7 +2,7 @@
 import { SEGMENT_TEMPLATES } from '../content/segments.js';
 import { stylePaletteConfig } from './config-defaults.js';
 import { parseMeter } from './timing.js';
-/** @overload @param {import('./session-types.js').SegmentTemplate} template @param {{variantIdx?: number, locks?: Record<string, boolean>}} [opts] @returns {import('./session-types.js').Segment} */
+/** @overload @param {import('./session-types.js').SegmentTemplate} template @param {{variantIdx?: number, locks?: Record<string, boolean>}} [opts] @returns {import('./session-types.js').Segment & {config: import('./session-types.js').SegmentConfig}} */
 /** @overload @param {null | undefined} template @param {{variantIdx?: number, locks?: Record<string, boolean>}} [opts] @returns {null} */
 /** @param {import('./session-types.js').SegmentTemplate | null | undefined} template @param {{variantIdx?: number, locks?: Record<string, boolean>}} [opts] @returns {import('./session-types.js').Segment | null} */
 export function rollSegment(template, opts) {

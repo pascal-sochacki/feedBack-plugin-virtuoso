@@ -4,7 +4,7 @@ import { isBassCfg } from './instrument-tuning.js';
 
 /**
  * @typedef {import('./notes.js').Note} Note
- * @typedef {import('./instrument-tuning.js').InstrumentTuningConfig & {bpm: number, subdivision: string, meter?: {denominator?: number}, strokePolicy?: string, crosspick?: boolean}} StrokeConfig
+ * @typedef {import('./instrument-tuning.js').InstrumentTuningConfig & {bpm: number, subdivision: string, meter?: Partial<import('./timing.js').Meter>, strokePolicy?: string, crosspick?: boolean}} StrokeConfig
  */
 
 // Alternate-picking pkd emission (hand-marks Slice 1; guitar-pedagogy ruling):

@@ -426,6 +426,7 @@ export const SEGMENT_TEMPLATES = {
   },
 };
 
+/** @type {Record<string, {label: string, order: number}>} */
 export const SEGMENT_ROLES = {
   warmup:      { label:'Warm-up',     order:0 },
   technique:   { label:'Technique',   order:1 },

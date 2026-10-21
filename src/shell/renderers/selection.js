@@ -25,7 +25,7 @@ export async function selectRendererFactory(kind, makeBuiltin2DRenderer, makeBui
   }
   if (kind === 'tab_2d') return { factory:makeBuiltin2DTabRenderer, label:'Tab' };
   if (kind === 'notation_2d') return { factory:makeBuiltin2DNotationRenderer, label:'Notation' };
-  // Groundwork remains gated by entry's currently false pianoPathwayActive().
+  // Piano Roll remains hidden/disabled in the authored UI; explicit API selection stays supported.
   if (kind === 'piano_roll') {
     const f = await borrowHostViz('piano', '/api/plugins/piano/screen.js');
     return f ? { factory:f, label:'Piano Roll' } : { factory:makeBuiltin2DRenderer, label:'Piano Roll (unavailable)' };

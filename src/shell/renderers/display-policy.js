@@ -3,6 +3,7 @@ import { NOTE_NAMES } from '../../core/pitch.js';
 
 // Ordinary mutable palettes stay shared with entry; only its active theme binding
 // and persisted hand-mark preference are read through the live factory contract.
+/** @type {Record<string, import('./renderer-types.js').RenderTheme>} */
 export const RENDER_THEMES = {
   light: {
     bg: '#fbf8ef',          // parchment
@@ -55,7 +56,7 @@ export function handMarkLessonMode(bundle) { return (bundle && bundle.config && 
 // pluck and a thumb-slap as a classical thumb (bass-pedagogy ruling 2026-06-18).
 /** @param {import('./renderer-types.js').RenderNote} n */
 export function rhGlyph(n) { if (n.slap) return n.rh === 0 ? 'T' : 'P'; return 'pimac'[/** @type {number} */ (n.rh)] || '?'; }
-/** @param {import('./renderer-types.js').RenderBundle} bundle */
+/** @param {import('./renderer-types.js').RenderBundle | null} bundle */
 export function chartBeatSeconds(bundle) {
   /** @type {Partial<import('../../core/generation-types.js').GenerationConfig>} */
   const c = (bundle && bundle.config) || {};

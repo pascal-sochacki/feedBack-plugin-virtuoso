@@ -1,7 +1,17 @@
 # Virtuoso (Lab) — experimental personal fork
 
+**Published vs local candidate (2026-10-21):** personal-fork `main` remains
+**0.2.13-lab.1** (runtime `6d8ede92…`, source `03a0c04…`). USERREPORTED smoke
+PASS: “all works” for Windows basic Play/audio/detection, views/Tab/Notation minor
+flats, Markdown variants, Ladder tuning and Workout navigation. Exact host and
+detector versions unknown; not independent/exhaustive or Windows DI certification.
+Local unpublished source **0.2.14** additionally has pure-core cleanup and tuning
+settings ownership; isolated **0.2.14-lab.1** packaging is not a publication or
+installed/user-tested update. If this guide accompanies that temporary artifact,
+read its manifest: it is a separate local candidate, not the public `main` below.
+
 **Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,
-prepared to replace 0.2.11-lab.1 on the personal fork's `main`.
+published to replace 0.2.11-lab.1 on the personal fork's `main`.
 The experimental Ladder pilot additionally ships `chromatic-warmup-ladder.md`,
 format 3, stable progress ID `chromatic_warmup`: six variations/four tiers,
 standard-six-string guitar only. The existing format-2 Custom demo has the
@@ -220,7 +230,7 @@ strict core/content/shell-renderer noEmit JSDoc checking, brand hygiene and
 whitespace gates are checked as well. Developer ESLint retains 18 explicit legacy
 warnings; Knip intentionally reports one full/two production export findings
 (exit 1, advisory inventory, not runtime failures). Root npm dependencies, lock,
-lint/Knip configs and vendored MIT Acorn are developer-only and excluded from
+lint/Knip configs and the TypeScript compiler are developer-only and excluded from
 the runtime; only `src/package.json` selects native ESM. No runtime npm install.
 Known inherited low-level 3NPS cases can reach fret 51; malformed NaN BPM or
 nonpositive ladder steps may not terminate. These are not fixed or certified

@@ -5,12 +5,12 @@ import { measureSeconds } from './timing.js';
 import { buildBeats, buildAnchors } from './chart-grid.js';
 import { buildSingleChart } from './exercise-dispatch.js';
 import { buildKeyCycleChart } from './key-cycle.js';
-import { buildBackingEvents } from './backing.js';
-import { buildDrumEvents, resolveGroove } from './drum-grooves.js';
+import { buildAccompanimentEvents } from './backing.js';
+import { appendChordGeometry } from './chart-assembly.js';
 import { swingNotesBacking } from './feel.js';
 import { compileChordTimeline, appendTimelineOffset } from './chord-timeline.js';
 import { blockTargetSec, fillBlockToDuration } from './chart-tiling.js';
-import { countInSubTicks } from './count-in.js';
+import { appendCountInBeats } from './count-in.js';
 /** @param {import('./generation-types.js').GenerationConfig} segCfg @param {import('./session-types.js').BpmLadder} ladder @returns {import('./generation-types.js').Chart} */
 export function buildBpmLadderChart(segCfg, ladder) {
   const { bpmStart, bpmTarget, bpmStep, repsPerStep = 1 } = /** @type {Required<Pick<import('./session-types.js').BpmLadder, 'bpmStart' | 'bpmTarget' | 'bpmStep'>> & {repsPerStep?: number}} */ (ladder);
@@ -30,15 +30,13 @@ export function buildBpmLadderChart(segCfg, ladder) {
       // Per-RUNG backing + swing on THIS rung's tempo — the ladder climbs tempo, so
       // a single-cfg backing would drift off the accelerating notes. Build + swing in
       // rung-local time, then offset by t (the chart carries it; consumers don't re-swing).
-      const rawBack = /** @type {import('./generation-types.js').AccompanimentEvent[]} */ (buildBackingEvents(stepCfg, dur)).concat(buildDrumEvents(stepCfg, dur, resolveGroove(stepCfg)));
+      const rawBack = buildAccompanimentEvents(stepCfg, dur);
       const sw = swingNotesBacking(chart.notes, rawBack, stepCfg);
       // Per-RUNG timeline (desync rule) — tempo changes the rung's SECONDS.
       appendTimelineOffset(timeline, compileChordTimeline(stepCfg, dur), t, beatOff, barOff);
       if (r === 0) sections.push({ name:`${Math.round(bpm)} BPM`, number:sections.length + 1, time:Number(t.toFixed(6)) });
       sw.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
-      chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
-      chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
-      chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
+      appendChordGeometry(arrays, chart, t, tplOffset);
       (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time:Number((a.time + t).toFixed(6)) })));
       buildBeats(stepCfg, dur).forEach(b => beats.push(Object.assign({}, b, { time:Number((b.time + t).toFixed(6)) })));
       sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t:Number((ev.t + t).toFixed(6)), end:Number((ev.end + t).toFixed(6)) })));
@@ -123,8 +121,7 @@ export function buildSessionChart(session) {
         // brkSub: the incoming block's count-in grid (rhythm-meter spec 2026-06-12)
         // — the click scheduler previews the NEXT block's subdivision through the
         // break, read per-beat (the session-level cfg can't know each block's grid).
-        buildBeats(segCfg, Math.max(0, brkSec - 1e-4)).forEach(b =>
-          beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true, brkSub: countInSubTicks(segCfg) })));
+        appendCountInBeats(beats, segCfg, brkSec, t);
         t += brkSec;
         // The break advances the slot offsets too (in the INCOMING block's
         // meter — the break IS the incoming block's count-in).
@@ -172,7 +169,7 @@ export function buildSessionChart(session) {
     // tempo/key) — use that as-is and don't re-swing the (already-swung) notes.
     const swung = chart.backingEvents
       ? { notes: chart.notes, backing: chart.backingEvents }
-      : swingNotesBacking(chart.notes, /** @type {import('./generation-types.js').AccompanimentEvent[]} */ (buildBackingEvents(segCfg, dur)).concat(buildDrumEvents(segCfg, dur, resolveGroove(segCfg))), segCfg);
+      : swingNotesBacking(chart.notes, buildAccompanimentEvents(segCfg, dur), segCfg);
     // Per-block TIMELINE on this block's own config (the desync rule applied
     // to harmony): without it the seam proof metric falls back to judging the
     // whole Workout against the FIRST block's progression. Ladder / key-cycle
@@ -189,9 +186,7 @@ export function buildSessionChart(session) {
     });
 
     swung.notes.forEach(n => notes.push(Object.assign({}, n, { t:Number((n.t + t).toFixed(6)) })));
-    chart.chords.forEach(c => chords.push(Object.assign({}, c, { t:Number((c.t + t).toFixed(6)), id:c.id + tplOffset })));
-    chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
-    chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id:hs.chord_id + tplOffset, start_time:Number((hs.start_time + t).toFixed(6)), end_time:Number((hs.end_time + t).toFixed(6)) })));
+    appendChordGeometry(arrays, chart, t, tplOffset);
     // Per-block anchors (the desync rule applied to the hand-position zone): a
     // block that doesn't emit its OWN anchors (position-mode runs don't — only
     // shape runs set shapeRunAnchors) must still contribute a fret-window box
@@ -230,8 +225,7 @@ export function buildSessionChart(session) {
     const wrapBars = interBlockBreakBars(prevCfg, firstCfg, breakMode);
     if (wrapBars > 0) {
       const wrapSec = wrapBars * measureSeconds(firstCfg);
-      buildBeats(firstCfg, Math.max(0, wrapSec - 1e-4)).forEach(b =>
-        beats.push(Object.assign({}, b, { time: Number((b.time + t).toFixed(6)), brk: true, brkSub: countInSubTicks(firstCfg) })));   // re-entry previews block-1's grid
+      appendCountInBeats(beats, firstCfg, wrapSec, t);
       t += wrapSec;
     }
   }

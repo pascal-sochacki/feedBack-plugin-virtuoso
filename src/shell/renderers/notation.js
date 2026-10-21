@@ -497,8 +497,8 @@ export function makeBuiltin2DNotationRenderer({ getRenderTheme, handMarksOn }) {
     }
     ctx.textAlign = 'left';
   }
-  /** @param {CanvasRenderingContext2D} ctx @param {import('./renderer-types.js').RenderBundle} bundle @param {number} now @param {number} notH */
-  function drawHud(ctx, bundle, now, notH) {
+  /** @param {CanvasRenderingContext2D} ctx @param {import('./renderer-types.js').RenderBundle} bundle @param {number} _now @param {number} notH */
+  function drawHud(ctx, bundle, _now, notH) {
     // Title + clef only — the single timer lives in the player HUD (top-right).
     ctx.fillStyle = t.dim; ctx.font = 'italic 600 12px "Cambria","Georgia",serif';
     ctx.fillText(bundle.songInfo?.title||'Virtuoso', 8, 18);

@@ -309,7 +309,7 @@ export function isDominantQuality(quality) {
   return s.has(4) && s.has(10) && !s.has(11);
 }
 
-/** @param {import('./generation-types.js').GenerationConfig} cfg @param {import('./generation-types.js').Degree} degree @returns {number} */
+/** @param {Pick<import('./generation-types.js').GenerationConfig, 'key' | 'scale' | 'progression' | 'chordDepth' | 'chordOverride' | 'tritoneSub'>} cfg @param {import('./generation-types.js').Degree} degree @returns {number} */
 export function chordRootForDegree(cfg, degree) {
   const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
   // Progression token: {deg|semis, …}. An explicit semis is a chromatic root
@@ -354,5 +354,5 @@ export function chordRootForDegree(cfg, degree) {
 /** @param {number} rootPc @param {string} quality */
 export function chordName(rootPc, quality) { const f = CHORD_FORMULAS[quality] || CHORD_FORMULAS.maj; return pcName(rootPc) + (f.symbol === 'maj' ? 'maj' : f.symbol); }
 
-/** @param {import('./generation-types.js').GenerationConfig} cfg */
+/** @param {Pick<import('./generation-types.js').GenerationConfig, 'mode' | 'progression'>} cfg */
 export function progressionDegreesForConfig(cfg) { return cfg.mode === 'diatonic_arpeggios' ? COMMON_PROGRESSIONS.diatonic : (COMMON_PROGRESSIONS[cfg.progression] || COMMON_PROGRESSIONS['I-V-vi-IV']); }
