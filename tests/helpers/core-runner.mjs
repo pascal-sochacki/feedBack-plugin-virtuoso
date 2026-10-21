@@ -12,7 +12,9 @@ const [root, controlsJson = '{}'] = process.argv.slice(2);
 const controls = JSON.parse(controlsJson);
 const entrySafety = controls.entrySafety;
 delete controls.entrySafety;
-assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'audioRemoval', 'lifecycle', 'pathwayIdentity', 'workoutIdentity'].includes(key)), 'unknown harness control');
+const audioRemovalProbe = controls.audioRemoval;
+delete controls.audioRemoval;
+assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'lifecycle', 'pathwayIdentity', 'workoutIdentity'].includes(key)), 'unknown harness control');
 let startupAssertions = 0;
 // Node only logs console.assert failures; source startup guards must gate CI.
 console.assert = (condition, ...args) => {
@@ -22,11 +24,6 @@ console.assert = (condition, ...args) => {
 };
 const read = file => readFileSync(resolve(root, file), 'utf8');
 const dataUrl = text => 'data:text/javascript;base64,' + Buffer.from(text).toString('base64');
-const audioRemovalProbe = controls.audioRemoval;
-delete controls.audioRemoval;
-const entrySafety = controls.entrySafety;
-delete controls.entrySafety;
-assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'lifecycle', 'pathwayIdentity', 'workoutIdentity'].includes(key)), 'unknown harness control');
 const seed = 0x51ca1e;
 let state = seed;
 Math.random = () => {
