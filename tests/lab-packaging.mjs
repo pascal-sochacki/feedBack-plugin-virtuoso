@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { checkNativeGraph } from '../scripts/native-module-graph.mjs';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,39 @@ const artifact = buildLab(dist);
 after(() => rmSync(dist, { recursive: true, force: true }));
 const read = file => readFileSync(join(artifact.root, file), 'utf8');
 
+test('Lab renderer owners preserve host registry names, exact entry/canvas snapshot and module namespace transforms', async () => {
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/renderers-before-extraction.json',import.meta.url),'utf8'));
+  const output = characterize(artifact.root,undefined,{rendererSnapshot:true});
+  assert.equal(createHash('sha256').update(JSON.stringify(output)).digest('hex'),fixture.snapshotSha256);
+  const entries = execFileSync('unzip',['-Z1',artifact.zip],{encoding:'utf8'});
+  for (const name of ['classic-2d','host-factories','selection','renderer-types','tab','notation','display-policy','hand-marks','notation-pitch']) {
+    const file = `src/shell/renderers/${name}.js`;
+    assert.equal(read(file),transformRuntime(readFileSync(join(REPO,file),'utf8')));
+    assert.ok(entries.includes(`virtuoso_lab/${file}`));
+  }
+  assert.match(read('src/shell/renderers/host-factories.js'),/'feedBackViz_'/);
+  assert.match(read('src/shell/renderers/host-factories.js'),/'slopsmithViz_'/);
+  assert.match(read('src/shell/renderers/classic-2d.js'),/'virtuoso_lab-render-host'/);
+  const source = await import(pathToFileURL(join(REPO,'src/shell/renderers/classic-2d.js')));
+  const renamed = await import(pathToFileURL(join(artifact.root,'src/shell/renderers/classic-2d.js')));
+  assert.notEqual(source.makeClassic2DHighwayRenderer,renamed.makeClassic2DHighwayRenderer);
+});
+
+test('Lab corrected Tab/Notation complete canvas capture matches current source (historical baseline archived)', () => {
+  const output = characterize(artifact.root,undefined,{localRendererSnapshot:true});
+  assert.deepEqual(output,characterize(undefined,undefined,{localRendererSnapshot:true}));
+  assert.deepEqual(characterize(artifact.root,undefined,{localRendererSnapshot:true,localRendererDirect:true}),output);
+});
+
+test('developer lint packages, caches and tooling are absent from Lab folder and ZIP', () => {
+  for (const file of ['package.json', 'package-lock.json', 'eslint.config.mjs', 'knip.json', 'tsconfig.shell.json', 'tsconfig.renderer.json', 'node_modules', 'scripts/lint.mjs', 'scripts/lint-baseline.json', '.eslintcache']) {
+    assert.equal(existsSync(join(artifact.root, file)), false, file);
+    assert.ok(!artifact.files.includes(file), file);
+  }
+  const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
+  assert.doesNotMatch(entries, /(?:^|\n)virtuoso_lab\/(?:package(?:-lock)?\.json|eslint\.config\.mjs|knip\.json|node_modules\/|scripts\/|\.eslintcache)/);
+});
+
 for (const scenario of lifecycleScenarios) {
   test(`Lab real entry bound lifecycle: ${scenario}`, () => {
     const output = execFileSync(process.execPath, ['tests/helpers/core-runner.mjs', artifact.root, '', JSON.stringify({ lifecycle:scenario })], { cwd:REPO, encoding:'utf8' });
@@ -26,7 +60,44 @@ for (const scenario of lifecycleScenarios) {
   });
 }
 
+test('Lab generation foundation preserves full independently captured raw output and private bundle format', () => {
+  const snapshot = characterize(artifact.root,undefined,{generationFoundationSnapshot:true});
+  for (const name of ['exercises','sessions']) for (const row of snapshot[name]) {
+    if (!row.result.value) continue;
+    assert.equal(row.result.value.bundle.songInfo.format,'virtuoso_lab-practice');
+    row.result.value.bundle.songInfo.format = 'virtuoso-practice';
+  }
+  const fixture = JSON.parse(readFileSync(new URL('./fixtures/generation-foundation-before-extraction.json',import.meta.url),'utf8'));
+  assert.equal(createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),fixture.snapshotSha256);
+  const cluster=characterize(artifact.root,undefined,{generationClusterSnapshot:true});
+  const clusterFixture=JSON.parse(readFileSync(new URL('./fixtures/generation-cluster-before-extraction.json',import.meta.url),'utf8'));
+  assert.equal(createHash('sha256').update(JSON.stringify(cluster)).digest('hex'),clusterFixture.clusterSha256);
+  const backing=characterize(artifact.root,undefined,{backingClusterSnapshot:true});
+  assert.equal(createHash('sha256').update(JSON.stringify(backing)).digest('hex'),clusterFixture.backingSha256);
+});
+
+test('Lab complete session core preserves the independent dirty-entry corpus with only private bundle format normalization', () => {
+  const snapshot=characterize(artifact.root,undefined,{sessionGenerationSnapshot:true});
+  for(const row of snapshot.sessions) if(row.result.value) {
+    assert.equal(row.result.value.bundle.songInfo.format,'virtuoso_lab-practice');
+    row.result.value.bundle.songInfo.format='virtuoso-practice';
+  }
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/session-generation-before-extraction.json',import.meta.url),'utf8'));
+  assert.equal(createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),fixture.snapshotSha256);
+});
+
 test('Lab manifest, complete source graph and ZIP carry a separate identity', async () => {
+  const visited = checkNativeGraph([join(artifact.root,'screen.js')],{coreRoot:join(artifact.root,'src/core')});
+  for(const file of ['session','session-chart','session-config','segments','workout-length','config-defaults','count-in']) assert.ok(visited.has(join(artifact.root,'src/core',file+'.js')));
+  assert.ok(visited.has(join(artifact.root,'src/content/segments.js')));
+  assert.equal(existsSync(join(artifact.root,'scripts/vendor/acorn.mjs')),false,'dev parser is not runtime inventory');
+  for(const source of ["import('../shell/io.js')\n{}", "const x={} / import('bad') /2"]) {
+    assert.throws(()=>checkNativeGraph([join(artifact.root,'src/core/session.js')],{coreRoot:join(artifact.root,'src/core'),read:()=>source}),/core dependency escapes|requires relative dependencies/);
+  }
+  for(const file of ['strum-grips','builders/strum','chord-timeline','motif','voicing','arrangement','comp-cells','bass-figures','audio-profiles','drum-grooves','backing','feel','builders/motif','exercise-dispatch','style-palettes','chart-tiling','key-cycle','jam-chart','exercise']) assert.ok(visited.has(join(artifact.root,'src/core',file+'.js')));
+  assert.ok(visited.has(join(artifact.root,'src/core/fretboard-shapes.js')));
+  for (const file of ['notes.js','stroke-policy.js','builders/chromatic.js']) assert.ok(visited.has(join(artifact.root,'src/core',file)));
+  for (const file of ['random','sequence','positions','chart-grid','harmony','chord-positions','builders/scale','builders/technique','builders/arpeggio','builders/bass','builders/tapping','builders/guide-tones','builders/pedal-riff']) assert.ok(visited.has(join(artifact.root,'src/core',file+'.js')));
   const manifest = JSON.parse(read('plugin.json'));
   assert.equal(manifest.id, 'virtuoso_lab');
   assert.equal(manifest.name, 'Virtuoso (Lab)');
@@ -39,6 +110,50 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
   assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/pitch\.js['"]/);
   assert.match(read('screen.js'), new RegExp(`VIRTUOSO_VERSION = '${manifest.version.replaceAll('.', '\\.')}'`));
   assert.equal(JSON.parse(read('src/package.json')).type, 'module');
+  const sourcePathways = await import('../src/content/pathways.js');
+  const labPathways = await import(pathToFileURL(join(artifact.root, 'src/content/pathways.js')));
+  assert.deepEqual(labPathways.PATHWAYS, sourcePathways.PATHWAYS);
+  assert.notEqual(labPathways.PATHWAYS, sourcePathways.PATHWAYS);
+  assert.match(read('screen.js'), /import .*from ['"]\.\/src\/content\/pathways\.js['"]/);
+  assert.equal(characterize(artifact.root, undefined, { pathwayIdentity:true }).pathwayIdentity, true);
+  const sourceWorkouts = await import('../src/content/workouts.js');
+  const labWorkouts = await import(pathToFileURL(join(artifact.root, 'src/content/workouts.js')));
+  assert.deepEqual(labWorkouts.BUILT_IN_SESSIONS, sourceWorkouts.BUILT_IN_SESSIONS);
+  assert.notEqual(labWorkouts.BUILT_IN_SESSIONS, sourceWorkouts.BUILT_IN_SESSIONS);
+  assert.match(read('screen.js'), /import .*from ['"]\.\/src\/content\/workouts\.js['"]/);
+  assert.equal(characterize(artifact.root, undefined, { workoutIdentity:true }).workoutIdentity, true);
+  const sourceTuning = await import('../src/core/instrument-tuning.js');
+  const labTuning = await import(pathToFileURL(join(artifact.root, 'src/core/instrument-tuning.js')));
+  for (const name of ['STRING_SETUPS','TUNING_PRESETS','TUNING_TO_SETUP']) {
+    assert.deepEqual(labTuning[name], sourceTuning[name]);
+    assert.notEqual(labTuning[name], sourceTuning[name]);
+  }
+  assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/instrument-tuning\.js['"]/);
+  assert.equal(characterize(artifact.root, undefined, { instrumentTuningIdentity:true }).instrumentTuningIdentity, true);
+  assert.deepEqual(characterize(artifact.root, undefined, { instrumentTuningSnapshot:true }), characterize(undefined, undefined, { instrumentTuningSnapshot:true }));
+  const sourceShapes = await import('../src/core/fretboard-shapes.js');
+  const labShapes = await import(pathToFileURL(join(artifact.root,'src/core/fretboard-shapes.js')));
+  for (const name of ['CAGED_SHAPES','CAGED_CYCLE','THREE_NPS_POSITION_DEFS','THREE_NPS_CYCLE']) {
+    assert.deepEqual(labShapes[name],sourceShapes[name]);
+    assert.notEqual(labShapes[name],sourceShapes[name]);
+  }
+  assert.match(read('screen.js'), /import .*from ['"]\.\/src\/core\/fretboard-shapes\.js['"]/);
+  assert.match(read('src/core/fretboard-shapes.js'), /from ['"]\.\/scale-intervals\.js['"]/);
+  assert.equal(characterize(artifact.root,undefined,{ fretboardShapeIdentity:true }).fretboardShapeIdentity,true);
+  assert.deepEqual(characterize(artifact.root,undefined,{ fretboardShapeSnapshot:true }),characterize(undefined,undefined,{ fretboardShapeSnapshot:true }));
+  const sourceChromatic = await import('../src/core/builders/chromatic.js');
+  const labChromatic = await import(pathToFileURL(join(artifact.root,'src/core/builders/chromatic.js')));
+  for (const name of ['CHROMATIC_PATTERNS','CHROMATIC_PATTERN_LABELS']) {
+    assert.deepEqual(labChromatic[name],sourceChromatic[name]);
+    assert.notEqual(labChromatic[name],sourceChromatic[name]);
+  }
+  const labSnapshot = characterize(artifact.root,undefined,{chromaticBuilderSnapshot:true});
+  const sourceSnapshot = characterize(undefined,undefined,{chromaticBuilderSnapshot:true});
+  for (const name of ['exercises','sessions']) for (const row of labSnapshot[name]) {
+    assert.equal(row.bundle.songInfo.format,'virtuoso_lab-practice','authorized private format prefix');
+    row.bundle.songInfo.format = 'virtuoso-practice';
+  }
+  assert.deepEqual(labSnapshot,sourceSnapshot,'only authorized bundle format namespace differs');
   const pitch = await import(pathToFileURL(join(artifact.root, 'src/core/pitch.js')));
   assert.equal(pitch.midiToFreq(69), 440);
   const sourceScales = await import('../src/core/scale-intervals.js');
@@ -61,14 +176,23 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
     }
   }
   const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
+  for(const file of ['strum-grips','builders/strum','chord-timeline','motif','voicing','arrangement','comp-cells','bass-figures','audio-profiles','drum-grooves','backing','feel','builders/motif','exercise-dispatch','style-palettes','chart-tiling','key-cycle','jam-chart','exercise','generation-types']) assert.ok(entries.includes('virtuoso_lab/src/core/'+file+'.js'));
   assert.match(entries, /virtuoso_lab\/src\/core\/pitch.js/);
   assert.match(entries, /virtuoso_lab\/src\/core\/scale-intervals.js/);
   assert.match(entries, /virtuoso_lab\/src\/core\/chord-theory.js/);
   assert.match(entries, /virtuoso_lab\/src\/core\/timing.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/instrument-tuning.js/);
+  assert.match(entries, /virtuoso_lab\/src\/core\/fretboard-shapes.js/);
+  for (const file of ['notes.js','stroke-policy.js','builders/chromatic.js']) assert.ok(entries.includes('virtuoso_lab/src/core/' + file));
+  for (const file of ['random','sequence','positions','chart-grid','harmony','chord-positions','builders/scale','builders/technique','builders/arpeggio','builders/bass','builders/tapping','builders/guide-tones','builders/pedal-riff']) assert.ok(entries.includes('virtuoso_lab/src/core/'+file+'.js'));
   assert.match(entries, /virtuoso_lab\/src\/core\/practice-files.js/);
+  assert.match(entries, /virtuoso_lab\/src\/content\/pathways.js/);
+  assert.match(entries, /virtuoso_lab\/src\/content\/workouts.js/);
   assert.match(entries, /virtuoso_lab\/src\/shell\/practice-files.js/);
   assert.match(entries, /virtuoso_lab\/assets\/practices\/index.json/);
   assert.match(entries, /virtuoso_lab\/assets\/practices\/guitar\/beginner\/chromatic-warmup.md/);
+  assert.match(entries, /virtuoso_lab\/assets\/practices\/guitar\/beginner\/chromatic-warmup-ladder.md/);
+  assert.match(entries, /virtuoso_lab\/src\/shell\/practice-catalog.js/);
   assert.match(read('screen.js'), /\/api\/plugins\/virtuoso_lab\/assets\/practices\//);
   assert.match(entries, /virtuoso_lab\/assets\/thumb.png/);
   assert.match(entries, /virtuoso_lab\/static\/wafonts\/WebAudioFontPlayer.js/);
@@ -81,6 +205,7 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
 test('source and Lab real dispatch/bundle play authored notes with only count-in/tail shell shifts', () => {
   compareCorpus(characterize(REPO, undefined, { practiceFileProbe:true }));
   compareCorpus(characterize(artifact.root, undefined, { practiceFileProbe:true }));
+  assert.equal(characterize(artifact.root, undefined, { chromaticProbe:true }).cases, 24);
 });
 
 test('runtime namespace rewrites do not rename host APIs or music tokens', () => {

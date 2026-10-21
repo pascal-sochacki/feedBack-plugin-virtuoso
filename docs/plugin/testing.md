@@ -1,10 +1,323 @@
 # Testing — the smoke-suite catalogue
 
+Page-lifecycle reviewer fix: **301→302**, zero skips. A fail-first real-entry
+source/Lab scenario dispatches canceled beforeunload, persisted/nonpersisted/empty
+pagehide/pageshow and repeated pageshow, then edits exactly once. Draft identity,
+selection, dirty state and DOM survive; inactive restore leaves handlers detached,
+SPA return remounts once, no entry rebind or autoplay. Session flushing remains
+the existing single handler on each event. Live-browser BFCache remains unverified.
+
+Workout controller follow-up: **297→301 tests**, zero skips. Before extraction,
+the real bound entry captured inline duplicate/remove, template reroll/refresh,
+length/breathe edits, exact draft/card/summary output and full launched exercise
+(`workout-editor-before-extraction.json`, SHA pinned in the test; historical music
+fixtures untouched). Source and generated isolated Lab compare to that evidence.
+Direct controller tests cover clone-before-edit, mutable aliases, refresh inline
+aliases, raw unresolved indexes, drag append, null selection, blank selector,
+mount de-duplication, full removal and stale visit closures; actual entry host
+leave/return also checks handler counts and stale edits. Inert import/construction
+traps DOM/storage/host/fetch. Existing async Workout/Jam cancellation tests stay.
+The archived renderer 899-statement hash remains historical; current post-move
+878 statements/order have a separate pin, not a recaptured renderer fixture.
+No live browser/host audio/Windows DI certification follows from these mocks.
+
+Spelling review follow-up: **292→297 passing tests**, zero skips. Three new
+fail-first raw ascending/descending scales exercise F Lydian augmented, G
+Mixolydian b6 and B Locrian #2 staff positions and note accidentals independently
+of their unchanged legacy F# signature. Full C#/Cb major scales pin E#/B#/Cb
+octaves in both directions. All 28 supported interval tables are inventoried;
+nine non-seven-step scales retain prior sharp/flat spelling, including explicit
+pentatonic letter gaps. No historical fixture recapture. Strict core/shell/renderer
+types, lint 18 warnings, Knip full1/prod2, syntax/graph/docs/brand/whitespace and
+source/Lab folder/ZIP checks pass; isolated Lab remains **0.2.13-lab.1**.
+Browser/live-host/Windows DI certification remains outstanding.
+
+Implementation-quality follow-up: **283→292 tests**, zero skips. Four new canvas
+regressions failed before implementation (C-minor flats, clipped singleton flags,
+both repeated canvas dimension setters). New direct-module semantics cover twelve
+tonics × major/minor/diatonic modes, harmonic/melodic minor, blueprint conventions,
+explicit Db/C#/Cb and invalid-key normalization, E#/B#/Cb staff octave positions,
+visible beam 0/1/2/3 subsets, sixteenth flags, odd meter, coincident long notes,
+dense hand breaks/crossings/lessons/bass low boxes/open fg/live annotation reads,
+ten steady frames and container/DPR/zero-size transitions; canvas-only init and
+replaced-array hand-mark compatibility. No copied subjects.
+All **50 Tab historical rows** and **seven unclipped G-major Notation opening
+frames** retain exact paint/property ordering after removing only bitmap writes/
+explicit frame-default resets; hashes are derived from the saved BEFORE capture,
+not current output. Includes guitar/bass alternate opens, lefty/inverted input,
+techniques/chords/marks/judgment paint. Old `local-renderers-before-extraction.json`
+remains untouched historical provenance: full current byte identity is intentionally
+no longer claimed. Corrected signature/staff/beam cases have focused assertions;
+current native/entry/Lab full equality remains. Existing core/session fixtures,
+899 statements/order and public40/debug91 remain. Strict DOM checkJs, lint 100 files/
+18 warnings and Knip full1/prod2 intentional inventory pass; isolated Lab includes
+both helper modules/namespace/ZIP/legal/DAG checks. Node canvas mocks certify calls,
+not actual fonts, browser DPR, running-host MIME/cache/reentry/audio or Windows DI.
+
+The following local-renderer paragraph records the earlier **move-only** pass;
+its full-byte identity claim applies to that historical step, not this cleanup.
+
+Local Tab/Notation follow-up: **280 → 283 Node tests**, zero skips. The same
+renderer system suite calls complete saved dirty entry, current entry and actual
+native modules, not copied subjects. `local-renderers-before-extraction.json`
+pins dirty SHA, initial pre-move 29,419,746-byte capture, and expanded saved-source
+**31,361,838-byte** full bundle/canvas/property/dimension sequence; approved-temp
+byte and parsed deep equality pass. **29 successful generated bundles** (five
+practice kinds where offered; bass excludes guitar-only comp/fingerstyle), **21
+raw annotated charts**, **100 instances / 1,650 frames** across all seven setups,
+4/5/6/7/8 strings, altered opens, notes at fret24/40, chords/overlaps/count-in/
+backing/config/times. Covers FG/PKD/RH/slap, sustains/HOPO/slides/bends/dead/palm/
+vibrato/harmonics/tap/accent, sharp/flat/modal signatures, rhythm/beams/ledger,
+lefty/inversion input, both skins, hand marks on/off, internal Notation modes,
+backward time, resize/fallback size, post-destroy inert draw/resize, re-init and
+listener cleanup. Canvas text widths are bounded deterministic approximations;
+font metrics/rasterization are not browser certification. Neither local renderer
+has pointer/zoom/reduced-motion controls or a ready promise; no new feature tests
+invent those. Imports/construction trap globals/preferences; draws trap player RAF
+and use only supplied canvas/window resize listener. Exact **899** untouched IIFE
+statements/order, old fixtures/public40/debug91 and existing source/Lab resolver/
+ready/stale-generation/navigation/credit rows remain. Strict renderer noEmit uses
+DOM types; lint **97 files/18 unchanged warnings**, Knip full1/prod2 unchanged.
+Lab verifies full output parity and every module's folder/ZIP/namespace transform;
+root `tsconfig.renderer.json` is excluded. Live optional-renderer cache, MIME/reentry,
+browser fonts/Tab/Notation/audio and Windows DI still require installed-host review.
+
+Renderer integration foundation: **275 → 280 Node tests**, zero skips. New
+renderer-system rows drive complete real entry functions and direct native
+Classic construction/draw, not copied subjects. The pre-move CURRENT DIRTY entry
+SHA and independently captured **275,034-byte** host/selection/canvas snapshot are
+pinned in `renderers-before-extraction.json`; full approved-temp before/after
+bytes match, old fixtures unchanged. Preferred/legacy/absent/invalid/wrong-ID/
+dynamic replacement, delayed publication, bounded 60-tick drift, quiet script
+error, DOM-ID cache/error removal/in-flight race, every existing selection label
+and fallback kind are covered. Classic full canvas call/property sequence covers
+eight/four/one strings, sustain/open/dead/technique/hit/miss/anchors, backward time,
+lefty/inversion, resize fallback, destroy-inert draw and re-init/listener cleanup.
+Import/factory IO traps and exact **909** remaining IIFE statement bytes/order
+are durable gates. Source/Lab namespace/registry/ZIP/full snapshot match; existing
+async renderer/file-tier/voice/navigation/credit and public40/debug91 rows remain.
+Lint **93 files, 18 known warnings**, strict core/content + selective renderer
+checkJs, DAG, Knip (full one/production two unchanged intentional findings), legal,
+withdrawn assets, syntax/docs/brand/whitespace pass. No live-host/module-cache/
+browser/audio or Windows DI certification; source 0.2.13 unchanged.
+
+Developer-only dead-code inventory: **273 → 275 passing Node tests, zero skips**.
+`tests/deadcode.mjs` checks explicit nested-workspace scope and invokes installed
+Knip twice on one disposable fixture, not the entire checkout per case. Negative
+controls cover dead file, entry/module exports and root runtime/dev dependencies;
+positive controls retain internally used exports, side-effect/literal dynamic
+imports and test-only exports in the full view (production still reports them).
+Lab folder/ZIP exclusion also covers `knip.json`. Full inventory reports one
+intentional dynamic regression export; production reports two regression helpers,
+with zero other findings. Both commands exit 1 without editing source; CI is
+advisory. See [policy and reviewed inventory](development.md#dead-code-inventory-report-first).
+Offline `npm ci`, lint (87 files, unchanged 19 known warnings), strict core noEmit,
+unchanged independent hashes/API keys and all existing source/Lab gates pass.
+The installed Knip control explicitly skips only if dev tooling is absent; the
+scope check and other dependency-free source tests still run. No runtime cleanup
+or live-host/browser/audio/Windows DI certification is inferred.
+
+Developer-only lint foundation: **270 → 273 passing Node tests**, including
+warning-ratchet negative controls, actual installed ESLint controls for unused
+imports/undefined pure-core globals/duplicate keys and Lab folder/ZIP tooling
+exclusion. `npm ci --offline --ignore-scripts` succeeds from the local cache;
+`npm run lint` gates 86 first-party files with 19 explicitly baselined warnings,
+and `npm run lint:core` gates native modules with one legacy initializer warning.
+`npm run typecheck` uses pinned TypeScript 5.9.3 strict noEmit. Root `npm test`
+is source-only Node discovery, distinct from the live-host skill's npm test.
+See [lint policy](development.md#developer-tooling-and-lint). Unchanged independent
+generation/session hashes and public40/debug91 checks pass after removing 198
+unused entry imports; no initializer or historical fixture was recaptured.
+Remote CI/live-host/browser/audio/Windows DI are not certified by these gates.
+
+**Current session foundation: 264 → 270 tests**, strict cached noEmit checkJs
+for all 51 core + three content JS; no old fixture recapture. Independent dirty
+18,813-line entry SHA and compact per-case/full hashes are pinned in
+`session-generation-before-extraction.json`; full **42,443,466-byte** approved-temp
+before/after JSON matches bytes/deep equality. Actual counts: 356 session/bundle
+attempts (354 successful, two empty/unknown-ref errors), 25 built-ins, all 277
+variants across 65 templates, 31 palettes, 12 mixed guitar/bass ladder/cycle/
+target/break/seed cases, eight tuning cases, three edges and 595 helper calls.
+Source/isolated Lab share the corpus, asserting private bundle format before its
+sole normalization. Direct imports match full session charts and trap host/DOM/
+storage/fetch/RNG/guards. Semantic checks cover incoming meter/subdivision breaks,
+wrap breath, backing silence, local rung tempo, note/anchor/timeline offsets,
+whole-cycle target overflow, tuning, pure refresh and mutable registry identity.
+
+Shared graph tests use vendored MIT Acorn 8.18.0, not installed dependencies or
+a compiler cache. AST context distinguishes methods from calls followed by blocks
+and object division from regex (both exact major-review cases). Comments/strings,
+regex charclasses/return regex, nested templates/interpolation, imports/reexports
+are covered. ECMAScript 2022 only; syntax errors/new syntax/computed dynamics fail
+closed. Core→passive content allowed, content→core/shell forbidden. Parser absent
+from Lab inventory. All prior source/Lab boot/failure/credit/renderer/navigation/
+package/legal/withdrawn-asset checks remain. Known NaN-BPM backing/nonpositive
+ladder-step loops may not terminate: not invoked/fixed here. No live-host/DI claim.
+
+Complete exercise-core batch: **260 → 264 Node tests**, no old fixture recapture.
+New `generation-cluster-before-extraction.json` pins actual saved CURRENT DIRTY
+22,083-line entry SHA and generation/cluster/backing hashes; independently run
+complete original definitions, never sliced subjects. Full approved-temp before/
+after bytes and deep equality cover old 961 charts/exercises/bundles + 25 Workouts,
+1,512 grips/196 builders/252 motif placements/120 timelines/60 voicings/7 edges,
+186 backing configs (all profiles × densities × guitar/bass), all 71 comp/bass/
+drum variants and **93 valid Jam runs: 31 styles × full/no-bass/drums-only**, with
+spotlight and progression switch-up. Actual direct native imports match fixtures;
+fresh complete exercise import/calls trap host, RNG and startup guards and drive
+all 40 types. Existing malformed/error fixture rows are preserved, not blessed.
+
+Shared source/Lab graph scanner covers side-effect imports, named imports,
+reexports/literal dynamic imports/template interpolation; comments/strings/regex
+are ignored. Adversarial fixtures reject computed/non-relative/upward edges and
+reexport cycles. No installed compiler/parser dependency in tests. All core and
+content JS enter strict cached checkJs; entry/shell are outside that contract.
+All new Lab module/ZIP identities, legal/withdrawn assets and unchanged startup/
+boot/navigation/file/tuning/renderer/credit mocked regressions pass. Existing
+NaN-BPM backing loops can fail to terminate, deliberately not invoked in new
+backing corpus; separate known defect, no move-only fix. No live-host/audio/DI
+certification, packages/install/publication or sibling modifications.
+
+Generation-foundation batch: **256 baseline → 260 Node tests**. Permanent
+`generation-foundation-before-extraction.json` pins the independently captured
+CURRENT DIRTY 0.2.13 entry SHA plus full/section output hashes, before moving any
+subject. Full approved-temp 61 MB before/after JSON matches bytes/deep equality.
+961 raw charts + 961 exercise/bundle attempts (931 valid each, 30 preserved
+unsupported/empty/malformed failures), all 40 types/all seven guitar/bass setups,
+three key/scale/direction/tempo/bar/meter/seed combinations, resolved guitar
+CAGED/3NPS/Open, bass position/full-neck, tuning overrides, key cycles, six Jam
+runs, all 25 Workouts and 74 helper rows. Direct native-import output matches 37
+dispatch cases; no copied function subjects. Fresh imports/calls trap host IO,
+ambient RNG and startup guards; frozen cfg, fresh output, in-place bass fingers,
+mutable registries and synthetic-quality memo identity pass. Source and Lab
+automatically enforce acyclic lower core imports; Lab checks every new ZIP module,
+complete output after asserting private bundle format, legal/withdrawn assets.
+Older 71/24/2,600/385/76/218 fixtures and public40/debug91 keys stay untouched.
+Strict cached checkJs adds five modules (including nine technique builders);
+remaining moved harmony/geometry/scale/arpeggio/bass/tapping/guide-tone JSDoc is
+explicitly owed. Mocked complete-entry boot/navigation/files/tuning/renderer/
+credit regressions remain discovery-driven. These are not live-host/browser/audio
+or Windows DI acceptance; no packages/host/install/publication changes.
+
+Latest chromatic-builder slice: **253/253 baseline → 256/256 Node tests**.
+`tests/fixtures/chromatic-builder-before-extraction.json` pins the actual dirty
+entry SHA and full snapshot/section hashes, captured BEFORE moving any subject.
+Managed-temp full before/after JSON matches bytes and deep equality independently.
+Owning core-system rows call real imports and complete entry: **218 raw charts +
+218 exercises/bundles**, all seven setups and three override cases, five patterns,
+three directions, nine extra divisions, seven stroke choices, odd meter, seed,
+tempo/bars/windows/default/NaN/inherited cases; **10 Workouts, 28 helper calls,
+19 edge calls**. Direct semantic checks cover exact grid/final sustain, complete
+cycle overflow, repeated turnaround, bass fret floor/plucking and finger/pick
+marks. Fresh dependency import/calls trap IO, boot assertions and RNG; frozen cfg,
+fresh mutable output, shared table identity and in-place stroke annotation pass.
+Lab asserts private bundle format before that sole namespace normalization; full
+snapshot equality, real imports, acyclic relative core DAG, folder/ZIP, legal and
+withdrawn assets pass. Older 71/24 and 2,600/385/76 shape fixtures are unchanged.
+CheckJs/syntax/links/brand/whitespace pass; source **0.2.13**, local Lab
+**0.2.13-lab.1** unchanged. No live-host/browser/audio/Windows DI certification.
+
+Latest shape-core slice: **249/249 baseline → 253/253 Node tests**.
+`tests/fixtures/fretboard-shapes-before-extraction.json` pins actual dirty pre-move
+entry/table/full-runtime SHA-256 and counts; full managed-temp before/after JSON
+matches byte-for-byte and parsed deep equality. Shared test inputs call complete
+real entry before/after and durable direct module imports, never copied resolvers.
+**2,600 resolver cases:** ten configs (all seven setups, guitar Drop-C override,
+bass-five override, synthetic unison tuning) × four keys (C/Db/G/A) × five scales
+(major/natural minor/harmonic minor/minor pentatonic/blues) × five CAGED/seven
+3NPS/Open. Raw bass low-level outputs are characterization, NOT offered support.
+**385 helper/edge calls:** ordering/cycle/defaults, numeric/string IDs, invalid/
+inherited keys, empty arrays, NaN and degree/finger helpers. **76 complete generated
+exercises:** nine actual guitar/bass configs, Bb natural minor, scale/arpeggio,
+up/down; guitar CAGED E/3NPS 1/Open, bass position ONLY. Real entry verifies every
+bass setup rejects all guitar shape systems. Bounds checks cover all 76 charts;
+direct supported guitar rows verify pitch uniqueness, top-six anchors, windows,
+degree membership, three notes/string and interval-based fingers. Unusual raw
+3NPS scale/tuning cases are not all certified within fret 24: 195 captured raw
+resolver cases exceed it (max 51), existing behavior retained, separate review/fix.
+No new shape support.
+Fresh imports trap host access and startup asserts; mutable data/scale dependency
+sharing and real-entry invalid-fingering startup failure are durable checks.
+Lab verifies relative DAG/no core-upward imports, namespace pointers, complete
+snapshot equality, ZIP inclusion, existing legal/withdrawn-assets checks. Source
+0.2.13/local Lab 0.2.13-lab.1 unchanged; older 71/24 fixtures never recaptured.
+CheckJs/syntax/links/brand/whitespace pass; no live-host/browser/audio/Windows DI.
+
+Latest instrument/tuning slice: **246/246 baseline → 249/249 Node tests**.
+`tests/fixtures/instrument-tuning-before-extraction.json` pins the actual dirty
+pre-move entry SHA, ordered table/preset IDs and full runtime table/six-helper
+snapshot hashes; managed-temp serialized/deep before/after equality also passes.
+Core-system rows exercise all 26 presets across guitar 6/7/8 and bass 4/5/6,
+Drop-D offset differences, config overrides, intent tags, copy/shared-array and
+mutable-data contracts, malformed/inherited keys and fractional numeric behavior.
+Test-only lexical probes evaluate the complete real entry, never sliced subjects;
+direct imports trap host globals. Lab verifies equal data/helper results, distinct
+table identities, synchronous debug reference, static import and ZIP inclusion.
+Unchanged 71-case generation and 24 Warmup fixtures are not recaptured. CheckJs,
+syntax, links, brand/whitespace and local 0.2.13-lab.1 rebuild pass; no live-host,
+browser/audio or Windows DI certification.
+
+Latest Workout registry slice: **243/243 baseline → 246/246 Node tests**.
+`tests/fixtures/workouts-before-extraction.json` pins all 25 ordered IDs and full
+JSON.stringify SHA-256, independently captured from the actual dirty 0.2.13 entry
+before moving the registry. Full managed-temp before/after snapshots pass serialized
+and parsed deep equality. Core-system rows cover real direct import host traps,
+mutable nested objects/arrays/registry with restoration in a fresh process, and
+synchronous public identity with real template lookup. Source/Lab packaging verifies
+module equality, distinct namespace identities and ZIP inclusion. The existing
+71-case committed corpus (including all 25 session outputs), 24 Warmup charts and
+40/91 API keys remain unchanged; no fixtures are recaptured by tests.
+Syntax, cached narrow checkJs, links, brand/whitespace and local Lab rebuild pass;
+these checks do not certify live-host/browser/audio/Windows DI.
+
+2026-10-20 passive registry extraction: **240/240 baseline → 243/243** source
+Node tests. `tests/fixtures/pathways-before-extraction.json` pins all 151 ordered
+IDs and a full JSON.stringify SHA-256, captured from the current dirty 0.2.13
+real entry BEFORE moving the registry, with DOM boot deferred/no hydration. It
+records the old entry SHA-256 (not git HEAD, whose Warmup data differs). No test
+recaptures/overwrites this fixture; aggregate hashing covers every base/vary/tier,
+goal, hint and other nested value without duplicating the definitions. Managed-temp
+full before/after snapshots also passed exact serialized and parsed deep equality.
+Direct import tests trap host globals and mutate/restore nested data plus an
+ephemeral registry property in a fresh process. Source and generated Lab real-entry
+tests assert exported/debug object identity before and after actual index/Markdown
+hydration, preserve all existing row pointers and reuse cached Warmup. Packaging
+checks real module import, identical Lab data and ZIP inclusion. The unchanged
+71-case committed corpus, 24-case authored migration fixture and 40/91 enumerable
+API keys remain gated. No live-host/browser/audio/Windows DI certification implied.
+
+2026-10-20 Ladder pilot: pre-edit baseline **191/191**, pilot **205/205**,
+reviewer follow-up **221/221 → 240/240**. Final real source/Lab boot regressions
+cover first/default and saved pending Warmup, preserved storage on failure,
+other saved/user lessons and control edits, navigation retry with late rejection,
+error re-entry and successful hydration reuse. A catalog owner regression also
+checks old rejection/finally against the still-pending newer promise.
+The independently captured live 0.2.12 fixture
+`tests/fixtures/chromatic-warmup-before-migration.json` pins all 24 raw charts,
+session cfg and bundled notes; never regenerate it from the migrated Markdown.
+Reviewer follow-up drives the actual registered DOMContentLoaded boot with pending,
+failed, timed-out and navigation-cancelled catalog requests. Source/Lab tests cover
+normal-mode binding, once-only event handlers, view/fallback retention, type exit,
+real sessionBegin/advance pedigree and quarter90 versus eighth90 credit.
+Source and generated Lab compare entire charts (no normalization), plus real-entry
+mocked catalog pending/failure, all selections, tuning recovery and stale readiness.
+The prior 71-case committed corpus and 40/91 enumerable API keys stay unchanged.
+These checks do not certify a live host, audio or installed Windows DI.
+
 > Authoritative testing reference. Read before adding or changing a suite. Historical green counts are not current host certification.
 
 Source-only tests: `node --test tests/*.mjs`. Before documentation cleanup there were **18 tests across four suites**: pitch, scale intervals, core characterization and Lab packaging. Documentation checks now join that discovery; use runner output, not a fixed prose count. Narrow checkJs is developer-only `noEmit`; see [native modules](native-modules.md). Backend tests: `pytest` with the required dependencies. Node tests do not certify host loading, DOM, renderer, audio, navigation or Windows DI.
 
 ## Running them
+
+Fixed-variant 0.2.12 WIP: **172/172 baseline → 185/185 → 191/191 passing Node tests**. Adds strict
+version-two/all-sibling/selection validation and source/Lab real-entry variant
+Play/select/Next/wrap, tuning recovery, deferred readiness ownership and failed
+load scenarios. Existing committed 71-case fixtures and 40/91 API keys are not
+recaptured. These minimal-DOM/audio-node tests are not live-host certification.
+Reviewer follow-up uses real `screen:changed` host callbacks for repeated visits
+and canceled re-entry readiness, plus immediate loop/cursor reset before invalid
+Setup or readiness failure. Late renderer completion preserves newer user loops.
+No live host was started or installed; browser/audio/DI acceptance remains owed.
 
 File-practice combined WIP: **72/72 follow-up baseline → 172/172 passing Node tests**;
 direct strict-parser/validation/tempo/loader/text-safety tests plus real source

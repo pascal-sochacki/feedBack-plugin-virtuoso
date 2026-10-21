@@ -1,0 +1,9 @@
+{
+  "provenance": "Actual CURRENT DIRTY 0.2.13 / 22083-line entry saved before this batch. Complete entry lexical probes execute original definitions from the saved entry, never sliced functions; fixed clock and seeded ambient RNG. Snapshots captured before each extraction cluster; no older fixture recapture.",
+  "entrySha256": "313a862739e3360f768244ce7a8875c052f0fcd3b8cffc3231b435a03f655c0f",
+  "clusterSha256": "28e4e7a7b59bc8003a6245926fbade40b8c134edbf0b496ea5b623beb6f4ce85",
+  "generationSha256": "8569bde42628427d184b9c7e771acb9e5e43d5880994ea7156ec76d3a12fe5d6",
+  "backingSha256": "ce08e0084c60044c47f9dc30ef3e14080ceff2ec6010e51c6c52d96577ae2322",
+  "backingCounts": { "backing": 186, "variants": 71, "jams": 93, "edges": 7 },
+  "counts": { "grips": 1512, "builders": 196, "motifs": 252, "timelines": 120, "voicings": 60, "edge": 7 }
+}

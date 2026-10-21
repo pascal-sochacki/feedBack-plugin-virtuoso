@@ -9,16 +9,34 @@ Practice stays inside one contained player; Virtuoso is not a standalone app.
 ## Development source vs installation
 
 **This checkout is development source**, branch `dev/modular-source`, plugin ID
-`virtuoso`, version **0.2.11** (local source candidate, preserving 0.2.10 extraction).
+`virtuoso`, version **0.2.13** (reviewed experimental candidate; source stays local).
+Only Ladder **Chromatic Warmup** (`chromatic_warmup`) now reads authored Markdown:
+six variations, four tempo tiers, twelve fixed charts; existing progress IDs stay.
+This rung intentionally requires standard six-string guitar and blocks alternate
+tunings without retuning Setup. The separate Custom demo below remains unchanged.
+Normal modes bind while the catalog loads; file requests have bounded deadlines.
+Renderer preferences/fallbacks survive rebuilds. Warmup progress credits the
+rendered run's selected density, not a stale picker or BPM-only inference.
 [Custom → File practices](docs/plugin/practice-files.md) previews one authoritative
-Markdown/JSON chromatic lesson through the existing player. Pure pitch, scale,
-chord-theory and timing leaves are extracted; the entry still owns boot and shell. FeedBack
+Markdown/JSON chromatic lesson with two named fixed variants through the existing
+player. Variant selection/Next stops and reloads at zero, preserves tempo and
+count-in, and never autoplays. Format version 2 requires variants; the old root
+notes/duration form is intentionally rejected. Pure pitch, scale,
+exercise/session generation, content and renderers are native modules; the entry
+still owns boot, host integration and the contained player. FeedBack
 must support `scriptType: "module"` and serve `src/**` with JavaScript MIME.
 There is no runtime build or npm installation step.
 
+Local Tab/Notation now include an implementation-quality pass: corrected minor/
+modal signature and staff spelling, clipped-beam singleton stems/flags, shared
+hand-mark thinning and resize-on-size/DPR-change canvases. This intentionally
+goes beyond the earlier move-only extraction; source tests pass, but browser
+fonts/DPR, live-host rendering/audio and Windows DI acceptance remain owed.
+The reserved **0.2.13** version covers this experimental testing candidate.
+
 The personal fork's **`main` is a different, generated installable runtime**:
-**Virtuoso (Lab)**, ID `virtuoso_lab`; authorized update **0.2.11-lab.1**
-(2026-10-20), following published 0.2.9-lab.1. Confirm the installed manifest.
+**Virtuoso (Lab)**, ID `virtuoso_lab`; authorized candidate **0.2.13-lab.1**
+(2026-10-21), prepared to replace published 0.2.11-lab.1. Confirm the installed manifest.
 It is experimental, not
 an upstream stable update, and does not include the separate Learn-mode work.
 Use this URL in FeedBack's Git Plugin Manager (no branch selector required):
@@ -63,10 +81,20 @@ Piano generation and structured multi-week Programs remain future work.
 ## Develop and read
 
 ```sh
-node --test tests/*.mjs
+npm ci --ignore-scripts
+npm run lint
+npm run typecheck
+npm test
 node --input-type=module --check < screen.js
-node scripts/check-doc-links.mjs
+npm run check:docs
+npm run check:brand
 ```
+
+These npm dependencies are **private developer tooling only**, not a plugin
+installation or runtime build. Use Node 24 LTS (supported engine ranges are in
+`package.json`). First-party ESLint rules reject unused imports and correctness
+regressions; a small explicit legacy-debt baseline prevents new warnings while
+preserving unreviewed initializers. See [lint policy](docs/plugin/development.md#developer-tooling-and-lint).
 
 Start at [docs/index.md](docs/index.md):
 [plugin development](docs/plugin/development.md),
@@ -90,7 +118,8 @@ and [matching source / review limits](SOURCE.md). On 2026-10-20, the 61
 than claiming unverified recording permission. Electric DI 8 is no longer an
 option; saved `8ridge` mixer choices fall back to Shinyguitar/Electric DI. Metal
 retains its amp settings and uses the existing procedural cab; user IR uploads
-still work. Existing generation/core outputs are unchanged; source 0.2.11 combines
-the prior move-only slice and file-practice prototype. The 0.2.11-lab.1 update
-is authorized to the personal fork's `main` only, with matching public runtime source;
+still work. Historical generation fixtures remain pinned; source 0.2.13 combines
+modular foundations, authored variants/Ladder content and reviewed renderer fixes.
+The 0.2.13-lab.1 candidate is authorized to the personal fork's `main` only,
+with matching public runtime source;
 these changes are not legal or installed-host certification.

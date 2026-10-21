@@ -727,18 +727,27 @@ async function run() {
     });
     sections.push({ name: "hand-marks data layer (6)", rows: p6 });
     const files = await page.evaluate(async () => {
-      const { parsePracticeMarkdown } = await import('/api/plugins/virtuoso/src/core/practice-files.js');
+      const { parsePracticeMarkdown, practicePathwaySelection } = await import('/api/plugins/virtuoso/src/core/practice-files.js');
       const source = await fetch('/api/plugins/virtuoso/assets/practices/guitar/beginner/chromatic-warmup.md').then(r => { if (!r.ok) throw Error('practice asset unavailable'); return r.text(); });
       const practice = parsePracticeMarkdown(source);
       const fatal = [];
-      for (const bpm of [60,120]) {
-        const cfg = { ...window.Virtuoso.readConfig(), practiceFile:practice, instrument:'guitar', stringSetup:'guitar_6_standard', stringCount:6, customOpenMidis:null, bpm, swing:'shuffle', targetSec:60 };
+      for (const [position, variant] of practice.variants.entries()) for (const bpm of [60,120]) {
+        const cfg = { ...window.Virtuoso.readConfig(), practiceFile:practice, practiceVariantId:variant.id, instrument:'guitar', stringSetup:'guitar_6_standard', stringCount:6, customOpenMidis:null, bpm, swing:'shuffle', targetSec:60 };
         const result = window.Virtuoso.generateExercise(cfg), bundle = window.Virtuoso.makeBundle(result);
         if (result.chart.duration !== 4 * 60 / bpm || result.chart.notes.length !== 4) fatal.push('file duration/count changed');
-        result.chart.notes.forEach((n, i) => { if (n.t !== i * 60 / bpm || n.s !== 0 || n.f !== i + 1 || n.sus !== 0) fatal.push('authored target changed'); });
+        result.chart.notes.forEach((n, i) => { if (n.t !== i * 60 / bpm || n.s !== 0 || n.f !== i + 1 + position * 4 || n.sus !== 0 || n.fg !== i + 1 || n.pkd !== i % 2) fatal.push('authored target changed'); });
         if (bundle.backingEvents.length) fatal.push('file acquired backing');
       }
-      return [{ label:'file asset → strict parser → real dispatch/bundle, 60/120 BPM', ok:!fatal.length, fatal, warn:[], notes:4 }];
+      const ladderSource = await fetch('/api/plugins/virtuoso/assets/practices/guitar/beginner/chromatic-warmup-ladder.md').then(r => { if (!r.ok) throw Error('Ladder asset unavailable'); return r.text(); });
+      const ladder = parsePracticeMarkdown(ladderSource);
+      for (let variation = 0; variation < 6; variation++) for (let tier = 0; tier < 4; tier++) {
+        const selected = practicePathwaySelection(ladder, variation, tier);
+        const cfg = { ...window.Virtuoso.readConfig(), ...selected, instrument:'guitar', stringSetup:'guitar_6_standard', stringCount:6, customOpenMidis:null, openMidis:[40,45,50,55,59,64], meter:{numerator:4,denominator:4,grouping:[4]}, targetSec:null };
+        const exercise = window.Virtuoso.generateExercise(cfg);
+        if (exercise.chart.notes.length !== (tier === 3 ? 96 : 48)) fatal.push('Ladder full-cycle count changed');
+        if (exercise.session.practicePathwayId !== 'chromatic_warmup') fatal.push('Ladder progress identity changed');
+      }
+      return [{ label:'file assets → strict parser → real dispatch/bundle + 24 Ladder selections', ok:!fatal.length, fatal, warn:[], notes:4 }];
     });
     sections.push({ name:'file practices (prototype)', rows:files });
   } finally {

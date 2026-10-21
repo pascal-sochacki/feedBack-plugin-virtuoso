@@ -1,0 +1,15 @@
+{
+  "provenance": "Actual dirty 0.2.13 entry before generation-foundation extraction; complete native entry, deferred boot, fixed Date and seeded Math.random via core-runner; no copied subjects.",
+  "entrySha256": "da6458ee4b823244a4788faf978e11a16c3c34e81e913fda14b943a693e3102f",
+  "snapshotSha256": "8569bde42628427d184b9c7e771acb9e5e43d5880994ea7156ec76d3a12fe5d6",
+  "counts": { "charts": 961, "exercises": 961, "sessions": 25, "helpers": 74 },
+  "validCharts": 931,
+  "validExercises": 931,
+  "sections": {
+    "charts": "3ea1d673cdcce4cb49c3f0dc4ff899fab93a7137343396d5fdb633215f94c09d",
+    "exercises": "797f84bbce6653dee1dd88e060593374d40a004d677eee0f5351f1e09cec7f2e",
+    "sessions": "21360f6875a8c4033986999d6a20cdc5da9cda05f2851501a207f634fe36dfde",
+    "helpers": "13a0864cae5853f6c44ad045b8ed94f3d4a8eab9906deb6e5d4f7502888bba44",
+    "tables": "e9b62d5805fd35e8ae2d4c84ee0f2f9d5234d0d6931984009a36e14211574614"
+  }
+}

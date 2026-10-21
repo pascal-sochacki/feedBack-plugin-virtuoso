@@ -1,0 +1,41 @@
+{
+  "provenance": {
+    "date": "2026-10-20",
+    "branch": "dev/modular-source",
+    "version": "0.2.13",
+    "source": "current dirty screen.js before PATHWAYS extraction; real entry, deferred DOM boot, no catalog hydration",
+    "sourceSha256": "52d612fe0fd6eaeb8f8d898578936f21f90b145dc8da38537fd5a6f415ed79ba",
+    "serialization": "JSON.stringify; preserves insertion order and every value",
+    "registrySha256": "020e6e40b22d19b2fcf805de116fb4cf15fc967bdb0ba009679df4db631611e1"
+  },
+  "ids": [
+    "blues_foundation", "blues_shuffle", "pent_foundation", "major_pent_country", "dorian_groove",
+    "chord_tone_targeting", "modal_awareness", "diatonic_triad_drill", "triad_inversions", "triad_five_shapes",
+    "triads_over_changes", "triad_pairs", "vl_shells", "vl_guide_tones", "vl_guide_changes", "vl_connect",
+    "arp_seventh_shapes", "arp_inversions", "arp_over_changes", "arp_sweeps", "fb_one_box", "fb_caged_links",
+    "fb_position_shifts", "fb_3nps", "fb_whole_neck", "diatonic_intervals", "int_sixths", "bass_int_sixths",
+    "int_across_neck", "bass_int_walk", "int_mixed", "core_root_third_fifth", "exp_vibrato", "exp_bend_half",
+    "exp_bend_whole", "exp_bend_mixed", "blues_box", "blues_bends", "blues_call_response", "blues_mix",
+    "blues_turnaround", "blues_turnaround_build", "rock_power_backbeat", "rock_pentatonic", "rock_lead_vocab",
+    "rock_pedal_riff", "rock_classic_changes", "country_cowboy_changes", "country_double_stops",
+    "country_chicken_pickin", "country_pedal_bends", "country_train", "bass_root_fifth_octave", "bass_octave_groove",
+    "bass_dead_notes", "bass_walking", "bass_slap", "bass_scale_one_box", "bass_scale_two_octave", "bass_scale_modes",
+    "bass_scale_shifts", "bass_scale_whole_neck", "bass_arp_triads", "bass_arp_sevenths", "bass_arp_neck",
+    "bass_arp_inversions", "bass_arp_changes", "bass_rh_pulse", "bass_rh_crossing", "bass_rh_sixteenth",
+    "bass_rh_funk_pocket", "bass_rh_three_finger", "bass_root_click", "bass_finger_gym", "bass_finger_legato",
+    "bass_lc_roots", "bass_lc_guide_tones", "bass_lc_approach", "bass_lc_capstone", "bass_lc_trade",
+    "rhy_subdivision", "rhy_sixteenth", "rhy_swing", "rhy_displacement", "rhy_odd_meter", "rhy_over_barline",
+    "rhy_gallop_snap", "rhy_accent_displace", "rhy_single_string", "rhy_half_double", "rhy_trade_bars",
+    "pick_tremolo", "pick_alternate", "pick_chromatic_16ths", "pick_economy", "pick_string_skip", "pick_hybrid",
+    "pick_herta", "leg_hopo", "leg_runs", "sweep3_triad", "sweep5_box", "sweep_roll_apex", "sweep7_color",
+    "sweep_changes", "tap_articulation", "tap_cell", "tap_cascade", "tap_sevenths", "tap_changes",
+    "btap_articulation", "btap_arpeggio", "btap_groove", "btap_apply", "fs_pima_foundation", "fs_spider_adjacent",
+    "fs_spider_skip", "fs_spider_wide", "chord_cowboy", "chord_caged_shapes", "chord_barre_changes",
+    "chord_caged_progression", "chord_sevenths", "chord_diatonic_7ths", "chord_color_extensions", "seventh_vocab",
+    "ii_V_I_workout", "harmonic_minor_exotic", "sweep_arpeggio_primer", "modal_vamp", "bend_drill", "pulse_muting",
+    "power_chord_comping", "major_scale_caged", "sixteenth_pocket", "guide_tones_path", "whole_neck_freedom",
+    "melmin_exotic_12key", "metalcore_chug", "melodic_metal_gallop", "metal_lead_changes", "metal_lead_phrygian",
+    "melodeath_twin_leads", "djent_chug_lock", "djent_accent_grid", "djent_polymeter", "djent_skip_gallop",
+    "djent_moving_chug", "djent_herta_chug", "djent_lock_the_cell", "death_chromatic"
+  ]
+}

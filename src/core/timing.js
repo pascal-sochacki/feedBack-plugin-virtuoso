@@ -74,3 +74,14 @@ export function rhythmSteps(cfg) {
 
 /** @param {{bpm: number, meter: Meter}} cfg */
 export function measureSeconds(cfg) { return (60 / cfg.bpm) * (4 / cfg.meter.denominator) * cfg.meter.numerator; }
+
+// Loopable warmup drills should wrap at the end of a WHOLE mechanical cycle,
+// not at an arbitrary bars×time cutoff mid-cell. `bars` is therefore treated
+// as the MINIMUM length for these drills; the chart rounds up to the next full
+// cycle so keep-looping playback re-enters on a natural hand-motion boundary.
+/** @param {number} totalTime @param {number} step @param {number} cycleSteps */
+export function wholeCycleStepCount(totalTime, step, cycleSteps) {
+  const minSteps = Math.max(1, Math.ceil(Math.max(0, totalTime - 1e-9) / Math.max(1e-6, step)));
+  const cycle = Math.max(1, Math.round(cycleSteps) || 1);
+  return Math.ceil(minSteps / cycle) * cycle;
+}

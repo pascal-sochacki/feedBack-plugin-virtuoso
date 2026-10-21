@@ -1,5 +1,36 @@
 # Virtuoso Code Map (screen.js + routes.py)
 
+## Workout draft controller (2026-10-20)
+
+`src/shell/workout-editor.js` (324 LOC) owns draft, draft ID, selected starter,
+dirty bit, drag index and listener removers. `select` preserves same-ID edits;
+`replace` deep-clones starter/routine input. Structural edits preserve draft/array
+aliases; refresh replaces refs/session while preserving inline aliases. Raw card
+indexes retain unresolved-template holes. `mount('timeline'|'options')` runs at
+the original bind positions; unmount on SPA screen leave, remount on return with
+visit guards and current document lookup. No storage access or import-time DOM.
+Browser beforeunload/pagehide retain listeners for canceled unload/BFCache;
+destroyed documents clean themselves. No pageshow remount or inactive rebinding.
+One preview callback owns the transport edge; entry guards the post-await jump.
+
+`core/workout-config.js` (24 LOC) materializes refs, matches instrument families,
+patches audio/tuning/count-in and applies length last, returning ordinary plain
+cfg. Playback never receives controller state. `shell/workout-display.js` (14 LOC)
+owns shared mutable kind labels/colors used by cards AND remaining entry displays.
+Entry browse/routine IO reads `draft` but writes through `replace/select/add`;
+launch guards/readiness/audio/clock/credit remain entry-owned, not injected back.
+`refreshWorkout` and `applyLengthPreset` are now entry-imported solely for the
+existing synchronous public function identities; materializeSegment/rollSegment/
+segmentEstDuration still have real browse/guard callers. Import bindings 122→124
+(remove lengthPresetSec; add controller + two display tables), not net reduction.
+Entry 16,465→16,126; owners 362, combined +23. No private function deleted based
+on Knip; repeated edit completion and voice labels consolidated during move.
+
+HOST CHECK reused: 2026-10-20 host `eef58c88c315b59375926bbfc8740cd18cb958f9`,
+BORROW existing navigation/meta-DB mounting/public renderer factories; MIRROR
+private inner forms. No generic public component/modal helpers found; flip only
+when a documented reusable form/controller API appears. Never capture Escape.
+
 > The per-section walkthrough of Virtuoso's two code files. CLAUDE.md / AGENTS.md
 > point here instead of carrying this detail in always-loaded context. Read this
 > before working inside `screen.js` or `routes.py`. For host-integration design
@@ -8,18 +39,215 @@
 
 ## screen.js structure
 
+### Current owned renderer modules
+
+2026-10-20 move-only integration batch: entry **17,758 → 17,418 (−340)**;
+four new modules **399 LOC**, combined **+59** (contracts/JSDoc, not code deletion).
+Follow-up local Tab/Notation: entry **17,418 → 16,465 (−953)**; three owners
+**1,044 LOC**, existing contracts **+43**, combined **+134**. Seven renderer files
+then totaled **1,486 LOC**; historical move-only evidence, not current byte identity.
+Implementation-quality follow-up: Tab 379, Notation 571, hand-marks 45 and
+notation-pitch 56; subsystem **1,568 LOC**, **+82** combined (not net code deletion).
+Entry stays 16,465; old resolveKeySig/beamedKeys and duplicate mark policy removed.
+
+| Owner | API / state / dependencies |
+| --- | --- |
+| `src/shell/renderers/host-factories.js` | `hostBus`, `hostMinigames`, `hostDesktop`, `vizFactoryFor`, `loadScriptOnce`, `borrowHostViz`; call-time preferred/legacy reads, shared script DOM-ID cache, 50 ms/3 s polling, error removal and contract-drift diagnostic; no imports/initialization IO |
+| `src/shell/renderers/selection.js` | `selectRendererFactory(kind, builtin, tab, notation)`; explicit uninvoked local factory dependencies, exact labels/3D fallback kind; imports host-factories + Classic only |
+| `src/shell/renderers/classic-2d.js` | `makeClassic2DHighwayRenderer()` → `init/draw/resize/destroy`; per-instance canvas/context, size, fret smoothing and last chart time; projection/anchors/rails/beats/strings/sustains/gems/readable lefty text; no imports/host factory/player; context passed explicitly to paint helpers |
+| `src/shell/renderers/renderer-types.js` | Developer-only JSDoc bundle/note/renderer/factory/selection contracts; no runtime values; selective strict DOM checkJs |
+| `src/shell/renderers/tab.js` | `makeBuiltin2DTabRenderer(preferences)`; Tab layout/string labels, bars/chords/sections, separate fret/verdict and technique paint, sustains/HOPO, renderer-owned mark placement; cached ordered note references; size/DPR-change canvas/listener; 379 LOC |
+| `src/shell/renderers/notation.js` | `makeBuiltin2DNotationRenderer(preferences)`; clef/signature/ledger/head/stem/flag/beam/rest engraving and mark placement; visible identity-based beam suppression; init-time key/beat/beam caches + compatibility setMode; size/DPR-change canvas/listener; 571 LOC |
+| `src/shell/renderers/display-policy.js` | Mutable light/dark palettes and lesson sets, chartBeatSeconds/stringLabelForMidi/bendLabel/handMarkLessonMode/rhGlyph; shell display-only, imports pitch only; 75 LOC |
+| `src/shell/renderers/hand-marks.js` | Pure ordered-note and visible candidate/spacing/simile thinning policy shared by Tab/Notation; imports display-policy + tuning; Tab omits fg0, Notation retains it; 45 LOC |
+| `src/shell/renderers/notation-pitch.js` | Pure major/minor/modal relative-parent spelling, bounded standard signatures and tonic-degree staff spelling; imports pitch + intervals; no generation mutation or external library; 56 LOC |
+
+**HOST CHECK — 2026-10-20, read-only host HEAD
+`eef58c88c315b59375926bbfc8740cd18cb958f9`:** existing renderer reuse, no new
+capability. Host `static/js/viz.js:217,370,473–490` registers preferred factories
+and selects the **main player**; do not call its `setViz`. Host
+`plugins/highway_3d/screen.js:16605` publishes `feedBackViz_highway_3d`;
+Jumping Tab/Piano source folders absent in this checkout, optional load failure
+retained. `static/highway.js:72,641` keeps Classic 2D private in `createHighway`.
+Verdict **BORROW** existing registered factories/navigation/theme where already
+used; **MIRROR** existing local Classic/Tab/Notation/controls. Flip Classic to
+BORROW only when a standalone bundle-driven `feedBackViz_highway_2d` publishes;
+no speculative fetch, private helper import or public host API patch. Generic
+modal/tab/dropdown SDK was not found in the prior host sweep; no UI redesign.
+
+**Deferred joint ownership:** entry `resolveRendererFactory` retains its debug
+probe, `attachRenderer` writes `activeBundle`, `rendererBundle`, view/preferences
+and owns resolver/ready generation checks and canvas replacement;
+`stopRenderer` writes attach identity/play/RAF and tears down audio/scoring/wake
+state; `destroyRenderer` owns exactly-once WeakSet destruction. Playback/voice
+warming, hot-swap, file-tier readiness and navigation have additional writers.
+These must move together only after a full writer inventory. Entry alone initializes
+and writes `currentRenderTheme` (startup + `setRenderTheme`, theme-button reader);
+`handMarksOn` reads persisted storage per frame (toggle writes stay entry).
+Both pass live accessors, never snapshots. Mutable palettes/lesson sets have no
+current runtime writers but retain ordinary shared identity. Tab HOPO pairs and
+Notation key/clef/beat/beam caches write only at original init; draw refreshes theme,
+window/layout/size, setMode writes only Notation mode. Destroy removes only its own
+resize listener and clears canvas/context; no rAF/document/host/global listener owner.
+There are no pointer/zoom controls in these local renderers. No callback bag/state.js.
+Notation's combined/tab modes remain compatibility API; deletion deferred. Keys
+are exact cfg aliases (the UI supplies sharp pitch-class names, authored cfg may
+retain Db/Cb). Standard major parents preserve the requested letter where possible;
+theoretical >7 signatures normalize to the least-accidental standard enharmonic.
+Natural/harmonic/melodic minor use relative-major signatures; diatonic modes use
+letter-relative major parents. Non-diatonic blueprint offsets and pentatonic/blues
+tonic signatures retain prior conventions; this is not full engraving redesign.
+Seven-degree staff spelling preserves single accidentals; double accidentals,
+chromatic contextual spelling and full rest/dotted/mixed-beam engraving remain
+limitations. In-place time/order mutation requires init; beam/HOPO caches still
+require init for chart replacement. Mark ordering refreshes on note-array identity
+change (retaining canvas-only init/draw compatibility); annotations and theme/
+mark preference reads remain live.
+
+### Current owned generation modules
+
+Both synchronous generators now live outside entry: `exercise.js` and
+`session.js`. Latest entry **18,813 → 17,758**; nine new owners **1,110 LOC**
+(largest 439; combined source +55 including imports/JSDoc).
+
+| Session owner | Contents / dependencies |
+| --- | --- |
+| `content/segments.js` | All 65 mutable templates, roles/bands; passive, no executable imports/guards |
+| `core/config-defaults.js` | Instrument/count defaults, cfg shape resolution and palette merge; shapes/pitch/palettes |
+| `core/count-in.js` | Incoming subdivision preview grid; plain meter/subdivision only |
+| `core/segments.js` | Roll/materialize/data-only refresh, roles/competencies/estimated durations; content/defaults/timing |
+| `core/workout-length.js` | Pure add-arc/length dosing/context transposition; segments/content |
+| `core/session-config.js` | Session/segment defaults, CSV tuning length guards/shape resolution; tuning/timing/defaults |
+| `core/session-chart.js` | BPM ladder, incoming/wrap breaks, whole-target tiling, block-local backing/timeline/grid offsets |
+| `core/session.js` | cfg→`{version,session,chart}` and built-in identity metadata; chart/config/passive workouts |
+| `core/session-types.js` | Strict developer-only authored segment/session contracts; no runtime initialization |
+
+`screen.js` now imports native **`exercise.js → generateExercise(cfg)`**:
+complete synchronous cfg→`{version,session,chart}` generation, including all 40
+dispatch choices and authored-file adapter. Entry **22,083 → 18,813** this batch.
+`exercise-dispatch.js` owns all builder dispatch; `key-cycle.js` and `jam-chart.js`
+assemble local timing/backing/timeline per key/pass; `chart-tiling.js` repeats
+whole cells without changing original ids/tail duration. `style-palettes.js`
+owns mutable style/progression-label data, shared with entry UI/public refs.
+
+| New lower owner | Contents / direct dependencies |
+| --- | --- |
+| `strum-grips.js` | Power/CAGED/extended grip selection and mutable shapes; tuning/harmony/chord positions |
+| `builders/strum.js` | Strum cells/emission and PIMA fingerstyle; grips/timing/notes/harmony |
+| `motif.js` | Mutable motif cells and pitch/window/stack placement; timeline/positions/theory |
+| `builders/motif.js` | Full motif call/response chart with its own harmony/backing; motif/backing/drums/feel |
+| `chord-timeline.js` | Functional/Roman labels, shared chord slots, anticipation/offset; harmony/timing/theory |
+| `voicing.js` | Register, avoid-note, guide-tone selection and voice-leading; dependency-free |
+| `arrangement.js` | Mutable recipes and pure density/feel resolution; dependency-free |
+| `audio-profiles.js` | Mutable profile/family data and pure voice metadata resolution—not audio IO |
+| `comp-cells.js` | Mutable cells, banjo drones, keyboard comp, hit emission; arrangement/voicing/timing/RNG |
+| `bass-figures.js` | Mutable figures, walking/Motown/pattern emission; arrangement/comp/voicing |
+| `drum-grooves.js` | Mutable grooves/fills, humanization/choking/generic meters; arrangement/profiles/RNG |
+| `backing.js` | Track desugaring/full accompaniment/legacy boogie; lower recipes/figures/timeline/voicing |
+| `feel.js` | Mutable swing/lean tables and pure shared timing transformations; arrangement |
+| `generation-types.js` | Developer-only cfg/chart/event contracts, no runtime initialization |
+
+**Remaining entry ownership:** `makeBundle`, DOM `readConfig`, live-tier run-target
+policy, Workout draft/edit/refresh UI handlers/stores, launch/readiness/cache and
+contained playback/render/audio/progress lifecycle. Pure `refreshWorkout` is not
+its UI controller. No shared state module or callback factory was introduced.
+Guards remain entry-side at their original order, not import-time validation.
+All native core/content JS is in checkJs; shell and the IIFE are not.
+
+The following table describes the preceding foundation owners (counts historical).
+
+| Module under `src/core/` | Owner / dependencies |
+| --- | --- |
+| `random.js` | FNV seed identity, per-track Mulberry32 streams, shuffle; no imports |
+| `sequence.js` | Mutable patterns/annotation whitelist, direction/repetition/reflection, exact cycle emission; random/timing/notes |
+| `positions.js` | Scale positions, shape→position adapter, no-unison and in-place bass box fingers; pitch/scale/tuning |
+| `chart-grid.js` | Metric beats/group accents and fret anchors; timing |
+| `harmony.js` | Mutable progressions/overrides, chord depth, memoized synthetic qualities, functional roots/substitutions/names; pitch/scale/chord theory |
+| `chord-positions.js` | CAGED chord geometry/root anchors/templates, chord-tone/chord-scale positions, coverage-first sweeps/turnarounds; harmony/shapes/positions/tuning/theory |
+| `builders/scale.js` | Scale/Connect chord-scale, thirds/sixths/dyads, skipping/shift/displacement, bebop/hybrid/triadic/pentatonic/octave lines |
+| `builders/arpeggio.js` | Arpeggios/CAGED shape runs, sweep, enclosures and inversions |
+| `builders/technique.js` | Spider, bending, legato, vibrato, call/response, tremolo, herta, pulse, pedal point |
+| `builders/tapping.js` | Tap/pull articulation and complete chord-tone cascade |
+| `builders/bass.js` | Root grip/low fifth, walking approaches/line, right-hand motor, root–5–8, octave/dead/slap grooves |
+| `builders/guide-tones.js` | Voice-led guide tones and shell lines |
+| `builders/pedal-riff.js` | Group-start power chords with tonic pedal chugs; tuning/timing/harmony/notes |
+| `builders/chromatic.js` | Existing chromatic builder/mutable tables; tuning/timing/notes/stroke policy |
+
+Builders import explicit lower core dependencies, not entry callbacks or shared
+state. The original plain cfg and schema remain unchanged; no new public API.
+This batch moves 36 exercise builders/prerequisites into thirteen modules (2,759
+LOC, largest 422), reducing entry **24,657 → 22,083** without changing outputs.
+
+Those previous dispatch/backing blockers are now resolved by the owners above.
+`makeBundle` remains the first shell step; guards/publication retain entry order.
+
+### Earlier extraction evidence (line counts below are historical)
+
+`src/core/builders/chromatic.js` owns `buildChromaticExercise` and both mutable
+chromatic tables (71 lines). Its DAG uses tuning/timing plus shared `notes.js`
+(14) and `stroke-policy.js` (164); whole-cycle rounding joins timing (+11).
+No RNG/generic fingering/chord dependency. Entry **24,875 → 24,657 (−218)**;
+combined slice **+42**; HEAD 27,248 → 24,657 (**−2,591 combined dirty WIP**).
+Custom/Workout still dispatch to the same builder; generated schema/annotations
+remain unchanged. Dispatch, `makeBundle`, startup guards and other builders stay
+in entry. Shared RNG/grid/fingering prerequisites remain candidates for later
+bounded moves, not a giant dependency bag.
+
+`src/core/fretboard-shapes.js` owns the WHOLE unified five-shape `CAGED_SHAPES`,
+both cycles, seven `THREE_NPS_POSITION_DEFS` and 16 pure functions: pitch/degree/
+finger helpers, CAGED/3NPS/Open resolution, dispatch, Open eligibility, order/cycle
+and default shape. Imports only `scale-intervals.js`; ordinary mutable data and
+same synchronous shape/debug pointers survive. Latest move: **25,261 → 24,875
+(−386)** entry lines; module **417**, combined **+31**; HEAD 27,248 → 24,875
+(**−2,373 combined dirty WIP**). Startup guards/publication, `resolveCurrentShape`,
+`defaultFretboardSystem`, labels/DOM dropdown sync, current-family/cache/config
+ownership and chord-template/voicing consumers remain in entry. The cfg adapter
+is plain-data today but deliberately retained with form/session orchestration;
+no callback bag/factory is needed. Chord-template leaves still require their
+template-quality/theory dependencies, not the player or shared state.
+
+`src/core/instrument-tuning.js` owns seven setups, 26 presets, seven setup mappings
+and `openMidisForConfig`, `tuningOffsetsForConfig`, `isBassCfg`,
+`hostStandardMidisFor`, `parseNoteName`, `midiToNoteName`. No imports/IO; exact
+mutable data, low-string-first order, config precedence and edge behavior remain.
+Latest slice: **25,396 → 25,261 (−135)** entry lines; module 152 lines,
+entry + module **+17**; committed HEAD 27,248 → 25,261 (**−1,987 combined WIP**).
+Setup controls, storage, preset fetch, host tuning caches and L1 adaptation remain
+in entry; no state parameter bag or Python/backend migration.
+
+`src/content/workouts.js` now owns the complete 25-entry `BUILT_IN_SESSIONS`
+literal (339 lines, no imports/IO). Its fixed export shares the original mutable
+data with the synchronous public API. String template refs still resolve against
+the real entry's `SEGMENT_TEMPLATES`; helpers and clone-before-edit drafts remain
+in the shell/entry. Latest move: **25,732 → 25,396 lines (−336)**;
+versus committed HEAD 27,248: **−1,852 combined dirty WIP**.
+
 File-practice prototype: `src/core/practice-files.js` owns strict parsing,
-reviewed catalog and pure chart building; `src/shell/practice-files.js` owns
+pure index validation and chart building; `src/shell/practice-files.js` owns
 same-origin fetch/cache and text-only prose. Entry Custom load state passes the
 parsed file to `generateExercise` before normal generation; existing transport
 consumes the result. See [schema and limits](practice-files.md).
+
+Only `chromatic_warmup` is now file-backed: `src/shell/practice-catalog.js`
+loads the authoritative index/Markdown independently of normal DOM binding and hydrates its
+mutable PATHWAYS entry. File metadata owns goal/cue references/tiers/variations;
+existing band/edge registries retain progress IDs. The other 151 definitions live
+in dependency-free `src/content/pathways.js`, exporting the same ordinary mutable
+PATHWAYS object consumed by the entry and its debug reference. Warmup is absent
+from that static registry and inserted by the existing catalog hydration. The
+  shared Custom/Workout chromatic builder is imported from core; guards and hydration closures stay in the entry.
+
+2026-10-20 move-only slice: moved the exact 1,648-line registry binding (comments
+and values unchanged) into a 1,651-line passive module. `screen.js`: **27,378 →
+25,732 lines (−1,646)**. Committed HEAD is 27,248 lines: combined dirty WIP is
+**−1,516 overall**, including the preceding Markdown/reviewer work, not just this move.
 
 `screen.js` is a native module entry retaining its strict IIFE during bottom-up extraction. It statically imports four dependency-free leaves: `src/core/pitch.js`, `scale-intervals.js`, `chord-theory.js` and `timing.js`; `plugin.json` opts into `scriptType:"module"`. Chord/diatonic tables and rhythm cells/meter helpers now live in those leaves; their consumers and startup guards remain in the entry. Leaves never import upward. See `docs/plugin/native-modules.md` for dependency map and running-host gates. Sections retain `§N` banners and §1–§15 TOC. This dated topical map is not in § order; verify names against source.
 
 - **Constants** — `NOTE_NAMES`, `STRING_SETUPS`, `SCALE_INTERVALS`, `CHORD_FORMULAS`, `DIATONIC_QUALITIES`, `COMMON_PROGRESSIONS`, `SEQUENCE_PATTERNS`, `CHROMATIC_PATTERNS`, `RHYTHM_CELLS`, etc. `RHYTHM_CELLS` is the rhythm-cell table (gallop / dotted-snap / tresillo / clave as per-onset **beat**-arrays fed to `rhythmSteps`); a startup guard (`assertRhythmCellsValid`) rejects any cell that doesn't sum to whole beats (it would phase the bar). `CHORD_FORMULAS` carries the **full interval stack** for each quality (including extensions past the octave for 9/11/13 chords); it is intentionally complete so the voicing engine decides what to actually play.
 - **`CAGED_SHAPES`** — unified source of truth for CAGED shape data. Contains `rootStringIdx`, `scaleFretSpanFromRoot`, and `chordTemplates` per quality. **Do not split this into separate tables.** (Historical note: a previous version had two diverged tables; they were unified on 2026-05-26.) Scale/arpeggio shapes are resolved by degree-driven, no-unison selection (`resolveCAGEDShape` and the run-seam dedupe), not naive fret-window blocks — see the no-unison constraint in CLAUDE.md Part 3.
-- **`PATHWAYS`** — curated pathway definitions: `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling.
-- **`BUILT_IN_SESSIONS`** — the starter Workout library: **23 session presets** spanning goal × level × genre × instrument. The original ~11 are **inline** presets (`starter_arc` warm-up→technique→application default + the `onLaunchSession` fallback; Beginner Foundations; ii–V–I Workshop; Daily 30-min Intermediate; Blues/Bebop Fundamentals; Warm-up 10-min; Rock Essentials; Funk Pocket; Metal Technique; **Bass Foundations**); the rest are **Phase-7 template-ref sessions** — role-skeleton workouts whose slots materialize from `SEGMENT_TEMPLATES` at launch (see the segment-template engine below). Each uses only 3–4 of the ~29 primitives, leaving room for distinct user workouts. `onLaunchSession` inherits the form's `stringSetup` only within the same **instrument family** (so instrument-specific presets stay correct and guitar-only techniques never land on bass). The old starter `<select>` was dropped (Phase 9); `_selectedStarterId` is the selection state and the Workout UI is an editable working-draft (see the four-mode shell in CLAUDE.md Part 2).
+- **`PATHWAYS`** — `src/content/pathways.js`: curated pathway definitions, `label`, `goal`, `scales[]`, `tempoTiers[]`, `base` config, and `vary[]` list for Next Variation cycling. No imports, IO, freezing or implicit validation; §2 retains storage/default boundaries.
+- **`BUILT_IN_SESSIONS`** — `src/content/workouts.js`: **25 session presets**, twelve inline and thirteen template-ref sessions spanning goal × level × genre × instrument. `starter_arc` is the first/default entry and launch fallback. Template-ref slots materialize from `SEGMENT_TEMPLATES` at launch. `onLaunchSession` inherits the form's `stringSetup` only within the same instrument family; guitar-only techniques never land on bass. `_selectedStarterId` is the selection state; the Workout UI edits a cloned draft, never the imported registry.
 - **Exercise builders** — `buildScaleExercise`, `buildChordScaleExercise`, `buildArpeggioExercise`, `buildSweepArpeggioExercise`, `buildChromaticExercise`, `buildGuideTonesExercise` return exercise objects. `buildChordScaleExercise` supports Park / Connect / Connect+approach (`chord_tone_emphasis` / `mode_of_moment`): Connect threads `prevMidi` through `connectStartIdx` to nearest guide tones, not root restarts. `smoke-connect.mjs` guards it. `chart.timeline` harmonic-rhythm infrastructure exists; remaining backing ideas are in `docs/plugin/design/backing-engine-roundtable.md`. `buildRhythmPulseExercise` (`rhythm_pulse`) strikes one palm-muted low-string pitch over a click with movable `pulseAccent`; see `docs/plugin/design/rhythm-ladder-roundtable.md` and the owning generator smoke.
 - **`generateExercise(cfg)`** — single-exercise dispatch; routes to the correct builder based on `cfg.practiceType`.
 - **Session builders** — `buildSegmentConfig`, `buildBpmLadderChart`, `buildSessionChart`, `generateSession`. `generateSession()` is parallel to `generateExercise()`; both return the same `{ version, session, chart }` shape so the downstream `makeBundle` path is unchanged.

@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.renderer.json",
+  "include": ["src/shell/renderers/*.js", "src/shell/workout-*.js"]
+}

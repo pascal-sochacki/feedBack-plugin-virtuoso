@@ -1,0 +1,32 @@
+name: source checks
+on:
+  push:
+    branches: [main, dev/modular-source]
+  pull_request:
+    branches: [main, dev/modular-source]
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - run: npm ci --ignore-scripts
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - name: Advisory dead-code inventory (no automatic fixes)
+        continue-on-error: true
+        run: npm run deadcode
+      - run: npm run check:docs
+      - run: npm run check:brand
+      - run: git diff --check

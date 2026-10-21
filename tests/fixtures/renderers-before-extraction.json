@@ -1,0 +1,8 @@
+{
+  "source": "Current dirty 0.2.13 entry, independently captured before renderer extraction on 2026-10-20; complete real entry functions, deterministic browser boundaries.",
+  "entrySha256": "c7a0216422ecba37f5f7cbd6577a37ed5f521b974b1a69cb822654df3feecd5a",
+  "remainingIifeStatements": 909,
+  "remainingIifeSha256": "d1c7078b93d192b7c7bb60b731709187c4fe3aed53e8c6ae3f4721b0ae17238c",
+  "snapshotBytes": 275034,
+  "snapshotSha256": "3f9f5dbbf28859f37f836b51777ae13de48b7601b03fd1f8a6a6474ebc2a4c91"
+}

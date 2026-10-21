@@ -13,6 +13,234 @@ host certification or upstream/stable promotion; full source stays committed loc
 
 ### Current working tree (2026-10-20)
 
+**Implementation-quality follow-up (not move-only):** pure lower-shell
+`hand-marks.js` centralizes simile selection (init/array-change stable sort); pure
+`notation-pitch.js` resolves letter-correct minor/modal parents and staff spelling
+from existing pitch/interval data. Tab fret/verdict/technique paint is separated;
+Notation beam suppression shares actual visible note identities. Both canvases
+resize only on size/DPR changes with explicit per-frame transform reset.
+Nine renderer files **1,568 LOC** (**+82**, not net source shrink), entry **16,465**
+unchanged; strict DOM noEmit includes all helpers. DAG: Tab/Notation→hand-marks→
+display-policy/tuning; Notation→notation-pitch→pitch/intervals; no core→shell.
+**292 tests**, zero skips. Historical full 31 MB fixture untouched; approved-delta
+Tab/unclipped Notation scenes retain paint identity, intentional key/staff/beam
+fixes have direct semantics; source/native/Lab current output matches. `setMode`
+compatibility retained/deletion deferred. Source 0.2.13 reserved WIP, isolated
+0.2.13-lab.1 only; no publication/install or live browser/audio/DI certification.
+
+The next paragraph records the earlier move-only extraction before these fixes.
+
+**Local Tab/Notation follow-up:** entry **17,418 → 16,465 (−953)**; Tab 375,
+Notation 594, display-policy 75 = **1,044 LOC**, plus contracts +43, combined +134.
+Full seven-file renderer subsystem **1,486 LOC**. Entry wrappers pass only two live
+preference readers; initialization/caches/listeners belong to independent renderers,
+not attachment/clock/audio. All new renderer functions pass strict DOM checkJs via
+`tsconfig.renderer.json` (`tsconfig.shell.json` compatibility alias); no any/skip/
+suppression. Native DAG adds entry→Tab/Notation/display-policy; Tab/Notation→display
+policy/tuning, Notation→pitch, display-policy→pitch. Core→shell stays forbidden.
+**283 tests**, independent full 31,361,838-byte saved-dirty before/after outputs,
+direct imports/source/Lab and 899 exact untouched IIFE statements/order pass.
+No runtime build, feature, version bump or host install; browser fonts/MIME/cache/
+audio/Windows DI and live Tab/Notation remain owed. [Owners](code-map.md).
+
+**Renderer integration foundation:** four lower-shell modules, **399 LOC**;
+entry **17,758 → 17,418**, combined **+59**. No core→shell edges. Runtime DAG:
+entry→host-factories/selection; selection→host-factories/Classic; Classic and
+host-factories have no executable imports. JSDoc-only renderer-types supplies
+selective strict DOM checkJs via `tsconfig.shell.json`, not a browser-global any
+escape or whole-shell certification. Exact **909** remaining IIFE statements and
+their order match independently captured dirty source. Host globals read only at
+calls; construction/import trap tests, full canvas sequence and source/Lab factory
+contracts join discovery. Attachment/transport remain entry-owned; see
+[owners/HOST CHECK](code-map.md#current-owned-renderer-modules).
+
+**Complete session foundation:** `session.js` owns `generateSession` with native
+segment materialization/defaults/refresh, BPM ladder, per-block timing/backing/
+timeline, incoming/wrap breaks and length-preset add-arc. Passive content owns all
+65 templates; shared defaults/count-in helpers are pure, not DOM adapters.
+Nine modules **1,110 LOC** (largest 439); entry **18,813 → 17,758**, combined
+source +55 including JSDoc/imports. All 51 core + three content JS pass strict
+cached checkJs. Template-ID injection/guards and synchronous public40/debug91
+publication remain entry; both generators share exact native function identity.
+
+**264 → 270 tests**. Before moving subjects, complete dirty entry ran independently:
+**42,443,466-byte** JSON remains byte/deep equal after extraction. Compact fixture
+pins full/section/per-case hashes: 356 session/bundle attempts (354 successful,
+two preserved empty/unknown-ref errors), 25 built-ins, 277 variants across all 65
+templates, 31 palettes, 12 mixed guitar/bass timing/seed/ladder/cycle/target/break
+cases, eight tunings, three edges and 595 helpers. Older fixtures unchanged.
+Source/Lab match after solely asserted private bundle-format normalization;
+direct imports trap IO/RNG/guards and assert offsets/backing silence/incoming
+timing/whole-target overflow/tuning/mutability. See [testing](testing.md).
+
+**Graph review fix:** shared AST scanner uses unmodified vendored MIT Acorn 8.18.0
+in `scripts/vendor`, never runtime inventory. No install/compiler cache required.
+ECMAScript 2022 parses contextually: import methods vs calls then blocks, object
+division vs regex, return regex and nested template interpolation. Both exact
+major-review forbidden-edge cases reject. Invalid/new syntax fails closed;
+only literal-string dynamic imports supported. Core→passive content allowed;
+content→core/shell forbidden; every edge remains cycle checked.
+
+**Remaining shell:** `makeBundle`, `readConfig`, live-tier run targets, Workout
+draft/edit/refresh handlers/storage, launch/readiness/caches and contained player
+lifecycle. No callback bag/state module/features or live-host/DI certification.
+Known NaN-BPM backing/nonpositive ladder steps may not terminate: excluded, not
+fixed during this pure move. Isolated temporary Lab 0.2.13-lab.1 only; source
+version unchanged, existing dist/siblings untouched.
+
+**Complete exercise core:** `generateExercise`/all dispatch/key-cycle/Jam plus
+motif, strum/fingerstyle, timeline/voicing/backing/recipe/profile/feel owners are
+outside entry. 20 new modules total 3,735 LOC (largest 511); entry 22,083 → 18,813.
+Session defaults/materialization/Workout/bpm-ladder assembly remain entry-owned;
+makeBundle/readConfig, lifecycle/state/publication and guard calls never moved.
+Full owner map: [code-map](code-map.md). All 43 core + two content JS files enter
+strict cached noEmit checkJs; no skipped new functions/any/suppression. Existing
+practice-file parser permissive validation contracts are unchanged. The authored
+duplicate progression-label assignment is expressed by a typed spread preserving
+its original final value/order; no behavioral cleanup.
+
+Independent CURRENT DIRTY 22,083-line entry bytes were saved before this batch
+(SHA `313a8627…`), with fresh snapshots before every subsequent cluster. Complete
+generation JSON remains byte/deep equal across 961 raw charts/exercises/bundles,
+25 Workouts and 74 helper rows. New fixture additionally pins original-entry
+1,512 grips, 196 strum/PIMA builders, 252 motif placements, 120 timelines,
+60 voicings, seven edges; 186 backing configs, all 71 cell/figure/groove variants,
+93 valid Jam charts across all 31 styles/three band modes/spotlight/switch-up.
+Subjects are complete saved entry or actual native imports, never copied/sliced
+functions. No old fixture was regenerated. Source/Lab pin the same full hashes,
+asserting private bundle format before that sole namespace normalization.
+
+Graph policy uses shared dependency-free lexical scanner (comments/strings/regex/
+templates/interpolation), side-effect/named imports, reexports and literal dynamics.
+Computed dynamic imports are actionable errors; only relative lower-core edges
+are allowed. Negative fixtures prove hidden upward/reexport-cycle/node/computed
+edges reject. Tests require no parser package or cached compiler. The compiler
+is developer-only for checkJs, never needed to load native runtime or test graph.
+Existing NaN-BPM backing can loop without terminating (observed in original saved
+entry and current): excluded from that callable corpus, separate bug, not fixed.
+
+**Generation foundation batch:** thirteen modules, 2,759 LOC, largest 422; entry
+24,657 → 22,083. `random`, `sequence`, `positions`, `chart-grid`, `harmony`,
+`chord-positions` and scale/arpeggio/technique/tapping/bass/guide-tone/pedal-riff builders.
+Explicit imports preserve the lower DAG; guard calls/publication, `readConfig`,
+`makeBundle` and shell state stay in entry. [Code-map](code-map.md) lists owners
+and remaining dispatch/backing dependencies. No runtime build/new API/version bump.
+
+Before either cluster, the complete CURRENT DIRTY entry was independently
+captured in approved temporary storage. The permanent fixture records original
+entry SHA-256 `da6458ee…` and full/section hashes; normal tests never recapture it.
+Full before/after 61 MB JSON matches bytes/deep equality: 961 raw chart attempts,
+961 exercise/bundle attempts (931 valid each), 25 Workouts and 74 helper rows.
+All 40 types, seven setups, three keys/scales/directions/timing combinations,
+resolved guitar CAGED/3NPS/Open, bass position/full-neck, overrides/key cycles and
+six genuine Jam runs. Thirty errors preserve unsupported/empty/malformed inputs,
+not successful playability coverage. Source/Lab compare complete output after
+asserting the sole private bundle-format namespace change. Direct imports match
+37 practice dispatch cases (modal scale alias included); fresh import/calls trap
+IO, startup guards and ambient RNG. Old fixtures and 40/91 keys are untouched.
+
+Strict cached checkJs expands to random/sequence/positions/grid and all nine
+technique builders with explicit cfg/event types; no any/skip/transpilation.
+Harmony/chord geometry and other moved builders owe full JSDoc checking; syntax,
+behavioral imports and automated source/Lab DAG checks cover them now.
+Scale/arpeggio is extracted, **not all generation orchestration**: remaining
+motif/strum/fingerstyle and timeline/backing/recipe clusters must move
+coherently before dispatch/session assembly. No upward imports/factory facade.
+
+### Earlier slice evidence
+
+**Latest chromatic slice:** `src/core/builders/chromatic.js` (71 lines) exports
+`buildChromaticExercise` and the two ordinary mutable pattern tables. Imports
+instrument tuning, timing, `notes.js` (14 lines) and `stroke-policy.js` (164 lines);
+stroke policy imports only tuning/timing. Nine shared note/stroke functions move
+without their startup guard; `wholeCycleStepCount` joins timing (+11 lines).
+No upward imports, factory, generic fingering/chord cluster or RNG consumption.
+Custom/Workout dispatch remains in entry; authored Ladder Warmup is unchanged.
+Entry **24,875 → 24,657 (−218)**; new modules **249**, combined with timing **+42**;
+HEAD 27,248 → 24,657 (**−2,591 combined dirty WIP**, includes prior slices).
+**253 → 256** Node tests; exact independent dirty pre/post snapshots cover 218 raw
+charts/whole exercises/bundles, ten Workouts, 28 helper and 19 edge calls. All
+older fixtures and synchronous 40/91 publication survive. Import/call IO traps,
+frozen cfg, mutable output/table identity, note-grid/final sustain/whole-cycle
+overflow and narrow checkJs pass; Lab checks the full static DAG/ZIP and only
+normalizes its explicitly asserted private bundle format prefix. Source **0.2.13**
+and local Lab **0.2.13-lab.1** remain. Other actual builders (scale/chord-scale/
+arpeggio/sweep, guide tones, spider, technique and bass grooves) retain their
+entry dependencies: generic fingering, RNG/path/grid and harmony/voicing leaves
+are deferred, not smuggled through callbacks. No host/audio/DI certification.
+
+**Latest fretboard-shape slice:** `src/core/fretboard-shapes.js` (417 lines)
+exports the whole unified five-shape CAGED registry (15 quality templates), seven
+3NPS definitions, both cycles and 16 pure functions. Transitive dependencies are
+contained: open pitch/fret, scale/degree, box/3NPS fingering, three resolvers,
+Open eligibility, dispatch/order/cycle, shape-awareness and default shape.
+Only import: scale intervals; pitch aliases/tuning are supplied by callers, no
+chord dependency is needed by scalar resolution. No upward dependency, factory,
+IO, guard execution or new init step. Original chord-fingering/no-unison guards
+and synchronous shape/debug publication remain at their entry positions.
+Mutable table/array identities, top-six CAGED/Open anchoring, all-string 3NPS,
+lower-string-wins dedupe and raw malformed/inherited-key/numeric behavior remain.
+Entry **25,261 → 24,875 (−386)**; new module **417**, combined **+31**;
+HEAD 27,248 → 24,875 (**−2,373 combined dirty WIP**). **249 → 253** Node tests;
+source **0.2.13**, local Lab **0.2.13-lab.1** unchanged. Independent dirty-runtime
+2,600 resolver/385 helper/76 generated-exercise snapshots match, unchanged older
+71/24 fixtures and 40/91 keys. Deferred explicitly: DOM dropdown/labels,
+instrument defaults/current-shape cfg adapter, active config/family/count/cache,
+chord-template quality/root/voicing and run-seam consumers. Adapter is currently
+plain-data but stays with orchestration in this bounded move; no closure smuggling.
+Further chord extraction needs template-quality/theory → chord-template leaves.
+No live host/audio/DI or blanket unusual-tuning 3NPS playability certification.
+Existing low-level 3NPS produces frets above 24 in 195 captured cases (max 51);
+these raw outputs remain exact. Any support/ergonomics correction is separate work.
+
+**Latest instrument/tuning slice:** dependency-free `src/core/instrument-tuning.js`
+exports exact `STRING_SETUPS` (7), `TUNING_PRESETS` (26 in 6 groups),
+`TUNING_TO_SETUP` (7) and six helpers: `openMidisForConfig`,
+`tuningOffsetsForConfig`, `isBassCfg`, `hostStandardMidisFor`, `parseNoteName`,
+`midiToNoteName`. No IO/import side effects/cycles; native static entry imports,
+shared debug reference, synchronous 40/91 publication and boot order survive.
+Narrow checkJs uses explicit cfg/field types, no suppression; ordinary mutable
+tables and returned-copy versus shared-standard-array contracts remain.
+Entry **25,396 → 25,261 (−135)**; new module **152**, combined **+17** this slice;
+HEAD 27,248 → 25,261 (**−1,987 combined dirty WIP**). Source **0.2.13**, local
+Lab **0.2.13-lab.1** unchanged; **246 → 249** Node tests pass.
+Deferred: `hostTuningEntries`/name lookup use host caches/reference pitch;
+`effectiveMidisNow`, current family/count and Setup sync use DOM; L1 adaptation
+uses instrument storage and selection state. No giant parameter bag, shape/schema
+or Python/backend migration. Fractional `midiToNoteName`'s numeric NaN is captured
+and preserved for a separately approved fix, not corrected during this move.
+
+**Latest move-only Workout slice:** `src/content/workouts.js` exports the exact
+25-entry `BUILT_IN_SESSIONS` literal, with no imports, host access or factories.
+The 338-line binding becomes a 339-line passive module; inferred data joins narrow
+checkJs without whole-table annotations. Entry static import preserves the exact
+public object identity, first/default starter, ordinary mutability and template
+string refs; generation, clone-before-edit draft and boot ordering remain unchanged.
+`screen.js` **25,732 → 25,396 (−336)**; committed HEAD 27,248 → 25,396
+(**−1,852 combined dirty WIP**). No cycles/upward imports, workout Markdown
+migration, new API, version bump or publication/install changes.
+
+**Move-only PATHWAYS slice on the existing dirty 0.2.13 candidate:** the entire
+remaining 151-entry literal registry now exports `PATHWAYS` from
+`src/content/pathways.js`. No closure dependencies, imports or IO; ordinary mutable
+objects/arrays remain shared. The entry statically imports the binding; no factory,
+upward dependency or binding reassignment. Startup guards, catalog hydration,
+public/debug publication and storage/default boundaries stay in their original order.
+Warmup remains absent until the single authoritative catalog inserts it into that
+same object. Full inferred registry joins narrow checkJs without type suppression.
+Exact 1,648-line binding moved (new module 1,651 lines); `screen.js` **27,378 →
+25,732 (−1,646)**. Versus committed HEAD's 27,248: **−1,516 combined dirty WIP**,
+including the earlier feature/reviewer work. This module exceeds the aspirational
+1,500-line target to preserve the one whole registry in a move-only slice.
+No version bump, new lesson migration, commit, push, install or publication edit.
+
+Latest unpublished combined candidate is **0.2.13 / 0.2.13-lab.1**; preserves
+dirty 0.2.12 format-2 variants and adds the one-rung [Ladder pilot](practice-files.md).
+`src/shell/practice-catalog.js` hydrates data independently of normal DOM binding;
+static module evaluation/public-debug publication remains synchronous. No
+dynamic import, second player, runtime build or generation IO. This is integration,
+not a move-only slice. Publication stays 0.2.11-lab.1 at ac8fc44 unchanged.
+
 Combined next WIP is now **0.2.11 / 0.2.11-lab.1**: preserves the entire
 uncommitted 0.2.10 chord/timing extraction and adds the separately approved
 [Markdown file-practice prototype](practice-files.md). The new core imports
@@ -145,12 +373,12 @@ used to verify the anchors and first slice.
 | --- | --- | --- |
 | **Pitch leaf (done)**: names/aliases 58–59; helpers 4347–4348 | `pcName` reads only `NOTE_NAMES`; `midiToFreq` only Math. Alias users: shape selection 3269/3327, `scalePcs` 6477, chord roots/builders 6800/7024/9734+, notation 13801+, tuning/anchor adaptation 22518+, tuner 23821/24078. | No imports, host IO or closure state. Keep exact values, sharp spelling, A440 formula and numeric edge behavior. Alias table is also on `__ss_debug`; preserve its object identity and ordinary mutable-object contract, do not freeze it during a move. |
 | **Scale intervals / chord theory (done)**, §1 | `src/core/scale-intervals.js` → entry scale pitch classes, shape resolver, chord-scale/harmony. `src/core/chord-theory.js` → template-quality gate, chord-depth engine, voicing/arpeggios/backing. | Both leaves have no imports or IO; preserve all 28 scale arrays, full chord stacks above octave (14/17/21), diatonic rows and ordinary mutable references. Synthetic chord registration remains in the entry. |
-| Instrument/tuning data and pure helpers | `STRING_SETUPS`, `TUNING_PRESETS`, `TUNING_TO_SETUP` 84–170 → open-MIDI config, shapes, sessions AND DOM setup/tuning sync. | Split data from storage/UI; preserve low-string-first indexes, offset intent tags, per-config overrides and bass/guitar distinctions. |
-| Shape layer, §4 / interleaved helpers | Unified `CAGED_SHAPES` 2780+; `resolveCAGEDShape` 3003; 3NPS/Open resolvers → scale/arpeggio builders and form position UI. Depends on theory + tuning/pitch helpers. | Keep unified shape table; move pure resolver cluster only after its transitive helpers. Keep no-unison startup asserts at their original point until explicitly initialized by boot. DOM selector helpers in the span are NOT core. |
+| **Instrument/tuning core (done)** | `src/core/instrument-tuning.js`: three tables and six pure helpers → open-MIDI config, shapes, sessions AND DOM setup/tuning sync. | Storage/UI/host caches and L1 adaptation stay in entry; low-string-first indexes, intent tags, overrides and bass/guitar distinctions preserved. |
+| **Shape core (done)** / interleaved consumers | `src/core/fretboard-shapes.js` → scale/arpeggio builders and form position UI; imports scale intervals only, explicit low-string-first open MIDI inputs. | Whole unified CAGED data and pure transitive resolver helpers moved. No-unison/fingering guards, cfg adapter, defaults/labels/DOM sync and chord-template/voicing consumers stay in entry. |
 | **Meter/rhythm timing (done)** / seed/chart utilities (later) | `src/core/timing.js` owns meter parsing, division/bar seconds and rhythm cells/steps → exercise/session builders, backing and shell clock. RNG helpers, beats/anchors/fill helpers remain in entry. | Timing is a dependency-free leaf; its cell validation stays in boot orchestration. `chartBeatSeconds` consumes bundle metadata; keep renderer/display helpers out of core timing. |
 | Harmony / voicing / backing | §5 6908+, `voiceChord` 7199, `compileChordTimeline` 7469, `buildBackingEvents` 8355; palettes 4800+, comp/bass/drum recipes. | Shared harmonic timeline must remain the source of truth; preserve cfg+seed determinism. Palette validation references scale/progression/audio registries: definitions can move before guard calls, but do not move guards ahead of initialization. Audio profile selection mixes shell and core-facing data. |
 | Exercise + session orchestration | §7 9171+, `generateExercise` 12012 → single/key-cycle/jam chart + timing/timeline; `buildSessionChart` 12469 and `generateSession` 12612 → segment defaults/materialization, builders, per-block backing/tempo. | Extract individual builders after dependencies. Preserve plain `{version:1,session,chart}` contracts; entry version badge is unrelated to chart schema version. Avoid cycles between `buildSegmentConfig`, dispatch and content registries. |
-| Content / curriculum | §2 PATHWAYS; §3 BUILT_IN_SESSIONS; `STYLE_PALETTES`; `rollSegment` 5524, `refreshWorkout` 5561, `materializeSegment` 5583 → session builders and shell lists/workout draft. | Data registries are not UI controllers. Preserve shared references / IDs and clone-before-edit workout behavior. Cross-registry validators are boot orchestration, not implicit module IO. |
+| Content / curriculum | **PATHWAYS done:** dependency-free `src/content/pathways.js`; §3 BUILT_IN_SESSIONS, `STYLE_PALETTES`, `rollSegment`, `refreshWorkout`, `materializeSegment` remain in entry → session builders and shell lists/workout draft. | Data registries are not UI controllers. Preserve shared references / IDs and clone-before-edit workout behavior. Cross-registry validators and authored hydration stay in boot/shell orchestration, not implicit module IO. |
 | **Shell boundary** `makeBundle` 12752 | Exercise chart → renderer metadata; reads inversion/lefty/render prefs and backing/audio choices. | Not core. Do not extract §1–§10 wholesale: shell helpers, WAF loading, AudioContext patch and state are interleaved there. |
 | Shell render / audio / progress / input | §11–§15; state near 3500+, progression between fretboard and §14, audio/transport §14, workout draft 25699+, `readConfig` 4370, `bind` 26160. | `activeBundle`, playback clock, verifier, mixer, jam and progression stores have multiple writers/readers. Keep ownership cohesive; never solve this with a giant shared `state.js`. Host judge remains consumed, not reimplemented. |
 | Boot and deliberate globals | `boot` 27153; `window.Virtuoso` 27196; conditional `globalThis.__ss_debug` 27212; readyState dispatch 27215. | Public surface published synchronously during entry evaluation, before DOM boot. Event handler at 27107 reattaches on `screen:changed`; readyState fallback handles modules evaluating after DOMContentLoaded. Preserve registration/order and debug closures. |

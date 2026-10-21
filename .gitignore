@@ -3,6 +3,7 @@ __pycache__/
 .DS_Store
 .env
 node_modules/
+.eslintcache
 dist/
 !vendor/webaudiofont-src/npm/dist/
 vendor/webaudiofont-src/npm/dist/*

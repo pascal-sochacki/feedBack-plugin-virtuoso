@@ -2721,6 +2721,13 @@
           <button type="button" id="virtuoso-file-load">Load practice</button>
           <button type="button" id="virtuoso-file-unload" hidden>Return to generated practice</button>
         </div>
+        <div id="virtuoso-file-variants" hidden>
+          <label for="virtuoso-file-variant">Variant
+            <select id="virtuoso-file-variant" aria-label="Variant" disabled></select>
+          </label>
+          <button type="button" id="virtuoso-file-next" disabled>Next variant</button>
+          <p id="virtuoso-file-hint" class="virtuoso-help" aria-live="polite"></p>
+        </div>
         <p class="virtuoso-help">Prototype: standard six-string guitar only. Exact frets and rhythm; tempo scales source seconds. No backing or refingering. Use the existing Play transport. Choose a normal practice type or Return to leave the file.</p>
         <pre id="virtuoso-file-prose" class="virtuoso-help whitespace-pre-wrap" aria-live="polite"></pre>
       </details>

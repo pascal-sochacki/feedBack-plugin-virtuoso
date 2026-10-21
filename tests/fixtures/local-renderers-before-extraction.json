@@ -1,0 +1,17 @@
+{
+  "entrySha256": "8e78487ad3f78f9a57d434b7e3cec545440b34b7ac29e65da6ecf15190109ab5",
+  "initialSnapshotSha256": "b28cea3a83992ba9bfa2f13c7b33a497ed5bd12008f4fd2fed7b323e4e342f42",
+  "initialSnapshotBytes": 29419746,
+  "sizingSnapshotSha256": "a8e93f6d7b122f40fc62ce46d05423ad215fae15ee42076a1f87f51e8437867b",
+  "sizingSnapshotBytes": 29516596,
+  "snapshotSha256": "5dd78d0146abdd748841b583cee1f4fc75807ca8e759b01d646d86f65d0a4ae7",
+  "snapshotBytes": 31361838,
+  "generated": 29,
+  "raw": 21,
+  "instances": 100,
+  "frames": 1650,
+  "movedStatements": ["resolveRendererFactory", "makeBuiltin2DTabRenderer", "makeBuiltin2DNotationRenderer", "RENDER_THEMES", "HANDMARK_FINGERS_LESSON", "HANDMARK_STROKES_LESSON", "handMarkLessonMode", "rhGlyph", "chartBeatSeconds", "stringLabelForMidi", "bendLabel"],
+  "originalImportOrder": ["./src/shell/renderers/host-factories.js","./src/shell/renderers/selection.js","./src/content/segments.js","./src/core/config-defaults.js","./src/core/count-in.js","./src/core/segments.js","./src/core/workout-length.js","./src/core/session-config.js","./src/core/session-chart.js","./src/core/session.js","./src/core/style-palettes.js","./src/core/chart-tiling.js","./src/core/key-cycle.js","./src/core/jam-chart.js","./src/core/exercise.js","./src/core/audio-profiles.js","./src/core/drum-grooves.js","./src/core/backing.js","./src/core/feel.js","./src/core/builders/motif.js","./src/core/exercise-dispatch.js","./src/core/arrangement.js","./src/core/comp-cells.js","./src/core/bass-figures.js","./src/core/strum-grips.js","./src/core/builders/strum.js","./src/core/chord-timeline.js","./src/core/motif.js","./src/core/voicing.js","./src/core/builders/pedal-riff.js","./src/core/builders/bass.js","./src/core/builders/tapping.js","./src/core/builders/guide-tones.js","./src/core/random.js","./src/core/sequence.js","./src/core/positions.js","./src/core/chart-grid.js","./src/core/harmony.js","./src/core/chord-positions.js","./src/core/builders/scale.js","./src/core/builders/technique.js","./src/core/builders/arpeggio.js","./src/core/pitch.js","./src/core/scale-intervals.js","./src/core/fretboard-shapes.js","./src/core/chord-theory.js","./src/core/timing.js","./src/core/notes.js","./src/core/stroke-policy.js","./src/core/builders/chromatic.js","./src/core/practice-files.js","./src/content/pathways.js","./src/content/workouts.js","./src/shell/practice-catalog.js","./src/shell/practice-files.js","./src/core/instrument-tuning.js"],
+  "remainingIifeStatements": 899,
+  "remainingIifeSha256": "9e838fbaa62e0daf0d9618fe1293b00e9334fb26be14e3d5d7ef327f1cf4e470"
+}

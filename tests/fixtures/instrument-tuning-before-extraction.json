@@ -1,0 +1,20 @@
+{
+  "source": "dirty dev/modular-source 0.2.13 complete entry before extraction; boot deferred",
+  "screenLines": 25396,
+  "screenSha256": "7010438ed2b63adab9f1c7184d4ab96d37ff00caacd6f281ad6a3e6765fa6896",
+  "snapshotSha256": "bd888e29b1bafda14109ac0c6a3a55546257ddebb1d14f77bb0f89dcb599ca15",
+  "tableSha256": "3047b7561736700ffec316df69363fab2cab3061223f427c62ce144ece0e9ae2",
+  "tableIds": {
+    "STRING_SETUPS": ["guitar_6_standard", "guitar_6_drop_d", "guitar_7_standard", "guitar_8_standard", "bass_4_standard", "bass_5_standard", "bass_6_standard"],
+    "TUNING_PRESETS": ["guitar_6", "guitar_7", "guitar_8", "bass_4", "bass_5", "bass_6"],
+    "TUNING_TO_SETUP": ["guitar_6_standard", "guitar_6_drop_d", "guitar_7_standard", "guitar_8_standard", "bass_4_standard", "bass_5_standard", "bass_6_standard"]
+  },
+  "presetIds": {
+    "guitar_6": ["standard", "drop_d", "drop_c", "drop_b", "eb_standard", "d_standard", "cs_standard", "c_standard", "dadgad", "open_g", "open_d"],
+    "guitar_7": ["standard", "drop_a", "bb_standard", "a_standard"],
+    "guitar_8": ["standard", "drop_e", "e_standard"],
+    "bass_4": ["standard", "drop_d", "eb_standard", "bead"],
+    "bass_5": ["standard", "standard_hc", "drop_a"],
+    "bass_6": ["standard"]
+  }
+}

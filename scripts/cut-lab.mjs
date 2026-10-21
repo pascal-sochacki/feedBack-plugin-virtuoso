@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PRACTICE_FILES, validatePracticeIndex, parsePracticeMarkdown } from '../src/core/practice-files.js';
+import { PRACTICE_ASSET_PATHS, validatePracticeIndex, parsePracticeMarkdown } from '../src/core/practice-files.js';
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const LAB_ID = 'virtuoso_lab';
@@ -59,7 +59,7 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
   const withdrawnAsset = p => /^static\/samples\/8r_.*\.ogg$/.test(p) || p === 'static/irs/v30_4x12.wav';
   const assets = tracked.filter(p => /^(assets|static)\//.test(p) && !p.startsWith('assets/practices/') && !withdrawnAsset(p) && existsSync(join(REPO, p)));
   // Only the explicitly reviewed original lesson inventory may bypass tracked assets.
-  const practices = ['assets/practices/index.json', ...PRACTICE_FILES.map(item => 'assets/practices/' + item.path)];
+  const practices = ['assets/practices/index.json', ...PRACTICE_ASSET_PATHS.map(path => 'assets/practices/' + path)];
   for (const file of practices) {
     const source = join(REPO, file);
     if (realpathSync(source) !== source || !lstatSync(source).isFile()) throw new Error('Unsafe practice asset: ' + file);
@@ -104,7 +104,7 @@ export function buildLab(dist = resolve(REPO, '..', 'virtuoso-lab-dist')) {
       write(file, text);
     } else write(file, bytes);
   }
-  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js', 'src/core/scale-intervals.js', 'src/core/chord-theory.js', 'src/core/timing.js']) {
+  for (const file of ['screen.js', 'src/package.json', 'src/core/pitch.js', 'src/core/scale-intervals.js', 'src/core/chord-theory.js', 'src/core/timing.js', 'src/core/instrument-tuning.js', 'src/core/fretboard-shapes.js']) {
     if (!existsSync(join(root, file))) throw new Error('Missing module runtime: ' + file);
   }
   write('README.md', readFileSync(join(REPO, 'docs/plugin/virtuoso-lab.md')));
