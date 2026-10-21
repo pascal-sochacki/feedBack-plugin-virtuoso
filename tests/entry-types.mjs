@@ -79,7 +79,7 @@ test('DOM ID contract agrees with actual uncommented markup, including settings-
     tags.set(match[2], match[1]);
   }
   const contract = readFileSync(new URL('../src/types/dom-ids.d.ts', import.meta.url), 'utf8');
-  const kinds = {HTMLSelectElement:'select', HTMLInputElement:'input', HTMLButtonElement:'button', HTMLCanvasElement:'canvas'};
+  const kinds = {HTMLSelectElement:'select', HTMLInputElement:'input', HTMLButtonElement:'button', HTMLCanvasElement:'canvas', HTMLDivElement:'div'};
   for (const match of contract.matchAll(/\[Id in ([^\]]+)\]: (\w+)/g)) {
     for (const id of match[1].matchAll(/"([^"]+)"/g)) assert.equal(tags.get(id[1]), kinds[match[2]], id[1]);
   }
@@ -444,4 +444,44 @@ export function check(window: JudgmentWindow) {
   assert.deepEqual(check().map(d => `TS${d.code} ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`), []);
   host.readFile = file => file === path ? source.replace(/\/\/ @ts-expect-error[^\n]*/g, '') : read(file);
   assert.equal(check().length, 5);
+});
+
+test('public Virtuoso API exposes typed entry points without validating persisted JSON', () => {
+  const {config} = ts.readConfigFile(root + 'tsconfig.entry.json', ts.sys.readFile);
+  const parsed = ts.parseJsonConfigFileContent(config, ts.sys, root);
+  const path = root + 'tests/virtuoso-public-api-type-control.ts';
+  const source = `import type {Session} from '../src/core/session-types.js';
+import type {ShareModel} from '../src/types/results-data.js';
+const api = window.Virtuoso;
+const config = api.readConfig();
+const exercise = api.generateExercise(config);
+const session: Session = {name:'Typed Workout'};
+const generated = api.generateSession(session);
+const bundle = api.makeBundle(exercise);
+const refreshed: Session = api.refreshWorkout(api.applyLengthPreset(session, 'standard'));
+const palette = api.stylePaletteConfig('blues', {progressionIdx:0, key:'A'});
+const share: ShareModel | null = api.shareCardModel(null);
+const persisted: unknown = api.progressLoad();
+if (persisted && typeof persisted === 'object') api.progressSave(persisted);
+api.setSegmentLoop(0, 4);
+api.clearSegmentLoop();
+api.resolveRendererFactory('tab_2d');
+// Persisted localStorage JSON is deliberately not typed as validated progress.
+// @ts-expect-error callers must narrow unknown persisted data before reading fields
+api.progressLoad().xp;
+// @ts-expect-error the public object has no invented member
+api.playSong();
+// @ts-expect-error style palette progression index is numeric
+api.stylePaletteConfig('blues', {progressionIdx:'first'});
+// @ts-expect-error generation requires a real generation configuration
+api.generateExercise('not a config');
+export {bundle, generated, palette, refreshed, share};`;
+  const host = ts.createCompilerHost(parsed.options), read = host.readFile, exists = host.fileExists;
+  host.readFile = file => file === path ? source : read(file);
+  host.fileExists = file => file === path || exists(file);
+  const roots = [path, root + 'src/types/plugin-globals.d.ts'];
+  const check = () => ts.getPreEmitDiagnostics(ts.createProgram(roots, parsed.options, host));
+  assert.deepEqual(check().map(d => `TS${d.code} ${ts.flattenDiagnosticMessageText(d.messageText, ' ')}`), []);
+  host.readFile = file => file === path ? source.replace(/\/\/ @ts-expect-error[^\n]*/g, '') : read(file);
+  assert.deepEqual(check().map(d => d.code).sort((a, b) => a - b), [2322, 2339, 2345, 2571]);
 });

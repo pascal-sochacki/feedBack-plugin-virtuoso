@@ -6,6 +6,43 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Current source state
 
+- **Strict browser-entry typing continuation (2026-10-21; entry debt cleared):**
+  fresh baseline **72 diagnostics → 0** on TypeScript 5.9.3. The final report is
+  `coverage/typecheck-entry.json` (ignored). No strictness changes, `any`, TS
+  suppressions, expected-hash edits, or historical fixture recapture. The existing
+  40-key public API and order now have an explicit type contract; persisted progress
+  remains `unknown` until callers narrow it. Form-state lookup keeps its original
+  `form.elements[name]` runtime behavior through a local optional-property type view.
+  Historical entry AST SHA, renderer extraction and transport pins pass. Focused
+  entry-types/renderer-lifecycle/run-transport/practice-selection tests pass
+  **60/60**. Root `npm run typecheck`, lint (132 files; 0 new/errors, 1 known
+  warning), entry syntax, docs links, brand scan and `git diff --check` pass. Full
+  `npm test` was not rerun: its previous timeout is not a result. No live host,
+  browser, audio, Windows DI, publication or installation is claimed.
+
+- **Strict entry typing continuation (2026-10-21; verified narrow batch):** fresh
+  TypeScript 5.9.3 diagnostics **72→70**, only TS18047 changed (**22→20**); all
+  other by-code counts are unchanged. Two type-only non-null casts express the
+  synchronous `_jamMirror` initialization immediately after `jamMirrorReset()`;
+  each has an exact allowlisted AST-pin reversal. Historical entry AST pin passes.
+  Focused entry/renderer/transport suites pass **48/48**. `npm run typecheck`,
+  lint (132 files, zero new/error diagnostics, one known warning), entry syntax,
+  docs links, brand hygiene and `git diff --check` pass. Entry typecheck still
+  exits 1 at 70 diagnostics. The full `npm test` was not rerun; prior timeout
+  after 183 passes is not a result for this state. No fixture/hash recapture,
+  strictness weakening, publication or host action.
+
+- **Strict entry typing continuation (2026-10-21; unfinished):** TypeScript
+  5.9.3 entry diagnostics **130→80** via narrow JSDoc typing at verified guards
+  and existing ownership boundaries. AST, renderer and transport golden pins
+  remain unchanged and pass; focused entry-types/renderer/transport tests **54/54**,
+  root core+shell typecheck, entry syntax and whitespace pass. Entry still exits 1
+  with 80 diagnostics. Full `npm test` has not completed (prior run timed out after
+  183 passes); this environment lacks system `zip`/`unzip`, so local temporary
+  shims were used for the focused Lab tests only. No fixture/hash recapture or pin
+  weakening. More diagnostics and full-suite verification remain unfinished; no
+  stage/commit/push/install/publication/host actions.
+
 - **TS18047 nullable closure/state correlation batch (2026-10-21; parent-bounded
   group):** strict entry **233→205** (−28: TS18047 **75→51**, TS2339 **29→26**,
   TS2538 **4→3**; every other code count unchanged) on TypeScript 5.9.3, exact

@@ -2,6 +2,30 @@
 // Reverse only tested entry safety edits, including LCD and delegated targets.
 // Historical pins still compare every other executable statement.
 export function normalizeEntrySafety(source) {
+  source = source.replace("JSON.parse(localStorage.getItem('virtuoso.rig') ?? 'null')", "JSON.parse(localStorage.getItem('virtuoso.rig'))");
+  source = source.replace(/function scheduleDrumHit\([\s\S]*?\n {2}\}/, fn => fn
+    .replace('/** @type {number} */ (dur), kit.level || 1)) return;', 'dur, kit.level || 1)) return;')
+    .replace('scheduleDkHit(ctx, b, /** @type {string} */ (piece),', 'scheduleDkHit(ctx, b, piece,')
+    .replace('ensureDrumPiece(kit, /** @type {string} */ (piece));', 'ensureDrumPiece(kit, piece);')
+    .replace("scheduleSynthDrumHit(ctx, '909', /** @type {string} */ (piece),", "scheduleSynthDrumHit(ctx, '909', piece,")
+    .replace("scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', /** @type {string} */ (piece),", "scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', piece,")
+    .replace('when, vol, /** @type {number} */ (dur), kit.level || 1)', 'when, vol, dur, kit.level || 1)')
+    .replace("when, vol, /** @type {number} */ (dur));   // fallback: cold-load / missing piece", "when, vol, dur);   // fallback: cold-load / missing piece")
+    .replace("when, vol, /** @type {number} */ (dur));\n  }", "when, vol, dur);\n  }"));
+  source = source.replace(/function jamHotSwapAtWrap\(\) \{[\s\S]*?\n {2}\}/, swap =>
+    swap.replace('rendererLifecycle.setBundle(activeBundle, /** @type {string} */ (cfg.renderer));',
+      'rendererLifecycle.setBundle(activeBundle, cfg.renderer);'));
+  source = source.replace("(piece === 'hh_open' && Number.isFinite(dur)) ? (/** @type {number} */ (dur)) : (DRUM_NATURAL_DUR[String(piece)] || 0.4)",
+    "(piece === 'hh_open' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[String(piece)] || 0.4)");
+  source = source.replace('scheduleDrumHit(ctx, drumKit, /** @type {string} */ (ev.voice),',
+    'scheduleDrumHit(ctx, drumKit, ev.voice,');
+  source = source.replace(/function syncTempoTierButtons\(\) \{[\s\S]*?\n {2}\}/, fn => fn
+    .replace("    const activePathway = /** @type {import('./src/content/pathways.js').Pathway} */ (pw);\n", '')
+    .replace('practiceSelection.applyTier(activePathway, i);', 'practiceSelection.applyTier(pw, i);')
+    .replaceAll('tierChipLabel(activePathway, i)', 'tierChipLabel(pw, i)')
+    .replaceAll('tierChipLabel(activePathway, nextIdx)', 'tierChipLabel(pw, nextIdx)'));
+  source = source.replace("const summary = /** @type {HTMLDivElement} */ ($('virtuoso-summary'));",
+    "const summary = $('virtuoso-summary');");
   source = source.replace('creditFeltRung, shareCardModel, renderShareCardImage,', 'creditFeltRung, shareCardModel, shareCardText, renderShareCardImage, isShareworthy,')
     .replace('resolveDrumKit, recipeTracks, buildCompCellHits, activeBundleBacking:', 'resolveDrumKit, recipeTracks, resolveHumanSeed, buildCompCellHits, activeBundleBacking:');
   // Explicit primitive key conversion equals JavaScript's existing ToPropertyKey;
@@ -57,6 +81,21 @@ export function normalizeEntrySafety(source) {
     .replace("return /** @type {import('./src/types/judgment-data.js').JudgmentWindow} */ (w);", 'return w;');
   source = source.replace("const bus = hostBus();\n    if (bus && typeof bus.navigate === 'function') return bus.navigate(id);",
     "if (hostBus() && typeof hostBus().navigate === 'function') return hostBus().navigate(id);");
+  source = source.replace("String(rigOutputDb(amp)) + ' dB'", "rigOutputDb(amp) + ' dB'");
+  source = source.replace("try { const bus = hostBus(); if (bus && typeof bus.navigate === 'function') bus.navigate('settings'); } catch (_) {}",
+    "try { if (hostBus() && typeof hostBus().navigate === 'function') hostBus().navigate('settings'); } catch (_) {}");
+  source = source.replace("const screenBus = hostBus();\n    if (screenBus && typeof screenBus.on === 'function') {\n      screenBus.on('screen:changed',",
+    "if (hostBus() && typeof hostBus().on === 'function') {\n      hostBus().on('screen:changed',");
+  source = source.replace("$('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', (/** @type {HTMLSelectElement} */ (ev.target)).value);",
+    "$('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value);")
+    .replace("$('virtuoso-view-select')?.addEventListener('change', (e) => onViewSwitch((/** @type {HTMLSelectElement} */ (e.target)).value));",
+      "$('virtuoso-view-select')?.addEventListener('change', (e) => onViewSwitch(e.target.value));")
+    .replace("$('virtuoso-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso.countInDefault', (/** @type {HTMLSelectElement} */ (e.target)).value); } catch (_) {} applyCountInDefault((/** @type {HTMLSelectElement} */ (e.target)).value); });",
+      "$('virtuoso-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });");
+  source = source.replace("  /** @type {Set<string | null | undefined>} */\n  const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);",
+    "  const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);")
+    .replace('    if (!pw) return null;\n    const pt = pw.base && pw.base.practiceType;',
+      '    const pt = pw && pw.base && pw.base.practiceType;');
   source = source.replaceAll('const bridge = hostDesktop()?.audio;', 'const bridge = hostDesktop() && hostDesktop().audio;')
     .replace("const bus = hostBus();\n    if (bus && typeof bus.emit === 'function') {\n      bus.emit('virtuoso:tier:unlocked',",
       "if (hostBus() && typeof hostBus().emit === 'function') {\n      hostBus().emit('virtuoso:tier:unlocked',")
@@ -82,13 +121,53 @@ export function normalizeEntrySafety(source) {
     .replaceAll('(/** @type {{nodes: import(\'./src/types/audio-graph.js\').ScheduledResource[], endCtx: number}} */ (schedChunks.shift()))', 'schedChunks.shift()')
     .replaceAll('(/** @type {number[]} */ (cur.cpcs))', 'cur.cpcs')
     .replaceAll('(/** @type {Error} */ (e)).name', 'e.name')
+    .replaceAll('(/** @type {Error} */ (error)).message', 'error.message')
+    .replaceAll('(/** @type {Error} */ (e)).message', 'e.message')
+    .replaceAll('(/** @type {Error} */ (e2)).message', 'e2.message')
     .replaceAll('(/** @type {NonNullable<import(\'./src/types/audio-graph.js\').AudioBus[\'amps\']>} */ (bus.amps))', 'bus.amps')
     .replaceAll('(/** @type {import(\'./src/types/audio-graph.js\').MelodicBusEffects} */ (fx))', 'fx')
     .replaceAll('(/** @type {Record<string, string | null>} */ (_mixerRevealSig))', '_mixerRevealSig')
     .replaceAll("/** @type {Element} */ ($('virtuoso-root'))", "$('virtuoso-root')")
     .replaceAll("/** @type {Uint8Array<ArrayBuffer>} */ (_mixMeterBuf)", "_mixMeterBuf")
     .replaceAll('(/** @type {import(\'./src/types/audio-graph.js\').AudioBus} */ (audioBus))', 'audioBus')
+    .replaceAll('(/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).noteCount++', '_jamMirror.noteCount++')
+    .replaceAll('(/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).pcs.add(p)', '_jamMirror.pcs.add(p)')
     .replaceAll('(/** @type {number} */ (info.leanMs))', 'info.leanMs')
+    .replaceAll('(/** @type {number} */ (info.leanN))', 'info.leanN')
+    .replaceAll('(/** @type {number} */ (info.nearMiss))', 'info.nearMiss')
+    .replaceAll('practiceSelection.setTier(/** @type {number} */ (primary.idx));', 'practiceSelection.setTier(primary.idx);')
+    .replaceAll('practiceSelection.applyTier(pw, /** @type {number} */ (primary.idx))', 'practiceSelection.applyTier(pw, primary.idx)')
+    .replaceAll('tiers[/** @type {number} */ (primary.idx)]', 'tiers[primary.idx]')
+    .replaceAll('practiceSelection.setTier(/** @type {number} */ (stepdown.idx));', 'practiceSelection.setTier(stepdown.idx);')
+    .replaceAll('practiceSelection.applyTier(pw, /** @type {number} */ (stepdown.idx))', 'practiceSelection.applyTier(pw, stepdown.idx)')
+    .replaceAll('tiers[/** @type {number} */ (stepdown.idx)]', 'tiers[stepdown.idx]')
+    .replaceAll("(/** @type {string} */ ((readConfig() || {}).key))", '(readConfig() || {}).key')
+    .replaceAll("(/** @type {typeof showResultsModal & {_autoSig?: string}} */ (showResultsModal))", 'showResultsModal')
+    .replaceAll('(/** @type {unknown[]} */ (s.tuning))', 's.tuning')
+    .replaceAll('(/** @type {number} */ (cents))', 'cents')
+    .replaceAll('(/** @type {number | undefined} */ (ev.dur))', 'ev.dur')
+    .replaceAll('(/** @type {number} */ (ev.dur))', 'ev.dur')
+    .replaceAll('(/** @type {number} */ (WAF_VOICE_VOL.drums))', 'WAF_VOICE_VOL.drums')
+    .replaceAll('(/** @type {number} */ (ev.velocity))', 'ev.velocity')
+    .replaceAll('DRUMKIT_BANKS[String(kit.bank)]', 'DRUMKIT_BANKS[kit.bank]')
+    .replaceAll('DRUM_NATURAL_DUR[String(piece)]', 'DRUM_NATURAL_DUR[piece]')
+    .replaceAll('(/** @type {number[]} */ (byBar.get(b)))', 'byBar.get(b)')
+    .replaceAll("(/** @type {NonNullable<typeof bridge> & {getLevels: NonNullable<NonNullable<typeof bridge>['getLevels']>}} */ (bridge))", 'bridge')
+    .replaceAll("(/** @type {NonNullable<ReturnType<typeof makeBundle>>} */ (bundle))", 'bundle')
+    .replaceAll("(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters))", 's.chapters')
+    .replaceAll("(/** @type {import('./src/types/results-data.js').RunSummary} */ (s))", 's')
+    .replaceAll("(/** @type {import('./src/types/waf.js').WafPlayer} */ (wafPlayer))", 'wafPlayer')
+    .replaceAll('(/** @type {number} */ (lvlBase))', 'lvlBase')
+    .replaceAll("(/** @type {AnalyserNode} */ (_lvlAnalyser)).getFloatTimeDomainData(_lvlData)", '_lvlAnalyser.getFloatTimeDomainData(_lvlData)')
+    .replaceAll("(/** @type {Float32Array<ArrayBuffer>} */ (_lvlData)).length", '_lvlData.length')
+    .replaceAll("(/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))[i]", '_lvlData[i]')
+    .replaceAll("(/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames()))", 'hostMinigames()')
+    .replace("if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});",
+      "if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});")
+    .replaceAll("(/** @type {import('./src/types/waf.js').WafPlayer} */ (wafPlayer))", 'wafPlayer')
+    .replaceAll('(/** @type {number} */ (lvlBase))', 'lvlBase')
+    .replace("ensureAudioCtx();\n    if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});",
+      "ensureAudioCtx();\n    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});")
     .replaceAll('(/** @type {import(\'./src/types/results-data.js\').CoachFocus} */ (prevFocus))', 'prevFocus')
     .replaceAll('(/** @type {number} */ (cfg.countInBars))', 'cfg.countInBars')
     .replaceAll('(/** @type {Record<string, import(\'./src/core/generation-types.js\').AudioVoice | null>} */ (/** @type {unknown} */ (prof)))', 'prof');
@@ -104,6 +183,8 @@ export function normalizeEntrySafety(source) {
   // local guards keep the original statement shape for the saved dirty-before
   // pins; the correlated JSDoc casts reverse to the raw property reads below.
   source = source.replace('if (!el || !el.isConnected || pct === null) return;', 'if (!el.isConnected) return;');
+  source = source.replace(/function showResultsModal\(s\) \{[\s\S]*?\n {2}\}/, modal =>
+    modal.replaceAll('jamArmFromDrill(/** @type {string} */ (jamStyle),', 'jamArmFromDrill(jamStyle,'));
   // Correlated JSDoc casts reverse back to the raw property reads byte-exactly.
   source = source.replaceAll("/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult)", 's.feltResult')
     .replaceAll('/** @type {number} */ (s.clearedTier)', 's.clearedTier')
@@ -122,5 +203,74 @@ export function normalizeEntrySafety(source) {
     "      e.preventDefault();\n      const id = e.dataTransfer.getData('text/plain'); if (!id || !_packsDraft) return;\n");
   source = source.replace("const nextAt = lv.nextAt;\n    if (lv.nextName && nextAt != null) rows.push(`<div class=\"virtuoso-pm-coming\">${(nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);",
     "if (lv.nextName) rows.push(`<div class=\"virtuoso-pm-coming\">${(lv.nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);");
+  source = source.replace("const bands = visiblePackOrder()\n      .map(id => PATHWAY_BANDS.find(b => b.id === id))\n      .filter(b => b !== undefined)",
+    "const bands = visiblePackOrder()\n      .map(id => PATHWAY_BANDS.find(b => b.id === id))\n      .filter(Boolean)");
+  source = source.replace(/function renderSkillTree\(\) \{[\s\S]*?\n {2}\}/, tree => tree
+    .replace("line.setAttribute('x1', String(a.x)); line.setAttribute('y1', String(a.y));\n      line.setAttribute('x2', String(b.x)); line.setAttribute('y2', String(b.y));",
+      "line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);\n      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);"));
+  source = source.replace(/function renderPathwayList\(\) \{[\s\S]*?\n {2}\}/, list =>
+    list.replace('b.ids.includes(/** @type {string} */ (practiceSelection.pathwayId))',
+      'b.ids.includes(practiceSelection.pathwayId)'));
+  source = source.replace(/function syncProgressStrip\(\) \{[\s\S]*?\n {2}\}/, strip => strip
+    .replace('numEl.textContent = String(streak);', 'numEl.textContent = streak;'));
+  source = source.replace(/function schedulePreviewAudio\([\s\S]*?\n {2}\}/, schedule => schedule
+    .replace("        const drumEvent = /** @type {import('./src/core/generation-types.js').DrumEvent} */ (ev);\n", '')
+    .replaceAll('drumEvent.voice', 'ev.voice')
+    .replaceAll('drumEvent.velocity', 'ev.velocity')
+    .replaceAll('drumEvent.dur', 'ev.dur')
+    .replaceAll('(/** @type {number} */ (ev.dur))', 'ev.dur'));
+  source = source.replace('const inner = /** @type {HTMLElement} */ (container.firstChild);', 'const inner = container.firstChild;');
+  source = source.replace('function blockFeltInfo(b, devsOpt) {\n    if (!b) return null;\n',
+    'function blockFeltInfo(b, devsOpt) {\n');
+  source = source.replace(/function advancePathwayTier\(session\) \{[\s\S]*?\n {2}\}/, advance =>
+    advance.replace('(/** @type {number} */ (session.bpm))', 'session.bpm'));
+  source = source.replace(/function applyAnchorPolicy\(cfg\) \{[\s\S]*?\n {2}\}/, policy =>
+    policy.replace('parseInt(/** @type {string} */ (/** @type {unknown} */ (cfg.anchorFret)), 10)', 'parseInt(cfg.anchorFret, 10)'));
+  source = source.replace(/function reapplyActivePathway\(\) \{[\s\S]*?\n {2}\}/, pathway =>
+    pathway.replace('parseInt(/** @type {string} */ (/** @type {unknown} */ (merged.anchorFret)), 10)', 'parseInt(merged.anchorFret, 10)'));
+  source = source.replace(/function sessionBegin\(\) \{[\s\S]*?\n {2}\}/, begin =>
+    begin.replace('/** @type {number} */ (bpm) >= t', 'bpm >= t'));
+  source = source.replace(/function onTransportKey\(e\) \{[\s\S]*?\n {2}\}/, handler => handler
+    .replace("const tag = ((/** @type {HTMLElement | null} */ (e.target))?.tagName || '').toLowerCase();",
+      "const tag = (e.target?.tagName || '').toLowerCase();")
+    .replace("|| (/** @type {HTMLElement | null} */ (e.target))?.isContentEditable) return;",
+      '|| e.target?.isContentEditable) return;'));
+  source = source.replace(/function snapshotFormState\(\) \{[\s\S]*?\n {2}\}/, handler =>
+    handler.replace("if (cb instanceof HTMLInputElement && cb.type === 'checkbox' && cb.name && !(cb.name in out))",
+      "if (cb.type === 'checkbox' && cb.name && !(cb.name in out))"));
+  source = source.replace(/function sessionEnd\(\) \{[\s\S]*?\n {2}\}/, end =>
+    end.replace('measureSeconds((/** @type {NonNullable<typeof activeBundle>} */ (activeBundle)).config)',
+      'measureSeconds(activeBundle.config)'));
+  source = source.replace(/function ptLeanBarsSnapshot\(\) \{[\s\S]*?\n {2}\}/, snapshot =>
+    snapshot.replace('        const event = tl[ci];\n        if (!event) continue;\n        const eventSec = event.startSec != null ? event.startSec : event.t;\n        if (eventSec == null) continue;\n        const t0 = eventSec + lead;',
+      '        const t0 = (tl[ci].startSec != null ? tl[ci].startSec : tl[ci].t) + lead;'));
+  source = source.replace(/function _startWebLevelMeter\(\) \{[\s\S]*?\n {2}\}/, meter =>
+    meter.replace(/const tick = \(\) => \{[\s\S]*?\n {8}\};/, tick =>
+      tick.replace('(/** @type {AnalyserNode} */ (_lvlAnalyser)).getFloatTimeDomainData',
+        '_lvlAnalyser.getFloatTimeDomainData')
+        .replace('getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))',
+          'getFloatTimeDomainData(_lvlData)')));
+  source = source.replace(/async function shareCardAction\(s, action\) \{[\s\S]*?\n {2}\}/, action =>
+    action.replace("(/** @type {HTMLCanvasElement} */ (cv)).toBlob(r, 'image/png')",
+      "cv.toBlob(r, 'image/png')"));
+  source = source.replace(/async function onLaunchSession\(\) \{[\s\S]*?\n {2}\}/, handler =>
+    handler.replace("const launchAudioCtx = ensureAudioCtx();\n    if (launchAudioCtx.state === 'suspended') launchAudioCtx.resume().catch(() => {});",
+      "ensureAudioCtx();\n    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});")
+      .replace("      if (!session) { showStatus('Build a Workout first.'); return; }\n", ''));
+  source = source.replace(/function applyFormState\(state\) \{[\s\S]*?\n {2}\}/, apply =>
+    apply.replace('/** @typedef {{type?: unknown, checked?: boolean, value?: string | boolean, length?: number, 0?: FormStateField}} FormStateField */\n      /** @type {FormStateField | null | undefined} */\n      let field = (/** @type {{[name: string]: FormStateField | null | undefined}} */ (/** @type {unknown} */ (form.elements)))[name];',
+      'let field = form.elements[name];'));
+  source = source.replace("profile: /** @type {string} */ (/** @type {unknown} */ (cfg.audioProfile || ''))", "profile: cfg.audioProfile || ''");
+  source = source.replace(/document\.addEventListener\('click', \(e\) => \{\n {6}const pop = \$\('virtuoso-setup-popover'\);[\s\S]*?\n {4}\}\);/, listener =>
+    listener.replaceAll('/** @type {Node | null} */ (e.target)', 'e.target'));
+  source = source.replace(/document\.addEventListener\('click', \(e\) => \{\n {6}const menu = \$\('virtuoso-settings-menu'\);[\s\S]*?\n {4}\}\);/, listener =>
+    listener.replaceAll('/** @type {Node | null} */ (e.target)', 'e.target'));
+  source = source.replace(/rulerCanvas\.addEventListener\('pointerdown', \(e\) => \{[\s\S]*?\n {6}\}\);/, listener => listener
+    .replace("if (!activeBundle || dur() <= 0) return;\n        const g = rulerGeom(); if (!g) return;\n        e.preventDefault();",
+      "if (!activeBundle || dur() <= 0) return;\n        e.preventDefault();")
+    .replace('prevA = transport.markerA; prevB = transport.markerB;\n        const y = e.clientY - g.rect.top;',
+      'prevA = transport.markerA; prevB = transport.markerB;\n        const g = rulerGeom(); const y = e.clientY - g.rect.top;'));
+  source = source.replace(/setTimeout\(\(\) => \{\n {8}const bus = hostBus\(\);\n {8}if \(!host\.offsetParent && bus && typeof bus\.on === 'function'\) return;\n {8}fire\(\);\n {6}\}, 1000\);/,
+    "setTimeout(() => {\n        if (!host.offsetParent && hostBus() && typeof hostBus().on === 'function') return;\n        fire();\n      }, 1000);");
   return source;
 }

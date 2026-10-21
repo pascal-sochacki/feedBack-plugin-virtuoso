@@ -4823,7 +4823,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // reset are all identical. A user upload is THEIR licensing problem (never
   // committed); a bad file decode-fails → the procedural cab stays (never silent).
   const RIG_AMPS = ['clean', 'drive', 'metal'];
-  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso.rig')) || {}; } catch (_) { return {}; } })();
+  let rigState = (() => { try { return JSON.parse(localStorage.getItem('virtuoso.rig') ?? 'null') || {}; } catch (_) { return {}; } })();
   function rigSave() { try { localStorage.setItem('virtuoso.rig', JSON.stringify(rigState)); } catch (_) {} }
   /** @type {Promise<IDBDatabase> | null} */
   let _rigDbP = null;
@@ -6108,7 +6108,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     if (!_packsDraft) return;
     _packsDraft.order = _packsDraft.order.filter(x => x !== id);
   }
-  /** @param {string} id @param {string | null} beforeId */
+  /** @param {string} id @param {string | null | undefined} beforeId */
   function _packReorder(id, beforeId) {
     if (!_packsDraft) return;
     const arr = _packsDraft.order.filter(x => x !== id);
@@ -6672,7 +6672,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     $('virtuoso-results-modal')?.setAttribute('aria-hidden', 'false');
     body.querySelector('[data-act="jam-again"]')?.focus();
   }
-  /** @param {import('./src/types/results-data.js').RunSummary | null} s */
+  /** @param {import('./src/types/results-data.js').RunSummary | null} s @property {string} [_autoSig] */
   function showResultsModal(s) {
     const root = $('virtuoso-root'), body = $('virtuoso-results-body'), title = $('virtuoso-results-title');
     if (!root || !body || !s) return;
@@ -6839,10 +6839,10 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       // Timing tendency + near-miss (Slice 2, the feel→data converter) —
       // threshold-gated so a centered run says nothing: ≥8 samples and a lean
       // of ≥30ms, or ≥4 near-misses. Descriptive, never scored.
-      if (info.leanN >= 8 && Math.abs(info.leanMs) >= 30) {
-        rows.push(`Timing leaned <strong>${info.leanMs > 0 ? 'late' : 'early'}</strong> — about ${Math.abs(info.leanMs)}ms ${info.leanMs > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
+      if ((/** @type {number} */ (info.leanN)) >= 8 && Math.abs((/** @type {number} */ (info.leanMs))) >= 30) {
+        rows.push(`Timing leaned <strong>${(/** @type {number} */ (info.leanMs)) > 0 ? 'late' : 'early'}</strong> — about ${Math.abs((/** @type {number} */ (info.leanMs)))}ms ${(/** @type {number} */ (info.leanMs)) > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
       }
-      if (info.nearMiss >= 4) {
+      if ((/** @type {number} */ (info.nearMiss)) >= 4) {
         rows.push(`<strong>${info.nearMiss}</strong> right-pitch moments landed just outside their timing window — closer than the score shows${devTail('(in-pitch ≤250ms off-window frames)')}`);
       }
       // Sparse-evidence disclosure (L&D ruling): below the grading floor the
@@ -7041,8 +7041,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     try {
       if (localStorage.getItem('virtuoso.autosaveCard') === '1') {
         const sig = `${s.duration_ms || 0}|${s.bpm || 0}|${s.displayName || s.mode || ''}`;
-        if (showResultsModal._autoSig !== sig) {
-          showResultsModal._autoSig = sig;
+        if ((/** @type {typeof showResultsModal & {_autoSig?: string}} */ (showResultsModal))._autoSig !== sig) {
+          (/** @type {typeof showResultsModal & {_autoSig?: string}} */ (showResultsModal))._autoSig = sig;
           (async () => {
             try { await loadCardFonts(); } catch (_) {}
             try { const cv = renderShareCardImage(s); if (cv) await saveCardToServer(cv, s, true); } catch (_) {}
@@ -7074,17 +7074,17 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     $('virtuoso-results-primary')?.addEventListener('click', () => {
       closeResultsModal();
       if (primary && primary.act === 'next-tier') {
-        practiceSelection.setTier(primary.idx);
+        practiceSelection.setTier(/** @type {number} */ (primary.idx));
         const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
-        if (pw) practiceSelection.applyTier(pw, primary.idx);   // bpm + the tier's density step
-        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[primary.idx]));
+        if (pw) practiceSelection.applyTier(pw, /** @type {number} */ (primary.idx));   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[/** @type {number} */ (primary.idx)]));
         syncTempoTierButtons();
         onGenerate();
         focusPlay();
       } else if (primary && primary.act === 'jam') {
         // D-J10: carry the run's KEY + the drilled device into the jam (the
         // device becomes the pre-selected first intent chip).
-        jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
+        jamArmFromDrill(/** @type {string} */ (jamStyle), (/** @type {string} */ ((readConfig() || {}).key)), s.displayName || '');
       } else {
         focusPlay();
       }
@@ -7113,10 +7113,10 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     $('virtuoso-results-stepdown')?.addEventListener('click', () => {
       closeResultsModal();
       if (stepdown) {
-        practiceSelection.setTier(stepdown.idx);
+        practiceSelection.setTier(/** @type {number} */ (stepdown.idx));
         const pw = s.ladder && PATHWAYS[s.ladder.pathwayId];
-        if (pw) practiceSelection.applyTier(pw, stepdown.idx);   // bpm + the tier's density step
-        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[stepdown.idx]));
+        if (pw) practiceSelection.applyTier(pw, /** @type {number} */ (stepdown.idx));   // bpm + the tier's density step
+        else setFieldSilent('bpm', String(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).tiers[/** @type {number} */ (stepdown.idx)]));
         syncTempoTierButtons();
         onGenerate();
       }
@@ -7125,7 +7125,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     $('virtuoso-results-jam')?.addEventListener('click', () => {
       closeResultsModal();
       // D-J10: same device hand-off as the primary jam CTA.
-      jamArmFromDrill(jamStyle, (readConfig() || {}).key, s.displayName || '');
+      jamArmFromDrill(/** @type {string} */ (jamStyle), (/** @type {string} */ ((readConfig() || {}).key)), s.displayName || '');
     });
     // Coach prescription (PR 1.3): close-and-arm into the Ladder, the SAME open
     // path the picker node-click uses (set the select + dispatch change → mode
@@ -7499,7 +7499,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       const named = hostTuningEntries(inst, count).find(e => e.name === s.tuning);
       midis = named ? named.midis.slice() : std.slice();
     } else if (Array.isArray(s.tuning) && s.tuning.length === std.length) {
-      midis = std.map((m, i) => m + (Number(s.tuning[i]) || 0));
+      midis = std.map((m, i) => m + (Number((/** @type {unknown[]} */ (s.tuning))[i]) || 0));
     } else {
       midis = std.slice();
     }
@@ -7587,7 +7587,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const lit = cents == null ? -1 : Math.max(0, Math.min(4, Math.round(cents / 10) + 2));
     for (let i = 0; i < segs.length; i++) {
       segs[i].classList.toggle('on', i === lit);
-      segs[i].classList.toggle('off-pitch', i === lit && Math.abs(cents) > 5);
+      segs[i].classList.toggle('off-pitch', i === lit && Math.abs((/** @type {number} */ (cents))) > 5);
     }
   }
   // Profile badge: compact mirror (avatar + streak + rank) + LINK. Renders nothing
@@ -8482,23 +8482,23 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     if (kit && kit.engine === 'sample' && kit.pieces) {
       // REAL sampled kit first (virtuosity buffers); falls through if this piece is
       // un-harvested (ride_bell/splash/…) or its buffer hasn't finished loading.
-      const b = kit.bank && DRUMKIT_BANKS[kit.bank];
-      if (b && b.src[String(piece)] && scheduleDkHit(ctx, b, piece, when, vol, dur, kit.level || 1)) return;
+      const b = kit.bank && DRUMKIT_BANKS[String(kit.bank)];
+      if (b && b.src[String(piece)] && scheduleDkHit(ctx, b, /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur), kit.level || 1)) return;
       const note = kit.pieces[String(piece)];
       if (note != null && SAMPLED_DRUM_NOTES.has(note)) {   // skip uncommitted notes (no 404 retry)
-        ensureDrumPiece(kit, piece);   // lazy-load cymbals/toms on first use
+        ensureDrumPiece(kit, /** @type {string} */ (piece));   // lazy-load cymbals/toms on first use
         const preset = getReadyWafPreset(drumVar(note, kit.font, kit.variant));
         if (preset) {
-          const d = (piece === 'hh_open' && Number.isFinite(dur)) ? dur : (DRUM_NATURAL_DUR[piece] || 0.4);
+          const d = (piece === 'hh_open' && Number.isFinite(dur)) ? (/** @type {number} */ (dur)) : (DRUM_NATURAL_DUR[String(piece)] || 0.4);
           const g = DRUM_PIECE_GAIN[String(piece)] != null ? DRUM_PIECE_GAIN[String(piece)] : 1;
           wafDrumVoice(ctx, preset, note, when, Math.max(0, vol) * (kit.level || 1) * g, d);
           return;
         }
       }
-      scheduleSynthDrumHit(ctx, '909', piece, when, vol, dur);   // fallback: cold-load / missing piece
+      scheduleSynthDrumHit(ctx, '909', /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur));   // fallback: cold-load / missing piece
       return;
     }
-    scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', piece, when, vol, dur);
+    scheduleSynthDrumHit(ctx, (kit && kit.preset) || '909', /** @type {string} */ (piece), when, vol, /** @type {number} */ (dur));
   }
   // Procedural synth drum voice (808/909) — the electronic kits + the sample failover.
   /** @param {AudioContext} ctx @param {string | undefined} preset @param {string} piece @param {number} when @param {number} vol @param {number} dur */
@@ -8817,7 +8817,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         v *= 1 + (h - 0.5) * 0.10;      // ±~0.4 dB gain wobble
         w += h * 0.004;                 // 0–4 ms onset jitter (later only — never before `when`)
       }
-      const e = wafPlayer.queueWaveTable(ctx, trackBus(ctx, busName), preset, w, midi, d, Math.max(0.0001, v) * wafLoudnessTrim(midi));
+      const e = (/** @type {import('./src/types/waf.js').WafPlayer} */ (wafPlayer)).queueWaveTable(ctx, trackBus(ctx, busName), preset, w, midi, d, Math.max(0.0001, v) * wafLoudnessTrim(midi));
       if (!e) return;
       if (opts) {
         // RR detune (cents) — independent of, and additive to, playbackRate; deterministic.
@@ -8903,7 +8903,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
             // The recorded multi-string dead-strum — ONE unpitched sample per
             // hit (never per chord note). Cold buffer = skip (a missing ghost
             // beats a wrongly pitched WAF stand-in).
-            sgVoice(ctx, busName, when, 0, d, lvlBase * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
+            sgVoice(ctx, busName, when, 0, d, (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * vel, 'chuck', vel);
           } else if (useSg && busName === 'harmony') {
             // DOUBLE-TRACK (band-intel C2): two takes of the comp guitar, hard
             // L/R (±0.35), the right side a seeded 12–20ms late + a few cents
@@ -8914,14 +8914,14 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
             const jit = (Math.abs(Math.sin(ev.t * 12.9898)) * 43758.5453) % 1;   // deterministic per hit
             const dly = 0.012 + jit * 0.008, cents = (jit > 0.5 ? 1 : -1) * (3 + jit * 3);
             for (const m of (ev.midis || [])) {
-              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
+              const v = (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * hScale * vel * 0.72;
               const okL = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: -0.35, bank: sgBank });
               const okR = sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { pan: 0.35, delay: dly, cents, bank: sgBank });
               if (!okL && !okR && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v / 0.72 * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           } else {
             for (const m of (ev.midis || [])) {
-              const v = lvlBase * WAF_VOICE_VOL[busName] * hScale * vel;
+              const v = (/** @type {number} */ (lvlBase)) * WAF_VOICE_VOL[busName] * hScale * vel;
               if ((!useSg || !sgVoice(ctx, busName, when, m, d, v, ev.a, vel, { bank: sgBank })) && preset && wafPlayer) wafVoice(preset, busName, when, m, d, v * wafGmTrim(compGm), { seed: ev.t + m, artic: ev.a });
             }
           }
@@ -8951,11 +8951,12 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       const drumKit = resolveDrumKit(harmProfile);
       for (const ev of bundle.backingEvents || []) {
         if (ev.role !== 'drums') continue;
+        const drumEvent = /** @type {import('./src/core/generation-types.js').DrumEvent} */ (ev);
         if (ev.t < lead - 1e-4) continue;                 // count-in silence
         if (ev.t < startFrom || ev.t >= winEnd) continue;
-        scheduleDrumHit(ctx, drumKit, ev.voice, base + (ev.t - startFrom),
-          WAF_VOICE_VOL.drums * (Number.isFinite(ev.velocity) ? ev.velocity : 0.78), ev.dur);
-        schedEnd = Math.max(schedEnd, base + (ev.t - startFrom) + (Number.isFinite(ev.dur) ? ev.dur + 0.5 : 2));
+        scheduleDrumHit(ctx, drumKit, drumEvent.voice, base + (ev.t - startFrom),
+          (/** @type {number} */ (WAF_VOICE_VOL.drums)) * (Number.isFinite(drumEvent.velocity) ? drumEvent.velocity : 0.78), drumEvent.dur);
+        schedEnd = Math.max(schedEnd, base + (ev.t - startFrom) + (Number.isFinite(drumEvent.dur) ? (/** @type {number} */ (drumEvent.dur)) + 0.5 : 2));
       }
     }
     if (audio.notes) for (const n of bundle.notes || []) {
@@ -9189,7 +9190,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     if (_demoActive) { previewStop(); return; }        // toggle off
     if (!activeBundle || transport.playing) return;              // needs a bundle; never over a graded run
     ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});
     stopAudio();                                       // clear any lingering nodes
     const lead = activeBundle.leadIn || 0, dur = activeBundle.songInfo?.duration || 0;
     const hasLoop = transport.loopA != null && transport.loopB != null;
@@ -9252,7 +9253,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       return await rendererLifecycle.waitUntilReady() && rendererLifecycle.isCurrentRequest(request);
     } catch (error) {
       if (!rendererLifecycle.isCurrentRequest(request)) return false;
-      showStatus(`Renderer failed: ${error.message || error}`);
+      showStatus(`Renderer failed: ${(/** @type {Error} */ (error)).message || error}`);
       console.error('[Virtuoso] Play renderer readiness failed', error);
       syncPlayButton();
       return false;
@@ -9269,7 +9270,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // Create/resume the AudioContext inside the click gesture (before any await) so
     // the voice warm-up + playback don't start on a suspended context.
     ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    if ((/** @type {AudioContext} */ (audioCtx)).state === 'suspended') (/** @type {AudioContext} */ (audioCtx)).resume().catch(() => {});
     // Bounded wait for the host output-device steer so the run's first notes
     // land on the right sink (150ms cap — routing never delays Play noticeably,
     // and a slow/failed steer just starts on the default sink).
@@ -9505,8 +9506,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const root = $('virtuoso-root');
     if (!root || !root.offsetParent) return; // screen not the active/visible one
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    const tag = (e.target?.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'textarea' || tag === 'select' || e.target?.isContentEditable) return;
+    const tag = ((/** @type {HTMLElement | null} */ (e.target))?.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || tag === 'select' || (/** @type {HTMLElement | null} */ (e.target))?.isContentEditable) return;
     const sessionMode = root.classList.contains('virtuoso-session-mode');
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
@@ -9624,7 +9625,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     let request = rendererLifecycle.invalidate();
     const practice = practiceSelection.file;
     const ownsGeneration = () => rendererLifecycle.isCurrentRequest(request);
-    const summary = $('virtuoso-summary');
+    const summary = /** @type {HTMLDivElement} */ ($('virtuoso-summary'));
     try {
       const cfg = readConfig();
       practiceSelection.selectedConfig(cfg);
@@ -9646,7 +9647,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     } catch (e) {
       if (!ownsGeneration()) return;
       if (practice || PATHWAYS[String(practiceSelection.pathwayId)]?.practiceFile) { stopRenderer(); activeBundle = null; lastExercise = null; }
-      showStatus(`Error: ${e.message || e}`);
+      showStatus(`Error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] generate failed', e);
     }
   }
@@ -9945,7 +9946,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     applyPracticeConfig(config, {
       onInstrument() { syncStringSetupControls(); syncInstrumentClass(); },
       onProfile(cfg) {
-        const profile = resolveAudioProfile({ ...cfg, audio: { profile: cfg.audioProfile || '' } });
+        const profile = resolveAudioProfile({ ...cfg, audio: { profile: /** @type {string} */ (/** @type {unknown} */ (cfg.audioProfile || '')) } });
         if (profile.harmony.engine === 'sample') ensureWafPreset(TONE_GM[profile.harmony.tone]);
         if (profile.bass.engine === 'sample') ensureWafPreset(TONE_GM[profile.bass.tone]);
         if (profile.notes.engine === 'sample') ensureWafPreset(TONE_GM[profile.notes.tone]);
@@ -10230,7 +10231,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // skill ▸" arms a jam pre-loaded with the style, the run's KEY, and the
   // drilled device as the first (pre-selected) intent chip. Close-and-arm:
   // the player presses ▶ Jam — nothing autoplays.
-  /** @param {string} styleId @param {string} key @param {string} deviceLabel */
+  /** @param {string} styleId @param {string | null} key @param {string} deviceLabel */
   function jamArmFromDrill(styleId, key, deviceLabel) {
     selectMode('jam');
     setJamStyleId(styleId);
@@ -10273,8 +10274,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   function jamMirrorDebugAdd(pc, chartT) {
     if (!_jamMirror) jamMirrorReset();
     const p = ((pc % 12) + 12) % 12;
-    _jamMirror.noteCount++;
-    _jamMirror.pcs.add(p);
+    (/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).noteCount++;
+    (/** @type {NonNullable<typeof _jamMirror>} */ (_jamMirror)).pcs.add(p);
     _jamPlayed.push({ pc: p, midi: pcAtOrAbove(p, jamIsBassContext() ? 36 : 60), t: performance.now(), chartT: Number(chartT) || 0 });
     if (_jamPlayed.length > 192) _jamPlayed.shift();
   }
@@ -10661,7 +10662,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       jamPendingClear();
     } catch (e) {
       if (!rendererLifecycle.isCurrentRequest(request)) return;
-      showStatus(`Jam error: ${e.message || e}`);
+      showStatus(`Jam error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] jam failed', e);
     }
   }
@@ -10692,7 +10693,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     _goldPending = null;
     if (_goldMirror) _goldMirror.lastSeg = null;
     maybeResyncMixer(cfg);   // jam style hot-swap → the mixer follows the new style
-    rendererLifecycle.setBundle(activeBundle, cfg.renderer);
+    rendererLifecycle.setBundle(activeBundle, /** @type {string} */ (cfg.renderer));
     fretboardSyncRange();
     // Re-anchor the loop + clock to the NEW chart's music region and (re)start its
     // audio from the downbeat. A deliberate content change can't be gaplessly
@@ -10891,7 +10892,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       const list = String(cfg.customOpenMidis).split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
       if (list.length === setup.openMidis.length) opens = list;
     }
-    const af = Math.max(0, Math.min(11, parseInt(cfg.anchorFret, 10) || 0));
+    const af = Math.max(0, Math.min(11, parseInt(/** @type {string} */ (/** @type {unknown} */ (cfg.anchorFret)), 10) || 0));
     cfg.anchorFret = af;
     cfg.key = NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12];   // derived concert key
     // Station token for Travel credit + the goal-card readout ('open'/'fret N')
@@ -10926,7 +10927,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
         if (list.length === setup.openMidis.length) opens = list;
       }
-      const af = Math.max(0, Math.min(11, parseInt(merged.anchorFret, 10) || 0));
+      const af = Math.max(0, Math.min(11, parseInt(/** @type {string} */ (/** @type {unknown} */ (merged.anchorFret)), 10) || 0));
       setFieldSilent('key', NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12]);
       setFieldSilent('anchorStation', af === 0 ? 'open' : `fret ${af}`);
     } else if (merged.key) {
@@ -11039,6 +11040,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // explicit, student-DRIVEN, never auto). Travel(keys/positions) + Support-off are
   // the follow-on increments; here we only ship the smallest atom that proves the
   // invite model where the grinder currently hits a wall.
+  /** @type {Set<string | null | undefined>} */
   const SEQ_SUPPORTING = new Set(['scale', 'chord_scales']);   // the practice types that consume cfg.sequence
   function depthSequenceField() { return document.querySelector('#virtuoso-controls [name="sequence"]'); }
   function depthIsPatterned() { const f = depthSequenceField(); return !!(f && f.value && f.value !== 'none'); }
@@ -11050,7 +11052,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // labelled) per guitar-pedagogy's relabel gate.
   /** @param {import('./src/content/pathways.js').Pathway | null} pw */
   function depthPatternOffer(pw) {
-    const pt = pw && pw.base && pw.base.practiceType;
+    if (!pw) return null;
+    const pt = pw.base && pw.base.practiceType;
     if (!SEQ_SUPPORTING.has(pt)) return null;
     const adv = document.querySelector('#virtuoso-controls [name="advancedMode"]');
     if (!adv || !adv.checked) return null;                 // would be stripped → never offer a no-op
@@ -11081,6 +11084,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const pw = practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' ? PATHWAYS[practiceSelection.pathwayId] : null;
     const tiers = pw && pw.tempoTiers ? pw.tempoTiers : null;
     if (!tiers || !tiers.length) return;
+    const activePathway = /** @type {import('./src/content/pathways.js').Pathway} */ (pw);
     const ptData = pathwayTiersLoad();
     const highestCleared = (ptData[String(practiceSelection.pathwayId)] || {}).highest_tier ?? -1;
     tiers.forEach((_bpm, i) => {
@@ -11095,10 +11099,10 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       // equal boxes. Label is the speed name; BPM is the readout below it.
       btn.innerHTML = `<span class="tier-step">Rung ${i + 1}</span>` +
         `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span>` +
-        `<span class="tier-bpm">${tierChipLabel(pw, i)}</span>`;
+        `<span class="tier-bpm">${tierChipLabel(activePathway, i)}</span>`;
       btn.addEventListener('click', () => {
         practiceSelection.setTier(i);
-        practiceSelection.applyTier(pw, i);   // bpm + the tier's subdivision/bars step (density ladder)
+        practiceSelection.applyTier(activePathway, i);   // bpm + the tier's subdivision/bars step (density ladder)
         syncTempoTierButtons();
         onGenerate();
       });
@@ -11124,7 +11128,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         }
       } else {
         const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
-        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(pw, nextIdx)}`;
+        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(activePathway, nextIdx)}`;
       }
     }
   }
@@ -11174,7 +11178,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // Available column (the "+"), not the picker.
     const bands = visiblePackOrder()
       .map(id => PATHWAY_BANDS.find(b => b.id === id))
-      .filter(Boolean)
+      .filter(b => b !== undefined)
       .map(b => ({ id:b.id, label:b.label, kind:b.kind, ids:b.pathways.filter(id => PATHWAYS[id] && !practiceSelection.isHidden(id)) }))
       .filter(b => b.ids.length);
     if (!bands.length) {
@@ -11190,7 +11194,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // active pathway's band when unset/stale. Band-chip clicks set _activeBandId directly
     // (browse); selecting a pathway sets it in applyPathwayById (list follows selection).
     if (!practiceSelection.bandId || !bands.find(b => b.id === practiceSelection.bandId)) {
-      const pwBand = bands.find(b => b.ids.includes(practiceSelection.pathwayId));
+      const pwBand = bands.find(b => b.ids.includes(/** @type {string} */ (practiceSelection.pathwayId)));
       practiceSelection.browseBand(pwBand ? pwBand.id : bands[0].id);
     }
     const activeBand = bands.find(b => b.id === practiceSelection.bandId) || bands[0];
@@ -11327,7 +11331,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const hiddenNode = practiceSelection.isHidden;
     // Build inner wrapper + SVG edge layer + node buttons
     container.innerHTML = '<div class="virtuoso-tree-inner" id="virtuoso-tree-inner"></div>';
-    const inner = container.firstChild;
+    const inner = /** @type {HTMLElement} */ (container.firstChild);
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'virtuoso-tree-edges');
@@ -11339,8 +11343,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       const a = nodeMap[aId], b = nodeMap[bId];
       if (!a || !b || hiddenNode(aId) || hiddenNode(bId)) return;
       const line = document.createElementNS(NS, 'line');
-      line.setAttribute('x1', a.x); line.setAttribute('y1', a.y);
-      line.setAttribute('x2', b.x); line.setAttribute('y2', b.y);
+      line.setAttribute('x1', String(a.x)); line.setAttribute('y1', String(a.y));
+      line.setAttribute('x2', String(b.x)); line.setAttribute('y2', String(b.y));
       line.setAttribute('class', 'tree-edge');
       svg.appendChild(line);
     });
@@ -11475,7 +11479,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         if (inFlight) return;
         inFlight = true;
         let p = null;
-        try { p = bridge.getLevels(); } catch (_) { p = null; }
+        try { p = (/** @type {NonNullable<typeof bridge> & {getLevels: NonNullable<NonNullable<typeof bridge>['getLevels']>}} */ (bridge)).getLevels(); } catch (_) { p = null; }
         Promise.resolve(p).then((lv) => {
           if (myGen !== _lvlGen) return;   // meter was stopped/restarted while this IPC was in flight
           if (!lv || typeof lv.inputLevel !== 'number') { if (!okOnce) fallBack(); return; }
@@ -11500,9 +11504,9 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         _lvlMode = 'web';
         const tick = () => {
           if (_lvlMode !== 'web' || !_lvlAnalyser) return;
-          _lvlAnalyser.getFloatTimeDomainData(_lvlData);
-          let s = 0; for (let i = 0; i < _lvlData.length; i++) s += _lvlData[i] * _lvlData[i];
-          _lvlPushSample(Math.min(1, Math.sqrt(s / _lvlData.length) * 5));   // → the host's 0..1 inputLevel scale
+          (/** @type {AnalyserNode} */ (_lvlAnalyser)).getFloatTimeDomainData(/** @type {Float32Array<ArrayBuffer>} */ (_lvlData));
+          let s = 0; for (let i = 0; i < (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData)).length; i++) s += (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))[i] * (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData))[i];
+          _lvlPushSample(Math.min(1, Math.sqrt(s / (/** @type {Float32Array<ArrayBuffer>} */ (_lvlData)).length) * 5));   // → the host's 0..1 inputLevel scale
           _lvlRaf = requestAnimationFrame(tick);
         };
         _lvlRaf = requestAnimationFrame(tick);
@@ -11701,7 +11705,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         // EMA made a semitone step read ~47¢ on its FIRST frame — at the ±50¢ gate
         // boundary for exactly the chromatic content this judge must catch. The
         // meter strip re-smooths for display in ptOnPitch; scoring uses raw frames.
-        _ptHandle = hostMinigames().scoring.createContinuous({ smoothingMs: 12 });
+        _ptHandle = (/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames())).scoring.createContinuous({ smoothingMs: 12 });
       } catch (_) { _ptHandle = null; }
       if (_ptHandle && typeof _ptHandle.on === 'function') {
         _ptHandle.on('pitch', ptOnPitch);
@@ -12004,7 +12008,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   function ptPreviewJudgeCounts(bundle) {
     const all = ((bundle && bundle.notes) || []).filter(n => !n._tail);
     if (!all.length) return null;
-    const opens = bundle.openMidis || [];
+    const opens = (/** @type {NonNullable<ReturnType<typeof makeBundle>>} */ (bundle)).openMidis || [];
     const verify = ndVerifyAvailable();
     /** @param {import('./src/types/entry-data.js').EntryNote} n */
     const gk = (n) => n.ch != null ? ('c' + n.ch) : ('t' + n.t);
@@ -12122,7 +12126,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     _tunerTargets = opens.map((midi) => ({ midi, name: NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1) }));
     _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
     // Same guarded SDK call as startPitchTracker — no mic / no SDK degrades to a no-op.
-    try { _tunerHandle = hostMinigames().scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
+    try { _tunerHandle = (/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames())).scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
     if (!_tunerHandle || typeof _tunerHandle.on !== 'function') { _tunerHandle = null; return; }
     _tunerHandle.on('pitch', tunerOnPitch);
     _tunerHandle.on('end', () => { _tunerHandle = null; });
@@ -12359,7 +12363,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // asserts). The card / claim / share-text branch on the kind. Add a pilot by id.
   const PROOF_PILOTS = new Map([['blues_foundation', 'tempo'], ['vl_connect', 'guide_tones']]);
   function proofLoopOn() { try { return localStorage.getItem('virtuoso.proofloop') === 'on'; } catch { return false; } }
-  /** @param {string | null} id */
+  /** @param {string | null} id @returns {id is string} */
   function proofPilot(id) { return proofLoopOn() && !!id && PROOF_PILOTS.has(id); }
   /** @param {string} id */
   function proofKind(id) { return PROOF_PILOTS.get(id) || 'tempo'; }
@@ -12457,14 +12461,14 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       m.eyebrow = 'COMPLETED'; m.hero = s.displayName || 'Workout';
       try {
         /** @type {string[]} */
-        const seen = []; s.chapters.forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
+        const seen = []; (/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).forEach(c => { if (c.role && !seen.includes(c.role)) seen.push(c.role); });
         const arc = seen.map(r => (SEGMENT_ROLES[r] && SEGMENT_ROLES[r].label) || r).filter(Boolean).join(' → ');
         if (arc) m.sub = arc;
       } catch (_) {}
       const cleared = (s.chapters || []).filter(c => c.earned).length;
       const longest = (s.chapters || []).reduce((/** @type {import('./src/types/results-data.js').Chapter | null} */ a, c) => (c && c.durSec > (a ? a.durSec : -1)) ? c : a, null);
-      stat('BLOCKS', s.chapters.length);
-      stat('CLEARED', `${cleared}/${s.chapters.length}`);
+      stat('BLOCKS', (/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).length);
+      stat('CLEARED', `${cleared}/${(/** @type {NonNullable<import('./src/types/results-data.js').RunSummary['chapters']>} */ (s.chapters)).length}`);
       stat('TIME', dur);
       if (longest && (longest.name || longest.role)) stat('TOP BLOCK', longest.name || longest.role);
       if (s.streak > 0) stat('DAY', String(s.streak));
@@ -12521,7 +12525,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   function shareCardText(s) {
     const m = shareCardModel(s); if (!m) return '';
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
-    const what = m.lane === 'JAM' ? 'Jam' : (s.displayName || m.hero);
+    const what = m.lane === 'JAM' ? 'Jam' : ((/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).displayName || m.hero);
     const lines = [`Virtuoso — ${what}`];
     if (m.heroGreen) lines.push(`✓ ${m.hero}${m.sub ? ` — ${m.sub}` : ''}`);
     else if (m.lane === 'JAM') lines.push(`Jammed over ${m.hero}`);
@@ -12529,7 +12533,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     else lines.push(`Practiced ${m.hero}`);
     m.extra.forEach(e => lines.push(`✓ ${e}`));
     const tail = [`Practiced ${m.dur}`];
-    if (s.streak > 0) tail.push(`Day ${s.streak}`);
+    if ((/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).streak > 0) tail.push(`Day ${(/** @type {import('./src/types/results-data.js').RunSummary} */ (s)).streak}`);
     if (!xpOff) { try { const lv = xpLevelInfo(progressLoad().xp); tail.push(`Level ${lv.level} · ${lv.name}`); } catch (_) {} }
     lines.push(tail.join(' · '));
     return lines.join('\n');
@@ -12739,7 +12743,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // (the DOM card gets it via CSS font-display; the canvas needs it resident).
     await loadCardFonts();
     const cv = renderShareCardImage(s);
-    const toBlob = () => new Promise(r => cv.toBlob(r, 'image/png'));
+    const toBlob = () => new Promise(r => (/** @type {HTMLCanvasElement} */ (cv)).toBlob(r, 'image/png'));
     const download = async () => { const b = await toBlob(); if (!b) return false; const url = URL.createObjectURL(b); const a = document.createElement('a'); a.href = url; a.download = shareCardFilename(s); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 4000); return true; };
     if (action === 'download') {
       // Save to the configured (shared) folder via the local server; fall back to a
@@ -12791,7 +12795,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
         if (pw.practiceFile) continue; // Authored lessons require run-bound identity, never fuzzy BPM credit.
         const tiers = pw.tempoTiers || [];
         let matchedTier = -1;
-        tiers.forEach((t, i) => { if (Math.abs(session.bpm - t) <= 5) matchedTier = Math.max(matchedTier, i); });
+        tiers.forEach((t, i) => { if (Math.abs((/** @type {number} */ (session.bpm)) - t) <= 5) matchedTier = Math.max(matchedTier, i); });
         if (matchedTier >= 0) {
           const r = _updatePathwayTier(pwId, matchedTier);
           if (r) return r;
@@ -12851,6 +12855,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
   // omit it (the run's _ptDevs).
   /** @param {import('./src/core/session-types.js').SegmentBound | null} b @param {import('./src/types/results-data.js').TimingDeviation[]} [devsOpt] */
   function blockFeltInfo(b, devsOpt) {
+    if (!b) return null;
     const tmpl = b && b.templateId ? SEGMENT_TEMPLATES[b.templateId] : null;
     if (!tmpl || !tmpl.creditsPathway) return null;
     const pw = PATHWAYS[tmpl.creditsPathway];
@@ -13227,7 +13232,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       bpm_tier = null;
       if (mode === 'pathway' && PATHWAYS[pathwayId]) {
         const tiers = PATHWAYS[pathwayId].tempoTiers;
-        bpm_tier = authored ? authored.tierIndex : tiers.reduce((best, t, i) => bpm >= t ? i : best, 0);
+        bpm_tier = authored ? authored.tierIndex : tiers.reduce((best, t, i) => /** @type {number} */ (bpm) >= t ? i : best, 0);
       }
     }
 
@@ -13334,7 +13339,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     for (const x of _ptDevs) {
       const b = Math.max(0, Math.floor((x.t - lead) / meas + 1e-6));
       if (!byBar.has(b)) byBar.set(b, []);
-      byBar.get(b).push(x.d * 1000);
+      (/** @type {number[]} */ (byBar.get(b))).push(x.d * 1000);
     }
     /** @param {number[]} a */
     const med = a => a[Math.floor(a.length / 2)];
@@ -13352,7 +13357,11 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       const devsSorted = _ptDevs.slice().sort((a, b) => a.t - b.t);
       const leans = [];
       for (let ci = 1; ci < tl.length; ci++) {
-        const t0 = (tl[ci].startSec != null ? tl[ci].startSec : tl[ci].t) + lead;
+        const event = tl[ci];
+        if (!event) continue;
+        const eventSec = event.startSec != null ? event.startSec : event.t;
+        if (eventSec == null) continue;
+        const t0 = eventSec + lead;
         if (!(t0 >= 0)) continue;
         const x = devsSorted.find(d => d.t >= t0 - 1e-3 && d.t < t0 + meas * 0.5);
         if (x) leans.push(x.d * 1000);
@@ -13421,7 +13430,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const _feltGate = !!(_pw && PATHWAYS[_pw] && PATHWAYS[_pw].feltGate);
     let felt = null, feltResult = null, unlock;
     if (_feltGate) {
-      const barSec = (function () { try { return measureSeconds(activeBundle.config); } catch (_) { return 2; } })();
+      const barSec = (function () { try { return measureSeconds((/** @type {NonNullable<typeof activeBundle>} */ (activeBundle)).config); } catch (_) { return 2; } })();
       felt = feltHoldAnalyze(_ptDevs, { barSec });
       feltResult = creditFeltRung(_pw, _activeSession.bpm, felt);
       unlock = (feltResult && feltResult.flip) ? { pathwayId: _pw, tier: feltResult.tier } : null;
@@ -13666,7 +13675,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     const streak = streakCount(sessions);
     const numEl = $('virtuoso-streak-num');
     if (numEl) {
-      numEl.textContent = streak;
+      numEl.textContent = String(streak);
       numEl.classList.toggle('active', streak > 0);
     }
     const calEl = $('virtuoso-cal-dots');
@@ -13719,8 +13728,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // (before any await). Without this, new AudioContext() created inside the
     // async continuation below may start in 'suspended' state on some hosts,
     // causing notes scheduled with the frozen currentTime to fire in the past.
-    ensureAudioCtx();
-    if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const launchAudioCtx = ensureAudioCtx();
+    if (launchAudioCtx.state === 'suspended') launchAudioCtx.resume().catch(() => {});
     const formStringSetup = document.querySelector('[name="stringSetup"]')?.value || null;
     const session = workoutEditor.launchConfig({ audio, stringSetup: formStringSetup,
       customOpenMidis: document.querySelector('#virtuoso-controls [name="customOpenMidis"]')?.value || '',
@@ -13729,6 +13738,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
       if (transport.playing) stopPlayback();
       showStatus('Building session…');
+      if (!session) { showStatus('Build a Workout first.'); return; }
       const exercise = generateSession(session);
       lastExercise = exercise;
       if (summary) summary.innerHTML = summarize(exercise);
@@ -13738,7 +13748,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       refreshStatusFromState();
     } catch (e) {
       if (!rendererLifecycle.isCurrentRequest(request)) return;
-      showStatus(`Session error: ${e.message || e}`);
+      showStatus(`Session error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] session launch failed', e);
     } finally {
       if (btn && launch === sessionLaunch) { btn.disabled = false; btn.textContent = '▶ Start Workout'; }
@@ -13785,7 +13795,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       // staring at a stuck error with no obvious way out. Status line carries
       // the message; the LCD stays a clean chart readout.
       if (kind !== 'builtin_2d') {
-        showStatus(`${kind} unavailable — falling back to 2D Highway (${e.message || e})`);
+        showStatus(`${kind} unavailable — falling back to 2D Highway (${(/** @type {Error} */ (e)).message || e})`);
         try {
           syncViewSwitcher('builtin_2d');
           const preference = document.querySelector('[name="renderer"]'); if (preference) preference.value = 'builtin_2d';
@@ -13795,10 +13805,10 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
           if (summary) summary.innerHTML = summarize(lastExercise);
         } catch (e2) {
           console.error('[Virtuoso] fallback to 2D Highway failed', e2);
-          showStatus(`Renderer failed: ${e2.message || e2}`);
+          showStatus(`Renderer failed: ${(/** @type {Error} */ (e2)).message || e2}`);
         }
       } else {
-        showStatus(`Renderer failed: ${e.message || e}`);
+        showStatus(`Renderer failed: ${(/** @type {Error} */ (e)).message || e}`);
       }
     }
   }
@@ -13820,7 +13830,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     // form.elements (not a DOM descendant query) so it also reaches the
     // form-associated audio mute pills that live in the stage view-bar.
     Array.from(form.elements).forEach(cb => {
-      if (cb.type === 'checkbox' && cb.name && !(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
+      if (cb instanceof HTMLInputElement && cb.type === 'checkbox' && cb.name && !(cb.name in out)) out[cb.name] = cb.checked ? 'on' : '';
     });
     return out;
   }
@@ -13832,7 +13842,9 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       // form.elements[name] reaches form-associated controls regardless of DOM
       // position (the relocated audio mute pills), and never throws on a crafted
       // share-payload key the way an attribute selector could.
-      let field = form.elements[name];
+      /** @typedef {{type?: unknown, checked?: boolean, value?: string | boolean, length?: number, 0?: FormStateField}} FormStateField */
+      /** @type {FormStateField | null | undefined} */
+      let field = (/** @type {{[name: string]: FormStateField | null | undefined}} */ (/** @type {unknown} */ (form.elements)))[name];
       // A radio/checkbox group resolves to a RadioNodeList; we only carry single
       // controls, so take the first element if a list comes back.
       if (field && typeof field.length === 'number' && !('value' in field)) field = field[0];
@@ -14068,7 +14080,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     syncStringCountChips();
     tuningSettings.sync();
     advancedToggle?.addEventListener('change', practiceSelection.syncFileControls); syncAdvancedMode(); syncChromaticVisibility();
-    $('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', ev.target.value); if (activeBundle) onGenerate(); });
+    $('virtuoso-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', (/** @type {HTMLSelectElement} */ (ev.target)).value); if (activeBundle) onGenerate(); });
     $('virtuoso-play')?.addEventListener('click', onPlayToggle);
     $('virtuoso-stop')?.addEventListener('click', onStop);
     $('virtuoso-listen')?.addEventListener('click', previewListen);   // PR 2.1 · audition the phrase
@@ -14102,10 +14114,11 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       };
       rulerCanvas.addEventListener('pointerdown', (e) => {
         if (!activeBundle || dur() <= 0) return;
+        const g = rulerGeom(); if (!g) return;
         e.preventDefault();
         try { rulerCanvas.setPointerCapture(e.pointerId); } catch (_) {}
         prevA = transport.markerA; prevB = transport.markerB;
-        const g = rulerGeom(); const y = e.clientY - g.rect.top;
+        const y = e.clientY - g.rect.top;
         const lz = Math.min(RULER_LOOP_ZONE, g.rect.height * 0.4);
         const edge = edgeNear(e.clientX);
         const t = timeAt(e.clientX);
@@ -14287,7 +14300,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       inp.addEventListener('change', () => { writeShareHash(); if (activeBundle) onGenerate(); });
     });
     // View dropdown in the render stage — independent of exercise mode
-    $('virtuoso-view-select')?.addEventListener('change', (e) => onViewSwitch(e.target.value));
+    $('virtuoso-view-select')?.addEventListener('change', (e) => onViewSwitch((/** @type {HTMLSelectElement} */ (e.target)).value));
     // Hand-marks pill (hand-marks Slice 1): default ON, persisted, never
     // auto-flipped. Renderers + the strip read handMarksOn() per frame, so a
     // flip shows on the next draw with no re-attach.
@@ -14600,7 +14613,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       if (!out) return;
       const amp = out.dataset.amp, v = Math.max(0, Math.min(1.2, parseFloat(out.value) || 0));
       rigSetOutput(amp, v);
-      const db = rigHost.querySelector(`.virtuoso-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = rigOutputDb(amp) + ' dB';
+      const db = rigHost.querySelector(`.virtuoso-rig-outdb[data-amp="${amp}"]`); if (db) db.textContent = String(rigOutputDb(amp)) + ' dB';
     });
     const mixCh = $('virtuoso-mixer-channels');
     mixCh?.addEventListener('input', (ev) => {
@@ -14720,7 +14733,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     document.addEventListener('click', (e) => {
       const pop = $('virtuoso-setup-popover'); if (!pop || pop.hidden) return;
       const btn = $('virtuoso-setup-btn');
-      if (!pop.contains(e.target) && btn && !btn.contains(e.target)) toggleSetupPopover(false);
+      if (!pop.contains(/** @type {Node | null} */ (e.target)) && btn && !btn.contains(/** @type {Node | null} */ (e.target))) toggleSetupPopover(false);
     });
     updateSetupButton();
     // Header settings menu (⚙): toggle, items, close-on-outside-click.
@@ -14731,12 +14744,12 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     $('virtuoso-settings-shortcuts')?.addEventListener('click', () => { toggleSettingsMenu(false); toggleCheatSheet(true); });
     $('virtuoso-settings-host')?.addEventListener('click', () => {
       toggleSettingsMenu(false);
-      try { if (hostBus() && typeof hostBus().navigate === 'function') hostBus().navigate('settings'); } catch (_) {}
+    try { const bus = hostBus(); if (bus && typeof bus.navigate === 'function') bus.navigate('settings'); } catch (_) {}
     });
     // Settings prefs: accent theme · default XP mode · default count-in.
     document.querySelectorAll('#virtuoso-theme-pick .virtuoso-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
     document.querySelectorAll('#virtuoso-xp-mode .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
-    $('virtuoso-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso.countInDefault', e.target.value); } catch (_) {} applyCountInDefault(e.target.value); });
+    $('virtuoso-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso.countInDefault', (/** @type {HTMLSelectElement} */ (e.target)).value); } catch (_) {} applyCountInDefault((/** @type {HTMLSelectElement} */ (e.target)).value); });
     document.querySelectorAll('#virtuoso-countin-grid .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
     document.querySelectorAll('#virtuoso-energy-pick .virtuoso-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
     renderCardSkinPicker('signature');
@@ -14745,7 +14758,7 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     document.addEventListener('click', (e) => {
       const menu = $('virtuoso-settings-menu'); if (!menu || !menu.classList.contains('vir-open')) return;
       const btn = $('virtuoso-settings-btn');
-      if (!menu.contains(e.target) && btn && !btn.contains(e.target)) toggleSettingsMenu(false);
+      if (!menu.contains(/** @type {Node | null} */ (e.target)) && btn && !btn.contains(/** @type {Node | null} */ (e.target))) toggleSettingsMenu(false);
     });
     practicePresets.mount();
     $('virtuoso-launch-session')?.addEventListener('click', onLaunchSession);
@@ -14807,8 +14820,9 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
     /** @type {(() => void) | null} */
     let fireInitialGenerate = null; // set by fireInitialGenerateWhenLaidOut below; idempotent
     let screenVisible = false;
-    if (hostBus() && typeof hostBus().on === 'function') {
-      hostBus().on('screen:changed', (ev) => {
+    const screenBus = hostBus();
+    if (screenBus && typeof screenBus.on === 'function') {
+      screenBus.on('screen:changed', (ev) => {
         if (ev?.detail?.id !== 'plugin-virtuoso') { workoutEditor.unmount(); tuningSettings.unmount(); practicePresets.unmount(); screenVisible = false; practiceSelection.leave(); rendererLifecycle.unmount(); activeBundle = null; lastExercise = null; return; }
         if (screenVisible) return;
         screenVisible = true;
@@ -14854,7 +14868,8 @@ import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
       // tell us about screen shows, defer instead: the RO keeps watching and
       // the screen:changed hook above fires the deferred initial generate.
       setTimeout(() => {
-        if (!host.offsetParent && hostBus() && typeof hostBus().on === 'function') return;
+        const bus = hostBus();
+        if (!host.offsetParent && bus && typeof bus.on === 'function') return;
         fire();
       }, 1000);
     })();

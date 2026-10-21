@@ -1,5 +1,35 @@
 # Testing — the smoke-suite catalogue
 
+Strict-entry continuation (2026-10-21; entry debt cleared): fresh dirty-tree
+baseline **72 → 0 diagnostics** in `npm run typecheck:entry` (TypeScript 5.9.3).
+The ignored `coverage/typecheck-entry.json` is the fresh report. The exact
+historical entry AST SHA, renderer extraction pin and transport pin pass without
+expected-hash or historical fixture edits. The public `window.Virtuoso` API now
+has an explicit ordered 40-key type contract; persisted progress remains unknown
+until narrowed. The original dynamic `form.elements[name]` lookup is preserved
+and given a local type view, without replacing its crafted-key behavior. Focused
+entry-types/renderer-lifecycle/run-transport/practice-selection tests pass
+**60/60**. Root typecheck, lint (132 files; 0 new/errors, 1 known warning), entry
+syntax, doc links, brand scan and whitespace pass. Full `npm test` was not rerun;
+the prior timeout is not counted. These source gates do not certify live host,
+browser, audio, or Windows DI behavior.
+
+Strict-entry continuation checkpoint (2026-10-21): verified fresh baseline
+**72 diagnostics** → **70** after two runtime-inert `_jamMirror` non-null JSDoc
+casts derived from the same function's synchronous reset guard. Only TS18047
+changed (**22→20**); unchanged counts: TS2322 2, TS2339 12, TS2345 28, TS2531 1,
+TS2532 1, TS2538 1, TS7015 1, TS18048 4. `tests/entry-types.mjs` passes all **15**
+tests, including the historical normalized AST SHA-256
+`10f4e4402b7fdff8a2d5da9286ea4ea7e922e5077e67ace9acdc185513de863c`; focused
+entry-types/renderer-lifecycle/run-transport passes **48/48**. Root
+`npm run typecheck`, lint (132 files; zero new/error diagnostics, one known
+warning), `node --input-type=module --check < screen.js`, `npm run check:docs`,
+`npm run check:brand` and `git diff --check` pass. `npm run typecheck:entry`
+correctly exits 1 with **70** remaining diagnostics. Full `npm test` was not run
+at this checkpoint; the previously timed-out run is not counted. No historical
+fixture/hash was changed or recaptured. These source tests do not certify a live
+host/browser/audio/Windows DI runtime.
+
 Strict-entry Wave 1 (~490–6552) JSDoc cast batch (2026-10-21): strict entry
 **168→130** (−38, all wave-range sites ≤6552 cleared; maxLine 14913).
 Diagnostics by code now **{TS2345:32, TS18047:38, TS2339:14, TS18048:11,
