@@ -1,8 +1,0 @@
-# Keep the git hook + Node scripts LF so the shebang doesn't break on a fresh
-# non-Windows clone (Git-for-Windows autocrlf would otherwise rewrite them CRLF).
-.githooks/pre-commit text eol=lf
-*.mjs text eol=lf
-
-# Preserve pinned upstream bytes, including historical whitespace and line endings.
-vendor/webaudiofont-src/** -text -whitespace
-LICENSES/FluidR3-provenance.md -text -whitespace

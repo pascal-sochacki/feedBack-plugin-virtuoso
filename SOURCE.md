@@ -16,6 +16,12 @@ withdrawal, followed by chord-theory/timing extraction, validated Markdown
 practices and lifecycle safety fixes, source 0.2.11 / Lab 0.2.11-lab.1.
 AGPL-3.0-only; supplied WITHOUT ANY WARRANTY. See [LICENSE](LICENSE).
 
+Experimental source 0.2.13 modification notice (2026-10-21): preserves 0.2.12
+fixed variants and serializes the original Chromatic Warmup curriculum into an
+AGPL Markdown Ladder pilot, modular core/content/renderer/Workout foundations
+and reviewed staff/beam/page-lifecycle fixes. Authorized Lab candidate 0.2.13-lab.1;
+no stable or installed-host certification. No new third-party assets; vendor texts unchanged.
+
 The installation consists of editable native JS, HTML, Python and assets.
 No plugin source transpilation or runtime build is required. Source for each
 published install is the Git revision containing that install's `plugin.json`:
@@ -123,7 +129,7 @@ certification or installed-host/desktop/DI acceptance; those remain separate gat
 
 ## Generated runtime source map
 
-Original-identity local source revision: `1a6a1ecfbeb913b72c46625045c02335b6a149e5` on
+Original-identity local source revision: `03a0c04b44c0b413018e77f81b169a43b01a07fc` on
 `dev/modular-source`. This is provenance, not a promise of a remote source
 branch. The matching editable runtime and complete vendor preferred sources
 are the publication revision containing this file and its manifest.

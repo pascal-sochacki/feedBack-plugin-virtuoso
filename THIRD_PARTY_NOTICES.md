@@ -10,6 +10,13 @@ Bundling a license text does not establish that a
 third-party recording was granted under that license. These notices do not
 certify legal clearance, installed-host operation or Windows DI acceptance.
 
+## Developer source only — Acorn (MIT)
+
+The native graph checker uses unmodified Acorn 8.18.0, copyright 2012–2022
+various contributors, under MIT. Source retains its license, contributors and
+provenance in `scripts/vendor/`; neither runtime package includes this parser.
+Upstream: <https://github.com/acornjs/acorn/tree/8.18.0>.
+
 ## WebAudioFont player — GPL-3.0-or-later
 
 WebAudioFont by Sergey Surikov (`surikov/webaudiofont`). The exact bundled

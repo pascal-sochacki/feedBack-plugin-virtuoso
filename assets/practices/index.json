@@ -1,5 +1,6 @@
 {
   "practices": [
-    { "id": "chromatic-warmup", "title": "Chromatic warm-up", "path": "guitar/beginner/chromatic-warmup.md" }
+    { "id": "chromatic-warmup", "title": "Chromatic warm-up", "path": "guitar/beginner/chromatic-warmup.md", "use": "custom" },
+    { "id": "chromatic_warmup", "title": "Chromatic Warmup", "path": "guitar/beginner/chromatic-warmup-ladder.md", "use": "pathway" }
   ]
 }

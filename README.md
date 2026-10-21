@@ -1,30 +1,50 @@
 # Virtuoso (Lab) — experimental personal fork
 
+**Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,
+prepared to replace 0.2.11-lab.1 on the personal fork's `main`.
+The experimental Ladder pilot additionally ships `chromatic-warmup-ladder.md`,
+format 3, stable progress ID `chromatic_warmup`: six variations/four tiers,
+standard-six-string guitar only. The existing format-2 Custom demo has the
+different ID `chromatic-warmup`. No saved-progress migration or reset occurs.
+Reviewer follow-up keeps ordinary modes bound during catalog loads, limits each
+request/body read to 10 seconds, preserves selected renderer/fallback on rebuild,
+and records authored credit from actual run identity/density instead of stale UI.
+Custom file practices now require `formatVersion: 2` frontmatter and JSON `variants`;
+the shipped chromatic lesson offers first position (low E 1–4) and fifth position
+(5–8). Load defaults to first, Variant/Next stops and reloads at zero, Next wraps,
+tempo/count-in stay unchanged, and Play is always explicit. Old root notes and
+duration are intentionally rejected; wrap them in a unique ID/title variant.
+No new host capability, Learn, adaptive notes or scoring/XP change is included.
+
 **Experimental, not a stable update.** Plugin ID / screen: `virtuoso_lab`;
 navigation label: **Virtuoso (Lab)**. A supported released desktop version has
 not yet been certified. The running host must understand `scriptType: "module"`
 AND serve the plugin's `src/**` with JavaScript MIME. An older host will fail at
-`import` or return 404 for a core module. Release candidate: **0.2.11-lab.1**.
+`import` or return 404 for a native module. Release candidate: **0.2.13-lab.1**.
 This guide accompanies the authorized experimental update to the personal fork's
 `main`, not a stable release or legal certification. Confirm the installed
-manifest reports **0.2.11-lab.1**; the preceding publication was 0.2.9-lab.1.
+manifest reports **0.2.13-lab.1** after updating; publication alone cannot prove
+that Git Plugin Manager refreshed a cached moving-main resource.
 
-This update packages **0.2.11-lab.1** (source 0.2.11),
-preserving chord-theory/timing extraction and adding one Custom file practice.
+This candidate packages **0.2.13-lab.1** (source 0.2.13), with native pure
+exercise/session cores, passive content, renderer owners and Workout controls.
+Minor/modal staff spelling, clipped beams and canvas resize behavior are corrected;
+Workout edits retain their handlers through canceled unload and BFCache restoration.
 This needs the complete `src/` graph plus `assets/practices/index.json` and
 `assets/practices/guitar/beginner/chromatic-warmup.md`; generated artifacts include
-both original AGPL lesson files. Existing contained playback is reused.
+both original AGPL lesson files, including `chromatic-warmup-ladder.md`.
+Existing contained playback and host judging are reused.
 Publication does not install the update on your desktop.
 
-This fork packages the native-module prototype based on upstream Virtuoso v0.2.6,
-with source version 0.2.11 and move-only pitch, scale-interval, chord-theory and timing modules.
+The published fork packages the native-module prototype based on upstream Virtuoso v0.2.6,
+with source version 0.2.13 and the complete native core/content/shell graph.
 It **does not include the separate Learn-mode work** and is not an official
 stable release. Original project: https://github.com/got-feedBack/feedBack-plugin-virtuoso.
 Copyright (C) 2026 Christian Cowan (original Virtuoso).
 Copyright (C) 2026 Pascal Sochacki (personal fork modifications).
-Modification notice, 2026-10-20: native-module extraction, Lab namespace
+Modification notice, 2026-10-21: native-module extraction, Lab namespace
 isolation, attribution/source-availability update, withdrawal of uncertain
-recordings and validated Markdown-backed practices with lifecycle safety fixes.
+recordings, authored fixed variants/Ladder pilot and renderer/lifecycle safety fixes.
 Virtuoso code is free
 software under **AGPL-3.0-only**; you may use, study, modify and redistribute
 under those terms. Supplied **WITHOUT ANY WARRANTY**, including implied
@@ -54,8 +74,10 @@ below are maintainer context, not links to files present in the runtime package.
 3. Fully restart FeedBack after installation. Enable **Virtuoso (Lab)** if needed,
    restart again, and open its navigation entry. Confirm
    `/api/plugins/virtuoso_lab/status` and successful loading of `src/core/pitch.js`
-    and the complete `src/` graph: pitch, scale intervals, chord theory, timing,
-    core practice parser and shell practice loader.
+    and the complete `src/` graph, including nested core builders, content,
+    shell renderers and the Workout editor. For an existing Lab installation,
+    use Git Plugin Manager's update action for the same URL, then fully restart
+    and verify installed `plugin.json` version **0.2.13-lab.1**.
 
 Installation is user-driven; publication does not install or start anything on
 Windows. Back up important data before experimental testing.
@@ -78,7 +100,17 @@ Windows. Back up important data before experimental testing.
    Workout or Jam to leave the file. Check view changes and navigation/re-entry
    do not revive an abandoned load or start playback after Stop.
 
-Only this reviewed lesson is supported; this is not an arbitrary-file importer
+Try both **Variant** selections (low E frets 1–4 and 5–8) and wrapping **Next**:
+each stops and previews at zero, preserving tempo/count-in without autoplay.
+
+In **Ladder → Chromatic Warmup**, try the six variations and four tiers.
+Its stable progress ID is unchanged, but this authored pilot intentionally loses
+alternate-tuning/instrument adaptation: standard six-string guitar only. Restore
+compatible Setup after a mismatch; no real or declared tuning is silently changed.
+Existing user-authored format-1 files need manual conversion to format-2 variants;
+there is no automatic converter, storage migration or progress reset.
+
+Only these reviewed lessons are supported; this is not an arbitrary-file importer
 or Markdown editor. Lesson prose is displayed as plain text. Its exact JSON
 notes and explicit duration remain authoritative; unsupported techniques,
 instrument or tuning are rejected. All renderers and Windows DI still need
@@ -173,9 +205,9 @@ edition's wrapper: keep original disabled and restart; don't run both together.
 Shared host globals (`feedBack*`, `noteDetect`, tuner, host legacy aliases) are
 not renamed or replaced with private fake host APIs.
 
-## Acceptance status (2026-10-20)
+## Acceptance status (2026-10-21)
 
-Reviewed source-only validation: **172/172 Node tests** (pure leaves, practice
+Reviewed source-only validation: **302/302 Node tests**, zero skips (pure cores, practice
 parser/loader, mocked real-entry lifecycle, characterization, packaging and documentation), real module import,
 manifest/source graph/ZIP integrity, private audio globals, Python AST + SQLite
 schema/endpoints, repeatability and a deterministic **71-case** corpus captured
@@ -184,7 +216,15 @@ all 28 scales, genuine guitar 3NPS and position-box setup coverage, representati
 generation variants and all 25 built-in sessions). Raw exercise SHA-256 values
 match in source and isolated Lab imports; fatal startup-assert and raw note-time
 mutation controls pass. Syntax,
-narrow JSDoc checking, brand hygiene and whitespace gates are checked as well.
+strict core/content/shell-renderer noEmit JSDoc checking, brand hygiene and
+whitespace gates are checked as well. Developer ESLint retains 18 explicit legacy
+warnings; Knip intentionally reports one full/two production export findings
+(exit 1, advisory inventory, not runtime failures). Root npm dependencies, lock,
+lint/Knip configs and vendored MIT Acorn are developer-only and excluded from
+the runtime; only `src/package.json` selects native ESM. No runtime npm install.
+Known inherited low-level 3NPS cases can reach fret 51; malformed NaN BPM or
+nonpositive ladder steps may not terminate. These are not fixed or certified
+by this experimental candidate; do not treat unusual inputs as supported.
 The user's earlier installed Windows Lab “seems to work” report is preliminary
 functional smoke only, not regression certification for this update.
 Tests also verify complete legal/vendor-source retention, exact player
