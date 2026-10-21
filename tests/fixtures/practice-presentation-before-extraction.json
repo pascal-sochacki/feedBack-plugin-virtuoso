@@ -1,0 +1,11 @@
+{
+  "sourceSha256": "581dcb975f2ef47fb19f122a1a0e621e3c327464db688b160fbb715fac9567b9",
+  "snapshotSha256": "8a352461e6c859118815391f126dd5ff6d2986249f5850c2dc8144c68c58dc86",
+  "snapshotBytes": 9850708,
+  "cases": 3044,
+  "eventCases": 10,
+  "eventBytes": 76298,
+  "eventSha256": "2187f5d1bc31fe346dce94666778cd7659639ffbdd7c1ad882752736d40ddeeb",
+  "unmovedStatements": 843,
+  "unmovedSha256": "1944e0d4d6848f758cdfe7d8036c7011c98b259a50d67d88327258f235be1d2f"
+}

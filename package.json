@@ -3,9 +3,12 @@
   "private": true,
   "scripts": {
     "test": "node --test tests/*.mjs",
+    "test:properties": "node --test tests/property-core.mjs",
+    "test:coverage": "c8 node --test tests/*.mjs",
     "lint": "node scripts/lint.mjs",
     "lint:core": "node scripts/lint.mjs --core",
     "typecheck": "tsc --project tsconfig.core.json && tsc --project tsconfig.shell.json",
+    "typecheck:entry": "node scripts/typecheck-entry.mjs",
     "check:docs": "node scripts/check-doc-links.mjs",
     "check:brand": "node scripts/check-brand-hygiene.mjs",
     "deadcode": "knip --config knip.json --no-progress",
@@ -14,12 +17,26 @@
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
+  "c8": {
+    "all": true,
+    "src": ["."],
+    "include": ["src/core/**/*.js", "src/content/**/*.js", "src/shell/**/*.js", "screen.js"],
+    "exclude": ["**/node_modules/**", "vendor/**", "scripts/**", "tests/**", "assets/**", "static/**", "dist/**", "coverage/**"],
+    "allow-external": false,
+    "exclude-after-remap": true,
+    "reporter": ["text-summary", "html", "lcovonly", "json-summary"],
+    "reports-dir": "coverage",
+    "temp-directory": "coverage/tmp",
+    "check-coverage": false
+  },
   "overrides": {
     "@eslint/plugin-kit": "0.7.2"
   },
   "devDependencies": {
     "@eslint/js": "9.28.0",
+    "c8": "12.0.0",
     "eslint": "10.6.0",
+    "fast-check": "4.10.2",
     "globals": "17.11.0",
     "knip": "6.42.1",
     "typescript": "5.9.3"

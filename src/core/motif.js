@@ -100,7 +100,7 @@ export function motifPlaceMidi(midi, opens, fretLo, fretHi, prevF, excludeS) {
 // The cell OWNS its progression (D2): the harmonic events of the pass come
 // from the cell's prog/scale, so 'chord'/'target' anchors and the resolution
 // check always read the device's own changes.
-/** @param {import('./generation-types.js').MotifCell} cell @param {import('./generation-types.js').GenerationConfig} cfg @param {number[]} opens @param {number} fretLo @param {number} fretHi */
+/** @param {import('./generation-types.js').MotifCell} cell @param {import('./instrument-tuning.js').InstrumentTuningConfig & Pick<import('./generation-types.js').GenerationConfig, 'key' | 'bpm' | 'chordDepth' | 'chordOverride'> & Partial<Pick<import('./generation-types.js').GenerationConfig, 'scale' | 'progression' | 'tritoneSub' | 'mode' | 'harmonicRhythm'>>} cfg @param {number[]} opens @param {number} fretLo @param {number} fretHi */
 export function resolveMotifCell(cell, cfg, opens, fretLo, fretHi) {
   const keyPc = (((NOTE_ALIASES[cfg.key] != null ? NOTE_ALIASES[cfg.key] : 0) % 12) + 12) % 12;
   const scale = cell.scale || cfg.scale || 'major';

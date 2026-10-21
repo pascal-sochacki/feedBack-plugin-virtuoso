@@ -65,7 +65,7 @@ export function romanLabel(degree, quality) {
 //   bass (slash/pedal override) + gen:'approach' (engine-generated passing
 //     chords) ride the same events when steps 2-3 produce them.
 // See memory project_cross_instrument_backing_unification.
-/** @param {import('./generation-types.js').GenerationConfig} cfg @param {number} duration @returns {import('./generation-types.js').TimelineEvent[]} */
+/** @param {Pick<import('./generation-types.js').GenerationConfig, 'key' | 'scale' | 'progression' | 'chordDepth' | 'chordOverride' | 'tritoneSub' | 'mode' | 'bpm' | 'meter' | 'harmonicRhythm'>} cfg @param {number} duration @returns {import('./generation-types.js').TimelineEvent[]} */
 export function compileChordTimeline(cfg, duration) {
   const degrees = progressionDegreesForConfig(cfg);
   const slot = measureSeconds(cfg);

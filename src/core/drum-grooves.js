@@ -27,6 +27,7 @@ export const DRUM_VELOCITY = { a: 0.95, n: 0.78, g: 0.32, x: 0.12 };
 // Per-piece relative gain (sound-design) — tames the hot GM ride/cymbals so a
 // continuous jazz ride doesn't swamp the kit; applied in BOTH drum engines at
 // schedule time (NOT in the chart, so the event velocities stay structural).
+/** @type {Record<string, number>} */
 export const DRUM_PIECE_GAIN = {
   kick: 0.85, snare: 1.0, snare_xstick: 0.4,
   hh_closed: 0.5, hh_open: 0.5, hh_pedal: 0.3,

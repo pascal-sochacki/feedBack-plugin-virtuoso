@@ -4,8 +4,7 @@ import { openMidisForConfig, isBassCfg } from '../instrument-tuning.js';
 import { scalePositionsForSystem } from '../positions.js';
 import { measureSeconds } from '../timing.js';
 import { noteDefaults } from '../notes.js';
-import { buildBackingEvents } from '../backing.js';
-import { buildDrumEvents, resolveGroove } from '../drum-grooves.js';
+import { buildAccompanimentEvents } from '../backing.js';
 import { swingNotesBacking } from '../feel.js';
 import { compileChordTimeline } from '../chord-timeline.js';
 
@@ -75,7 +74,7 @@ export function buildMotifExercise(cfg) {
   // mode progression pick can never disagree with the device. Pre-swung here
   // for the same reason — makeBundle skips its swing when backing rides in.
   const cfgM = Object.assign({}, cfg, { progression: cell.prog || cfg.progression, scale: cell.scale || cfg.scale, chordOverride: cell.chordOverride || cfg.chordOverride });
-  const rawBack = /** @type {(import('../generation-types.js').BackingEvent | import('../generation-types.js').DrumEvent)[]} */ (buildBackingEvents(cfgM, totalTime)).concat(buildDrumEvents(cfgM, totalTime, resolveGroove(cfgM)));
+  const rawBack = buildAccompanimentEvents(cfgM, totalTime);
   const sw = swingNotesBacking(notes, rawBack, cfgM);
   return { notes: sw.notes, chords: [], chordTemplates: [], handShapes: [], sections,
     duration: totalTime, backingEvents: sw.backing, timeline: compileChordTimeline(cfgM, totalTime) };

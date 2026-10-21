@@ -44,13 +44,13 @@ test('Lab corrected Tab/Notation complete canvas capture matches current source 
   assert.deepEqual(characterize(artifact.root,undefined,{localRendererSnapshot:true,localRendererDirect:true}),output);
 });
 
-test('developer lint packages, caches and tooling are absent from Lab folder and ZIP', () => {
-  for (const file of ['package.json', 'package-lock.json', 'eslint.config.mjs', 'knip.json', 'tsconfig.shell.json', 'tsconfig.renderer.json', 'node_modules', 'scripts/lint.mjs', 'scripts/lint-baseline.json', '.eslintcache']) {
+test('developer packages, coverage, property tests, caches and tooling are absent from Lab folder and ZIP', () => {
+  for (const file of ['package.json', 'package-lock.json', 'eslint.config.mjs', 'knip.json', 'tsconfig.json', 'tsconfig.core.json', 'tsconfig.shell.json', 'tsconfig.renderer.json', 'tsconfig.entry.json', 'src/types', 'node_modules', 'scripts/typecheck-entry.mjs', 'scripts/lint.mjs', 'scripts/lint-baseline.json', '.eslintcache', 'coverage', 'tests/property-core.mjs']) {
     assert.equal(existsSync(join(artifact.root, file)), false, file);
     assert.ok(!artifact.files.includes(file), file);
   }
   const entries = execFileSync('unzip', ['-Z1', artifact.zip], { encoding: 'utf8' });
-  assert.doesNotMatch(entries, /(?:^|\n)virtuoso_lab\/(?:package(?:-lock)?\.json|eslint\.config\.mjs|knip\.json|node_modules\/|scripts\/|\.eslintcache)/);
+  assert.doesNotMatch(entries, /(?:^|\n)virtuoso_lab\/(?:package(?:-lock)?\.json|tsconfig(?:\.[a-z]+)?\.json|eslint\.config\.mjs|knip\.json|node_modules\/|scripts\/|tests\/|coverage\/|\.eslintcache)/);
 });
 
 for (const scenario of lifecycleScenarios) {
@@ -193,7 +193,7 @@ test('Lab manifest, complete source graph and ZIP carry a separate identity', as
   assert.match(entries, /virtuoso_lab\/assets\/practices\/guitar\/beginner\/chromatic-warmup.md/);
   assert.match(entries, /virtuoso_lab\/assets\/practices\/guitar\/beginner\/chromatic-warmup-ladder.md/);
   assert.match(entries, /virtuoso_lab\/src\/shell\/practice-catalog.js/);
-  assert.match(read('screen.js'), /\/api\/plugins\/virtuoso_lab\/assets\/practices\//);
+  assert.match(read('src/shell/practice-selection.js'), /\/api\/plugins\/virtuoso_lab\/assets\/practices\//);
   assert.match(entries, /virtuoso_lab\/assets\/thumb.png/);
   assert.match(entries, /virtuoso_lab\/static\/wafonts\/WebAudioFontPlayer.js/);
   assert.doesNotMatch(entries, /node_modules|\.git\/|plugin_data\/|\.claude/);

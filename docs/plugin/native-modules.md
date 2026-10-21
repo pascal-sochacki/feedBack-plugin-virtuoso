@@ -1,15 +1,91 @@
 # Native modules — dependency map and staged extraction
 
+QA2 follow-up: request-owned Play readiness reporting and immediate borrowed
+ready observation precede validation/getters. **373 tests**, zero skips; entry
+**14,541**, owner **264**, native DAG77/all-source80, Lab561; same reserved local
+0.2.14 and published13 identity. No runtime dependencies or broad error swallowing.
+
+Renderer lifecycle boundary (2026-10-21, unpublished 0.2.14):
+`shell/renderer-lifecycle.js` → existing renderer selection → host factories/local
+Classic; no core→shell or reverse entry import. Strict DOM checkJs covers the whole
+controller and optional borrowed renderer capabilities. Active candidate, canvas,
+ready and resize resources plus shared operation identity have one owner; entry
+retains full chart/player clock/audio/credit/progress/L1 and synchronous APIs.
+Call-time factory/preference/host reads remain; no runtime dependencies or bundling.
+Entry **14,530**, controller **256**, combined **+129** from 14,657; bindings
+**124→124** (real selection dependency replaced, not hidden). Entry DAG **77**,
+all-source **80**, isolated Lab **561** runtime inventory files. Full tests **369**,
+zero skips; local 0.2.14 still not browser/host/user certified. Historical counts
+below refer to earlier checkpoints.
+
+Latest presentation boundary (2026-10-21, unpublished 0.2.14): typed
+Current selection/load boundary (2026-10-21): native
+`shell/practice-selection.js` → pure `core/practice-selection.js`, existing
+config/presentation/catalog/file loader and live PATHWAYS. Mode/rung/variation/
+tier/file intent, eligibility and listener visits are owned together; entry retains
+L1 adaptation and contained generation/attachment/ready/clock/voice/credit. Entire
+new owner plus loader/catalog strict DOM checkJs; no callback bag/state facade,
+import-time IO or async API publication. Five semantic entry hooks and one existing
+presentation dependency. Entry **14,657**, imports **124**, native entry DAG **76**,
+all-source **79**, isolated Lab **560 runtime inventory files**. Historical counts
+below describe previous checkpoints, not the current tree.
+
+`shell/practice-presentation.js` owns goal/selection/START/content/file display.
+Nine explicit lower-core/passive-content imports, one view-scoped plain snapshot
+hook, no entry import, reexport barrel, listener or cached registry copy. Actual
+entry display callers now use owner methods; config-changing rung/variant/Next,
+mode/eligibility/progress and transport remain cohesive entry owners. Authored
+goal/title/hint/prose uses textContent, including late hydrated catalog metadata.
+Entry 15,443→15,196, owner222, previous prose owner60→55; combined−30, bindings
+128→127. Native entry DAG74/all-source76, isolated Lab558 files; **333 tests**, zero
+skips, strict core/content/shell/renderer types, lint17, intentional Knip full1/prod2.
+Independent dirty display/event captures stay pinned, historical fixtures unchanged.
+Local0.2.14 remains untested by the user; installed/published0.2.13 target unchanged.
+
+Configuration/preset/cue boundary (2026-10-21, unpublished 0.2.14):
+`shell/practice-config.js` is now the sole DOM→cfg funnel plus ordered silent
+application; `core/practice-form-defaults.js` owns plain anti-leak prewrites.
+`shell/practice-presets.js` owns existing meta-DB recall/cache/listeners, with
+latest-request/visit/DOM guards. Passive `content/form-cues.js` shares mutable
+catalog vocabulary; `core/practice-form-cue.js` consumes explicit cfg/tier/band.
+Entry retains L1/host shared writes, eligibility, full goal-card/controller,
+catalog cancellation, audio warming and contained transport. **326 tests**, zero
+skips; strict new modules, lint17, Knip full1/prod2 intentional findings. Physical
+entry 15,881→15,443; owners346, combined−92; bindings123→128 (honest API refs).
+Native entry DAG73, source/Lab parity and isolated0.2.14-lab.1 folder/ZIP/legal
+checks pass. Small independent provenance fixture pins original dirty event/cue
+captures; no historical fixture recapture or live-host certification.
+
 **WIP / NOT RELEASE-READY (2026-10-20).** This branch opts into native modules.
-The user reports the installed Windows Lab “seems to work”: preliminary
-user-reported functional smoke ONLY, not renderer/audio/detection regression
-certification or a verified supported-host floor. Do not
+USERREPORTED smoke PASS (2026-10-21): “all works” for installed 0.2.13-lab.1
+Windows Play/audio/detection, views/Tab/Notation minor flats, Markdown variants,
+Ladder tuning and Workout navigation. Exact host/detector versions unknown;
+not independent/exhaustive, Windows DI certification or a supported-host floor.
+Local 0.2.14 has not been user-tested. Do not
 merge to upstream's published default branch or distribute this as a stable update yet.
 User authorization separately permits experimental isolated Lab runtime publication
 to the personal fork's `main` for Git Plugin Manager installation. This is not
 host certification or upstream/stable promotion; full source stays committed locally.
 
 ## Baseline and scope
+
+Unpublished 0.2.14 tuning ownership adds inert `shell/tuning-settings.js` with
+explicit instrument-tuning imports. Five semantic hooks preserve entry L1/host
+and player ownership; all preset/cache/custom-input callers move together, not
+through a barrel. Three ordered option loops consolidate; strict DOM checkJs
+covers the complete owner. Current physical entry 15,881 plus owner 194, against
+actual pre-edit physical 16,128 (combined −53); imports 124→123. Old 16,126
+prose is historical, not the physical baseline. Native DAG is 71 modules.
+
+Unpublished 0.2.14 pure-core quality pass (2026-10-21): `chart-assembly.js` is
+an import-time-inert leaf sharing timed chord geometry/template-ID offsets across
+ladder/session/key-cycle/Jam; no imports or contract clones. `backing.js` now
+shares ordered accompaniment generation, retaining its existing drum dependency.
+`count-in.js` → chart-grid → timing supplies incoming and wrap breaths. No upward
+edges, runtime dependency, generic utility bag or state owner. Tiling retains its
+different template-ID and optional-array policy. At that earlier checkpoint,
+entry physical newline count was 16,128 before/after (historical prose 16,126);
+published Windows smoke target stays 0.2.13-lab.1, candidate 0.2.14-lab.1 is local.
 
 ### Current working tree (2026-10-20)
 

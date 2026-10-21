@@ -13,6 +13,8 @@ process.on('uncaughtException', error => { console.error(error.stack?.replace(/d
 // between the baseline, source and renamed Lab namespaces.
 const [root, baseline, controlsJson = '{}'] = process.argv.slice(2);
 const controls = JSON.parse(controlsJson);
+const entrySafety = controls.entrySafety;
+delete controls.entrySafety;
 const sessionGeneration = controls.sessionGenerationSnapshot;
 delete controls.sessionGenerationSnapshot;
 const generationFoundation = controls.generationFoundationSnapshot;
@@ -31,6 +33,12 @@ const localRendererDirect = controls.localRendererDirect;
 delete controls.localRendererDirect;
 const workoutEditorSnapshot = controls.workoutEditorSnapshot;
 delete controls.workoutEditorSnapshot;
+const tuningSnapshot = controls.tuningSnapshot;
+delete controls.tuningSnapshot;
+const cueSnapshot = controls.cueSnapshot;
+delete controls.cueSnapshot;
+const presentationSnapshot = controls.presentationSnapshot;
+delete controls.presentationSnapshot;
 assert.ok(Object.keys(controls).every(key => ['failStartupAssertion', 'mutateRawNote', 'audioRemoval', 'practiceFileProbe', 'lifecycle', 'chromaticProbe', 'pathwaySnapshot', 'pathwayIdentity', 'workoutSnapshot', 'workoutIdentity', 'instrumentTuningSnapshot', 'instrumentTuningIdentity', 'fretboardShapeSnapshot', 'fretboardShapeIdentity', 'chromaticBuilderSnapshot'].includes(key)), 'unknown harness control');
 let startupAssertions = 0;
 // Node only logs console.assert failures; source startup guards must gate CI.
@@ -65,6 +73,45 @@ globalThis[lab ? '__VIRTUOSO_LAB_HARNESS__' : '__SS_HARNESS__'] = true;
 // Only static import URLs change to accommodate the browser-selected root .js
 // entry in Node. The complete IIFE and real leaf modules execute, unsliced.
 let entry = captureEntryPath ? readFileSync(captureEntryPath,'utf8') : read('screen.js');
+if (entrySafety) {
+  const end = entry.lastIndexOf('})();');
+  entry = entry.slice(0,end) + `globalThis[Symbol.for('entry-safety')] = {makeBuiltin2DRenderer, goScreen, bind};\n` + entry.slice(end);
+}
+if (controls.lifecycle === 'transport-events') {
+  const end = entry.lastIndexOf('})();');
+  const state = entry.includes('const transport = createRunTransport')
+    ? `playing:transport.playing,paused:transport.paused,currentPracticeTime:transport.time,playStartChartTime:transport.startTime,playAnchorChartTime:transport.anchorTime,playAnchorMs:transport.anchorMs,playAnchorCtx:transport.anchorAudio,preRoll:transport.preRollUntil,pausedMs:sessionPausedMs(),loop:getSegmentLoop(),wraps:transport.wraps`
+    : `playing,paused,currentPracticeTime,playStartChartTime,playAnchorChartTime,playAnchorMs,playAnchorCtx,preRoll:_preRollUntil,pausedMs:sessionPausedMs(),loop:getSegmentLoop(),wraps:_loopWraps`;
+  entry = entry.slice(0,end) + `globalThis[Symbol.for('transport-probe')] = {
+    tick, seekTo, onPlayToggle, onStop, stopPlayback, endFiniteRun,
+    state:()=>({${state}}),
+    reset:()=>{seekTo(0);resetTransportLoop();}
+  };\n` + entry.slice(end);
+}
+if (captureEntryPath && entry.includes('createPracticeFileLoader, displayPracticeProse')) {
+  entry = entry.replace('createPracticeFileLoader, displayPracticeProse','createPracticeFileLoader');
+  entry += `\nimport { displayPracticeProse } from './src/shell/practice-presentation.js';\n`;
+}
+if (presentationSnapshot) {
+  const end = entry.lastIndexOf('})();');
+  if (entry.includes('const practiceSelection = createPracticeSelection(')) {
+    // This historical display-only probe supplies plain read state, never transitions.
+    entry = entry.slice(0,end) + `globalThis[Symbol.for('presentation-probe')] = { pathways:PATHWAYS, configure(id,tier,variation,transport) { globalThis[Symbol.for('presentation-state')]={pathwayId:id,tierIndex:tier,variationIndex:variation}; playing=transport.playing; paused=transport.paused; }, card:practicePresentation.renderGoal, position:practicePresentation.renderPosition, cta:practicePresentation.renderStart, describe:practicePresentation.describe };\n` + entry.slice(end);
+    entry = entry.replace('return { pathwayId:practiceSelection.pathwayId, tierIndex:practiceSelection.tierIndex,', "return { pathwayId:globalThis[Symbol.for('presentation-state')].pathwayId, tierIndex:globalThis[Symbol.for('presentation-state')].tierIndex,")
+      .replace('variationIndex:practiceSelection.variationIndex, bandId:view', "variationIndex:globalThis[Symbol.for('presentation-state')].variationIndex, bandId:view");
+  } else {
+  entry = entry.slice(0,end) + `globalThis[Symbol.for('presentation-probe')] = { pathways:PATHWAYS, configure(id,tier,variation,transport) { activePathwayId=id; activeTempoTierIdx=tier; activePathwayVariationIdx=variation; playing=transport.playing; paused=transport.paused; }, card:typeof practicePresentation === 'undefined' ? updatePathwayGoalCard : practicePresentation.renderGoal, position:typeof practicePresentation === 'undefined' ? updatePositionStepper : practicePresentation.renderPosition, cta:typeof practicePresentation === 'undefined' ? updateStartCta : practicePresentation.renderStart, describe:typeof practicePresentation === 'undefined' ? describeCurrentContent : practicePresentation.describe };\n` + entry.slice(end);
+  }
+  if (entry.includes('const transport = createRunTransport')) {
+    entry = entry.replace('playing=transport.playing; paused=transport.paused;', '')
+      .replace('playing:transport.playing, paused:transport.paused, jamMode:', "playing:globalThis[Symbol.for('presentation-state')].playing, paused:globalThis[Symbol.for('presentation-state')].paused, jamMode:")
+      .replace('variationIndex:variation};', 'variationIndex:variation,playing:transport.playing,paused:transport.paused};');
+  }
+}
+if (cueSnapshot) {
+  const end = entry.lastIndexOf('})();');
+  entry = entry.slice(0,end) + `globalThis[Symbol.for('cue-probe')] = { cue: (id,tier,cfg) => typeof practiceFormCue === 'function' ? practiceFormCue(id,PATHWAYS[id],tier,cfg,pathwayBandId(id)) : formCueForRung(id,tier,cfg), pathways:PATHWAYS };\n` + entry.slice(end);
+}
 if (rendererSnapshot) {
   const end = entry.lastIndexOf('})();');
   assert.ok(end > 0);
@@ -84,6 +131,9 @@ if (!baseline && !captureEntryPath) {
   const imports = parse(entry, { ecmaVersion: 2022, sourceType: 'module' }).body.filter(node => node.type === 'ImportDeclaration');
   const bound = new Set(imports.flatMap(node => node.specifiers.map(specifier => specifier.local.name)));
   const needed = new Set();
+  if (cueSnapshot) needed.add('practiceFormCue');
+  if (cueSnapshot && !bound.has('practiceFormCue')) { entry += `\nimport { practiceFormCue } from './src/core/practice-form-cue.js';\n`; bound.add('practiceFormCue'); }
+  if (controls.instrumentTuningSnapshot) for (const name of ['parseNoteName','midiToNoteName']) needed.add(name);
   if (rendererSnapshot) {
     for (const name of ['vizFactoryFor', 'borrowHostViz']) needed.add(name);
     entry += `\nimport { makeClassic2DHighwayRenderer } from './src/shell/renderers/classic-2d.js';\n`;
@@ -93,7 +143,11 @@ if (!baseline && !captureEntryPath) {
   if (backingCluster) for (const name of (await import('./backing-cluster.mjs')).backingNames) needed.add(name);
   if (generationFoundation) for (const name of (await import('./generation-foundation.mjs')).foundationNames) needed.add(name);
   if (controls.chromaticBuilderSnapshot) for (const name of ['CHROMATIC_PATTERNS', 'buildChromaticExercise', 'noteDefaults', 'wholeCycleStepCount', 'applyAlternatePicking', 'applyBluegrassPicking', 'applyCellStrokes', 'applyStrokePolicy']) needed.add(name);
-  if (controls.fretboardShapeSnapshot || controls.fretboardShapeIdentity) for (const name of ['lowestFretWithPc', 'scaleSemitones', 'scaleFingerFor', 'threeNpsStringFingers']) needed.add(name);
+  if (controls.fretboardShapeSnapshot || controls.fretboardShapeIdentity) for (const name of ['lowestFretWithPc', 'scaleSemitones', 'scaleFingerFor', 'threeNpsStringFingers', 'resolveCurrentShape']) needed.add(name);
+  if (needed.has('resolveCurrentShape') && !bound.has('resolveCurrentShape')) {
+    entry += `\nimport { resolveCurrentShape } from './src/core/config-defaults.js';\n`;
+    bound.add('resolveCurrentShape');
+  }
   for (const node of imports) {
     const module = await import(pathToFileURL(resolve(root, node.source.value)));
     const names = Object.keys(module).filter(name => needed.has(name) && !bound.has(name));
@@ -150,6 +204,44 @@ try { await import(dataUrl(entry)); } catch (error) { console.error(error.messag
 assert.ok(startupAssertions > 0, 'entry startup assertions executed');
 const api = window[lab ? 'VirtuosoLab' : 'Virtuoso'];
 const debug = globalThis[lab ? '__virtuoso_lab_debug' : '__ss_debug'];
+if (entrySafety) {
+  if (entrySafety === 'host-navigation') {
+    const calls = [];
+    const bus = {navigate:id => calls.push(id)};
+    let reads = 0;
+    Object.defineProperty(window, 'feedBack', {configurable:true, get:() => ++reads === 1 ? bus : null});
+    assert.doesNotThrow(() => globalThis[Symbol.for('entry-safety')].goScreen('settings'));
+    assert.deepEqual(calls, ['settings']);
+    process.stdout.write(JSON.stringify({entrySafety:'host-navigation'}));
+    process.exit(0);
+  }
+  const factory = globalThis[Symbol.for('entry-safety')].makeBuiltin2DRenderer;
+  const renderer = factory();
+  let destroyOnResize = false;
+  const canvas = {width:640,height:420,getContext:()=>({}),parentElement:{getBoundingClientRect(){
+    if (destroyOnResize) renderer.destroy();
+    return {width:640,height:420};
+  }}};
+  window.addEventListener = () => {};
+  window.removeEventListener = () => {};
+  renderer.init(canvas);
+  destroyOnResize = true;
+  assert.doesNotThrow(() => renderer.draw({currentTime:0,notes:[],songInfo:{duration:1}}));
+  process.stdout.write(JSON.stringify({entrySafety:true}));
+  process.exit(0);
+}
+if (presentationSnapshot) {
+  const { presentationSnapshot: capture } = await import('./practice-presentation.mjs');
+  const rows = await capture(globalThis[Symbol.for('presentation-probe')],root,lab);
+  await new Promise(resolve=>process.stdout.write(JSON.stringify(rows),resolve));process.exit(0);
+}
+if (cueSnapshot) {
+  const probe = globalThis[Symbol.for('cue-probe')];
+  const rows = [];
+  for (const id of Object.keys(probe.pathways)) for (const tier of [-1,0,1,3,99]) for (const cfg of [null,{instrument:'guitar',practiceType:'scale',fretMin:7},{instrument:'bass',practiceType:'walking_bass',fretMin:7},{instrument:'bass',practiceType:'slap_pop'},{instrument:'bass',practiceType:'chromatic',fretMin:0}]) rows.push([id,tier,cfg,probe.cue(id,tier,cfg)]);
+  rows.push(['missing',0,null,probe.cue('missing',0,null)]);
+  await new Promise(resolve=>process.stdout.write(JSON.stringify(rows),resolve));process.exit(0);
+}
 assert.ok(api && debug, 'public and debug APIs publish synchronously at entry evaluation');
 assert.equal(window[lab ? 'Virtuoso' : 'VirtuosoLab'], undefined);
 assert.equal(listeners.length, 1);
@@ -352,10 +444,10 @@ if (controls.pathwayIdentity) {
   process.stdout.write(JSON.stringify({ pathwayIdentity:true }));
   process.exit(0);
 }
-if (controls.lifecycle || workoutEditorSnapshot) {
+if (controls.lifecycle || workoutEditorSnapshot || tuningSnapshot) {
   const { runLifecycle } = await import('./lifecycle.mjs');
-  const snapshot = await runLifecycle({ root, api, debug, lab, scenario: workoutEditorSnapshot ? 'editor-capture' : controls.lifecycle, boot:listeners[0][1] });
-  await new Promise(resolve => process.stdout.write(JSON.stringify(workoutEditorSnapshot ? snapshot : { lifecycle: controls.lifecycle }), resolve));
+  const snapshot = await runLifecycle({ root, api, debug, lab, scenario: tuningSnapshot ? 'tuning-capture' : workoutEditorSnapshot ? 'editor-capture' : controls.lifecycle, boot:listeners[0][1] });
+  await new Promise(resolve => process.stdout.write(JSON.stringify(workoutEditorSnapshot || tuningSnapshot || ['preset-capture','presentation-events','renderer-capture','transport-events'].includes(controls.lifecycle) ? snapshot : { lifecycle: controls.lifecycle }), resolve));
   process.exit(0);
 }
 if (controls.chromaticProbe) {
@@ -434,7 +526,7 @@ if (controls.audioRemoval) {
   const ctx = {
     sampleRate: 48000, createBiquadFilter: node, createWaveShaper: node,
     createGain: node, createConvolver: node, createDynamicsCompressor: node,
-    createBuffer: (channels, length, sampleRate) => ({ length, sampleRate, getChannelData: () => new Float32Array(length) })
+    createBuffer: (_channels, length, sampleRate) => ({ length, sampleRate, getChannelData: () => new Float32Array(length) })
   };
   globalThis.fetch = () => { throw new Error('metal must not fetch a removed cab'); };
   const preset = audio.AMP_PRESETS.metal;

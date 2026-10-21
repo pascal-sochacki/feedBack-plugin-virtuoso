@@ -278,7 +278,7 @@ export function makeBuiltin2DTabRenderer({ getRenderTheme, handMarksOn }) {
       const x = xForDt(dt), y = laneY(n.s, nStr, top, gap);
       const st = bundle.getNoteState ? bundle.getNoteState(n) : null;
       const tw = paintFret(ctx, n, st, x, y, fontSize);
-      if ((n.sus || 0) > 0 && !n.mt) {
+      if (n.sus !== undefined && (n.sus || 0) > 0 && !n.mt) {
         const x2 = Math.min(W - RIGHT_PAD, xForDt(dt + n.sus));
         drawSustainTie(ctx, x + tw/2 + 3, y, x2);
       }

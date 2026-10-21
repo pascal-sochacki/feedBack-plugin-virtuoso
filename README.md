@@ -9,7 +9,7 @@ Practice stays inside one contained player; Virtuoso is not a standalone app.
 ## Development source vs installation
 
 **This checkout is development source**, branch `dev/modular-source`, plugin ID
-`virtuoso`, version **0.2.13** (reviewed experimental candidate; source stays local).
+`virtuoso`, version **unpublished 0.2.14** (local foundation candidate).
 Only Ladder **Chromatic Warmup** (`chromatic_warmup`) now reads authored Markdown:
 six variations, four tempo tiers, twelve fixed charts; existing progress IDs stay.
 This rung intentionally requires standard six-string guitar and blocks alternate
@@ -32,11 +32,16 @@ modal signature and staff spelling, clipped-beam singleton stems/flags, shared
 hand-mark thinning and resize-on-size/DPR-change canvases. This intentionally
 goes beyond the earlier move-only extraction; source tests pass, but browser
 fonts/DPR, live-host rendering/audio and Windows DI acceptance remain owed.
-The reserved **0.2.13** version covers this experimental testing candidate.
+Those rendering fixes shipped in experimental 0.2.13-lab.1. Local 0.2.14 adds
+pure-core cleanup and tuning-settings ownership; it has not been user-tested.
 
 The personal fork's **`main` is a different, generated installable runtime**:
 **Virtuoso (Lab)**, ID `virtuoso_lab`; published experimental **0.2.13-lab.1**
 (2026-10-21), replacing 0.2.11-lab.1. Confirm the installed manifest.
+USERREPORTED smoke PASS on 2026-10-21: “all works” for Windows Play/audio/
+detection, views/Tab/Notation minor flats, Markdown variants, Ladder tuning and
+Workout navigation. Exact host/detector versions unknown; not independent,
+exhaustive or DI certification, and does not cover local 0.2.14 changes.
 It is experimental, not
 an upstream stable update, and does not include the separate Learn-mode work.
 Use this URL in FeedBack's Git Plugin Manager (no branch selector required):

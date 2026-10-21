@@ -8,8 +8,8 @@ import { STYLE_PALETTES, jamProgressionLabel } from './style-palettes.js';
 import { resolveHumanSeed } from './random.js';
 import { COMMON_PROGRESSIONS } from './harmony.js';
 import { measureSeconds } from './timing.js';
-import { buildBackingEvents } from './backing.js';
-import { buildDrumEvents, resolveGroove } from './drum-grooves.js';
+import { buildAccompanimentEvents } from './backing.js';
+import { appendChordGeometry } from './chart-assembly.js';
 import { swingNotesBacking } from './feel.js';
 
 // ── J-3 Energy macro (band-intensity over the loop) ─────────────────────────
@@ -173,7 +173,7 @@ export function buildJamChart(cfg) {
     });
     const chart = buildSingleChart(pCfg);
     const dur = Math.max(chart.duration || 0, bars * measureSeconds(pCfg));
-    let rawBack = /** @type {import('./generation-types.js').AccompanimentEvent[]} */ (buildBackingEvents(pCfg, dur)).concat(buildDrumEvents(pCfg, dur, resolveGroove(pCfg)));
+    let rawBack = buildAccompanimentEvents(pCfg, dur);
     appendJamSeamFill(rawBack, pCfg, dur, pass);
     if (cfg.jamBandMode === 'no_bass') rawBack = rawBack.filter(ev => ev.role !== 'bass');
     else if (cfg.jamBandMode === 'drums_only') rawBack = rawBack.filter(ev => ev.role === 'drums');
@@ -188,9 +188,7 @@ export function buildJamChart(cfg) {
     const soloTurn = cfg.jamSpotlight ? (pass % 2 === 0 ? 'you' : 'band') : null;
     const leadNotes = soloTurn === 'band' ? swingNotesBacking(jamSpotlightPhraseNotes(pCfg, dur, pass, /** @type {string} */ (cfg.jamStyle)), [], pCfg).notes : sw.notes;
     leadNotes.forEach(n => { const nn = Object.assign({}, n, { t: Number((n.t + t).toFixed(6)) }); if (soloTurn) nn.solo = soloTurn; notes.push(nn); });
-    chart.chords.forEach(c => chords.push(Object.assign({}, c, { t: Number((c.t + t).toFixed(6)), id: c.id + tplOffset })));
-    chart.chordTemplates.forEach(ct => chordTemplates.push(ct));
-    chart.handShapes.forEach(hs => handShapes.push(Object.assign({}, hs, { chord_id: hs.chord_id + tplOffset, start_time: Number((hs.start_time + t).toFixed(6)), end_time: Number((hs.end_time + t).toFixed(6)) })));
+    appendChordGeometry({ chords, chordTemplates, handShapes }, chart, t, tplOffset);
     (chart.anchors || []).forEach(a => anchors.push(Object.assign({}, a, { time: Number((a.time + t).toFixed(6)) })));
     sw.backing.forEach(ev => backingEvents.push(Object.assign({}, ev, { t: Number((ev.t + t).toFixed(6)), end: Number((ev.end + t).toFixed(6)) })));
     tplOffset += chart.chordTemplates.length;

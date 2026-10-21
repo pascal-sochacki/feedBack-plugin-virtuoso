@@ -205,7 +205,7 @@ export function pickStrumGrip(cfg, rootPc, quality, prevRootFret, opts) {
     const pcs = new Set(g.map(p => ((/** @type {number} */ (p.pc) - rootPc) % 12 + 12) % 12));
     return pcs.has(0) && pcs.size >= 3;
   };
-  /** @param {string} shape @param {number} baseFret */
+  /** @param {string | number} shape @param {number} baseFret */
   const resolveGrip = (shape, baseFret) => {
     let rf = baseFret, g = cagedShapeNotesForChord(cfg, shape, quality, rf);
     if (!gripComplete(g) && rf + 12 <= 20) {

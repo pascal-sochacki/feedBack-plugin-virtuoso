@@ -1,6 +1,81 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 Christian Cowan
+/**
+ * Authored form overrides precede readConfig: meter is text and shape may be a
+ * numeric 3NPS position, unlike the realized GenerationConfig. Base and variation
+ * share this partial contract so guards can inspect either without union gaps.
+ * @typedef {Object} PathwayConfig
+ * @property {string} [practiceType]
+ * @property {string} [scale]
+ * @property {string} [meter]
+ * @property {string} [subdivision]
+ * @property {number} [bpm]
+ * @property {number} [bars]
+ * @property {string} [direction]
+ * @property {string} [sequence]
+ * @property {boolean} [advancedMode]
+ * @property {string} [fretboardSystem]
+ * @property {string} [stringSetup]
+ * @property {string} [renderer]
+ * @property {string} [progression]
+ * @property {string} [chordDepth]
+ * @property {string} [chordOverride]
+ * @property {string} [drums]
+ * @property {string} [backingStyle]
+ * @property {string} [swing]
+ * @property {string} [audioProfile]
+ * @property {string} [key]
+ * @property {number} [fretMin]
+ * @property {number} [fretMax]
+ * @property {string} [chordScaleStrategy]
+ * @property {string | number} [shape]
+ * @property {string} [voices]
+ * @property {string} [bendTarget]
+ * @property {string} [motifCell]
+ * @property {string} [motifPhase]
+ * @property {boolean} [harmonize]
+ * @property {string} [rfoPattern]
+ * @property {string} [walkApproach]
+ * @property {string} [rhTechMode]
+ * @property {number} [pulseAccent]
+ * @property {boolean} [pulseOffbeat]
+ * @property {string} [anchor]
+ * @property {number} [anchorFret]
+ * @property {string} [chromaticPattern]
+ * @property {string} [walkFeel]
+ * @property {string} [strokePolicy]
+ * @property {number} [hertaAccent]
+ * @property {boolean} [hertaWalk]
+ * @property {number} [sweepStrings]
+ * @property {boolean} [tapArp]
+ * @property {string} [pimaPattern]
+ * @property {string} [voicingPosition]
+ * @property {string} [spiderPair]
+ * @property {string} [strumPattern]
+ * @property {boolean} [shapeWalk]
+ * @property {string} [backingComp]
+ * @property {string} [backingBass]
+ * @property {boolean} [tremolo]
+ * @property {string} [customOpenMidis]
+ *
+ * Static lessons and the catalog-hydrated chromatic_warmup share this registry.
+ * Density arrays are absent on ordinary tempo-only ladders, not empty defaults.
+ * @typedef {Object} Pathway
+ * @property {string} label
+ * @property {string} goal
+ * @property {string[]} scales
+ * @property {number[]} tempoTiers
+ * @property {PathwayConfig} base
+ * @property {PathwayConfig[]} vary
+ * @property {boolean} [instAgnostic]
+ * @property {boolean} [feltGate]
+ * @property {string[]} [tempoTierSubdivs]
+ * @property {number[]} [tempoTierBars]
+ * @property {import('../core/practice-files.js').Practice} [practiceFile]
+ * @property {string[]} [formCues]
+ */
 // Keep this shared object mutable: the shell catalog inserts authored lessons.
+/** @type {Record<string, Pathway>} */
 export const PATHWAYS = {
     blues_foundation: {
       label:'Blues Scale Foundation',

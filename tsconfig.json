@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.shell.json",
+  "include": [
+    "src/core/**/*.js",
+    "src/content/*.js",
+    "src/shell/renderers/*.js",
+    "src/shell/renderer-lifecycle.js",
+    "src/shell/run-transport.js",
+    "src/shell/workout-*.js",
+    "src/shell/tuning-settings.js",
+    "src/shell/practice-config.js",
+    "src/shell/practice-presets.js",
+    "src/shell/practice-presentation.js",
+    "src/shell/practice-selection.js"
+  ]
+}

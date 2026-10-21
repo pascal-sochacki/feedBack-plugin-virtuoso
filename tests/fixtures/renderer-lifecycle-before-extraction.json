@@ -1,0 +1,14 @@
+{
+  "sourceSha256": "5519959a43138b8dc47d59bcde9ba95dceed38571e0e4bf9f9f17275628ec6a5",
+  "sourceLines": 14657,
+  "unmovedStatements": 791,
+  "unmovedSha256": "09126b45e7abd4f8829afd8f65a45390901ecf62171bfeaddc3a64971453e479",
+  "selectionStatements": 780,
+  "selectionSha256": "06af5c34c4e9b88ac50222e0ca4e78cdf6f03240d743188e5c5902fff5ff7bc9",
+  "historicalStatements": 770,
+  "historicalSha256": "f5e83b2c6bbd3c1ef1d05219bcda627fae13bab34d0eef742e919effd0fd7225",
+  "config": {"bytes": 83739, "sha256": "5bc4a47464ef1faa4b2a2d0ea6e3774653e4fa603d65c27a6b52d0016215e5ab"},
+  "selection": {"bytes": 9850708, "sha256": "8a352461e6c859118815391f126dd5ff6d2986249f5850c2dc8144c68c58dc86"},
+  "events": {"bytes": 76298, "sha256": "2187f5d1bc31fe346dce94666778cd7659639ffbdd7c1ad882752736d40ddeeb"},
+  "attachment": {"cases": 17, "bytes": 446780, "sha256": "e7c4088884fe476feedc385703ad80bf10335b60fcdb00d7d63e756c7471eaa3"}
+}

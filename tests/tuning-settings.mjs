@@ -1,0 +1,252 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {readFileSync, mkdtempSync, rmSync} from 'node:fs';
+import {join} from 'node:path';
+import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
+import {characterize} from './helpers/characterization.mjs';
+import {buildLab, transformRuntime} from '../scripts/cut-lab.mjs';
+import {createTuningSettings} from '../src/shell/tuning-settings.js';
+import {readConfig, setFieldSilent, syncAdvancedMode, applyPracticeConfig} from '../src/shell/practice-config.js';
+import {practiceFormDefaults} from '../src/core/practice-form-defaults.js';
+import {createPracticePresets} from '../src/shell/practice-presets.js';
+import {practiceFormCue} from '../src/core/practice-form-cue.js';
+import {FORM_CUES} from '../src/content/form-cues.js';
+
+const fixture = JSON.parse(readFileSync(new URL('./fixtures/tuning-settings-before-extraction.json',import.meta.url),'utf8'));
+const hash = value => createHash('sha256').update(value).digest('hex');
+test('configuration funnel preserves independently saved current dirty real-event config bytes', () => {
+  const captured = JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
+  const actual = JSON.stringify(characterize(undefined,undefined,{tuningSnapshot:true}));
+  assert.equal(Buffer.byteLength(actual),captured.snapshotBytes);
+  assert.equal(hash(actual),captured.snapshotSha256);
+});
+
+function configDom(values = {}, disabled = []) {
+  const fields = Object.fromEntries(Object.entries(values).map(([name,value]) => [name,{name,value,disabled:disabled.includes(name),type:'text'}]));
+  const form = {elements:{namedItem:name=>fields[name] || null}};
+  globalThis.document = {getElementById:id=>id==='virtuoso-controls'?form:null,querySelector:selector=>fields[selector.match(/name="([^"]+)"/)?.[1]] || null,querySelectorAll:()=>disabled.map(name=>fields[name])};
+  globalThis.FormData = class {get(name) {const field=fields[name];return field&&!field.disabled?field.value:null;}};
+  globalThis.localStorage = {getItem:()=>null};
+  return fields;
+}
+
+test('direct configuration reader preserves live disabled fret priority, nullable selection, numeric defaults and NaN', () => {
+  configDom({practiceType:'chromatic',fretMin:'9',fretMax:'13',bpm:'bad',brightness:'bad'},['fretMin','fretMax']);
+  let cfg=readConfig();assert.equal(cfg.fretMin,9);assert.equal(cfg.fretMax,13);assert.equal(cfg.shape,null);
+  assert.ok(Number.isNaN(cfg.bpm));assert.ok(Number.isNaN(cfg.audio.brightness));
+  assert.equal(cfg.direction,'up_down');assert.equal(cfg.repeatCount,1);assert.equal(cfg.backingDensity,undefined);
+  configDom({practiceType:'spider',fretMin:'10000',fretMax:'-3',countIn:'0',clickSubdiv:'99'});
+  cfg=readConfig();assert.equal(cfg.fretMin,35);assert.equal(cfg.fretMax,36);assert.equal(cfg.countInBars,0);assert.equal(cfg.clickSubdiv,4);
+  configDom({mode:'guide_tones',progression:'other',guideToneProgression:'blues',backingDensity:'bad'});
+  cfg=readConfig();assert.equal(cfg.mode,'guide_tones');assert.equal(cfg.progression,'blues');assert.equal(cfg.backingDensity,0);
+});
+
+test('direct configuration reader covers all seven setups, actual tuning resolution and count-in preference priority', () => {
+  for(const [setup,count,instrument] of [['guitar_6_standard',6,'guitar'],['guitar_7_standard',7,'guitar'],['guitar_8_standard',8,'guitar'],['bass_4_standard',4,'bass'],['bass_5_standard',5,'bass'],['bass_6_standard',6,'bass'],['guitar_6_drop_d',6,'guitar']]) {
+    configDom({stringSetup:setup,practiceType:'chromatic',customOpenMidis:Array.from({length:count},(_,i)=>30+i*5).join(','),subdivision:'sixteenth',meter:'4/4'});
+    let cfg=readConfig();assert.equal(cfg.stringCount,count);assert.equal(cfg.instrument,instrument);assert.equal(cfg.customOpenMidis.length,count);
+    assert.equal(cfg.countInBars,2);globalThis.localStorage.getItem=key=>key==='virtuoso.countInDefault'?'1':null;
+    cfg=readConfig();assert.equal(cfg.countInBars,1);
+  }
+  configDom({practiceType:'scale',customOpenMidis:'38,43,48,53,57,62',key:'D',scale:'major',shape:'E'});
+  const detuned=readConfig();assert.ok(detuned.shapeNotes.length>0);
+  configDom({practiceType:'scale',customOpenMidis:'40,45,50,55,59,64',key:'D',scale:'major',shape:'E'});
+  assert.notDeepEqual(readConfig().shapeNotes,detuned.shapeNotes);
+  configDom({practiceType:'chromatic',customOpenMidis:'38,43,bad'});assert.equal(readConfig().customOpenMidis,null);
+});
+
+test('silent form writer preserves missing controls, coercion and advanced disable ownership; configuration import is inert', () => {
+  const fields=configDom({key:'C',advancedMode:''},['key']);fields.advancedMode.type='checkbox';
+  setFieldSilent('missing',0);setFieldSilent('key',null);assert.equal(fields.key.value,'null');
+  setFieldSilent('advancedMode','false');assert.equal(fields.advancedMode.checked,true);
+  syncAdvancedMode();assert.equal(fields.key.disabled,true);
+  execFileSync(process.execPath,['--input-type=module','-e',`for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});await import(${JSON.stringify(new URL('../src/shell/practice-config.js',import.meta.url).href)});`]);
+});
+
+test('practice form application preserves instrument-before-fields and profile-before-overlay ordering with own/inherited keys', () => {
+  const fields=configDom({stringSetup:'guitar_6_standard',practiceType:'scale',backingStyle:'boogie',brightness:'0',advancedMode:''});
+  const cfg=Object.assign(Object.create({backingStyle:'inherited',swing:'shuffle'}),{stringSetup:'bass_4_standard',practiceType:'walking_bass',brightness:null,advancedMode:false});
+  const order=[];
+  applyPracticeConfig(cfg,{onInstrument(){order.push('instrument');assert.equal(fields.stringSetup.value,'bass_4_standard');assert.equal(fields.practiceType.value,'scale');},onProfile(){order.push('profile');assert.equal(fields.brightness.value,'0.5');},onComplete(){order.push('complete');assert.equal(fields.practiceType.value,'walking_bass');}});
+  assert.deepEqual(order,['instrument','profile','complete']);assert.equal(fields.brightness.value,'null');assert.equal(fields.backingStyle.value,'inherited');
+  const defaults=Object.fromEntries(practiceFormDefaults(Object.freeze({hertaAccent:0,sweepStrings:null,backingDensity:NaN,customOpenMidis:[]})));
+  assert.equal(defaults.hertaAccent,0);assert.equal(defaults.sweepStrings,'0');assert.ok(Number.isNaN(defaults.backingDensity));assert.deepEqual(defaults.customOpenMidis,[]);
+});
+
+test('saved practice preset real-entry selection matches independently saved before output in source and isolated Lab', () => {
+  const captured=JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
+  const source=characterize(undefined,undefined,{lifecycle:'preset-capture'}),serialized=JSON.stringify(source);
+  assert.equal(source.length,captured.presetCases);assert.equal(Buffer.byteLength(serialized),captured.presetSnapshotBytes);assert.equal(hash(serialized),captured.presetSnapshotSha256);
+  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-practice-presets-'));
+  try {buildLab(temp);assert.equal(JSON.stringify(characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-capture'})),transformRuntime(serialized));}
+  finally {rmSync(temp,{recursive:true,force:true});}
+});
+
+function presetDom() {
+  class Element {
+    constructor(){this.children=[];this.handlers=new Set();this.value='';}
+    get options(){return this.children;}
+    querySelector(selector){return this.children.find(el=>selector.includes('"'+el.value+'"')) || null;}
+    appendChild(el){this.children.push(el);}
+    addEventListener(_,fn){this.handlers.add(fn);}
+    removeEventListener(_,fn){this.handlers.delete(fn);}
+    fire(){for(const fn of this.handlers)fn();}
+  }
+  const group=new Element(),picker=new Element();picker.children=[{value:''}];
+  const wrap={hidden:true},pathway={querySelector:()=>group};
+  globalThis.document={getElementById:id=>id==='virtuoso-pathway'?pathway:id==='virtuoso-preset-picker'?picker:wrap,createElement:()=>new Element()};
+  globalThis.window={};return {group,picker,wrap};
+}
+
+test('real source and Lab preset recall retains canceled unload and rejects abandoned visits before returning once', () => {
+  characterize(undefined,undefined,{lifecycle:'preset-navigation'});
+  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-navigation-'));
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-navigation'});}
+  finally {rmSync(temp,{recursive:true,force:true});}
+});
+
+test('real source and Lab preset GET completion cannot append into an abandoned screen', () => {
+  characterize(undefined,undefined,{lifecycle:'preset-late-load'});
+  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-preset-late-load-'));
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'preset-late-load'});}
+  finally {rmSync(temp,{recursive:true,force:true});}
+});
+
+test('cue selection matches all independently saved dirty-entry pathways and explicit plain-config policy', () => {
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/practice-configuration-before-extraction.json',import.meta.url),'utf8'));
+  const rows=characterize(undefined,undefined,{cueSnapshot:true});const serialized=JSON.stringify(rows);
+  assert.equal(rows.length,fixture.cueCases);assert.equal(Buffer.byteLength(serialized),fixture.cueSnapshotBytes);assert.equal(hash(serialized),fixture.cueSnapshotSha256);
+  const pathway=Object.freeze({tempoTiers:[60,80],formCues:['light_grip','guide_finger']});
+  assert.equal(practiceFormCue('test',pathway,99,null,'concept_picking'),FORM_CUES.guitar.guide_finger);
+  assert.equal(practiceFormCue('test',{tempoTiers:[60,80]},1,null,null),FORM_CUES.guitar.shoulder_drop);
+  assert.equal(practiceFormCue('test',{},0,null,'concept_picking'),FORM_CUES.guitar.wrist_neutral);
+  assert.equal(practiceFormCue('test',pathway,1,{instrument:'bass',practiceType:'slap_pop'},null),FORM_CUES.bass.pop_hook);
+  assert.equal(practiceFormCue('test',{formCues:['unknown']},0,null,null),null);
+  assert.equal(practiceFormCue('missing',null,0,null,null),null);
+  const original=FORM_CUES.guitar.light_grip;FORM_CUES.guitar.light_grip='mutable';
+  try {assert.equal(practiceFormCue('test',{},0,null,null),'mutable');} finally {FORM_CUES.guitar.light_grip=original;}
+  execFileSync(process.execPath,['--input-type=module','-e',`for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});const {practiceFormCue}=await import(${JSON.stringify(new URL('../src/core/practice-form-cue.js',import.meta.url).href)});practiceFormCue('x',{},0,null,null);`]);
+});
+
+test('practice preset owner retains cache identity, first insertion and live selection without auto-apply on fetch', async () => {
+  const {picker,group,wrap}=presetDom();const selected=[];
+  const owner=createPracticePresets({onSelect:cfg=>selected.push(cfg)});owner.mount();owner.mount();
+  const cfg={key:'G'};globalThis.fetch=async()=>new Response(JSON.stringify({presets:[null,{id:'a',name:'First',config:cfg},{id:'a',name:'Replacement',config:{key:'D'}}]}));
+  await owner.load();assert.equal(picker.handlers.size,1);assert.equal(picker.options.length,2);assert.equal(group.children.length,1);assert.equal(group.children[0].textContent,'First');assert.equal(wrap.hidden,false);assert.equal(selected.length,0);
+  picker.value='fav__a';picker.fire();assert.equal(selected[0],owner.get('fav__a').config);assert.equal(selected[0].key,'D');
+  const cache=globalThis.window.__virtuosoFavorites;globalThis.fetch=async()=>new Response('failure',{status:500});await owner.load();assert.equal(globalThis.window.__virtuosoFavorites,cache);
+  globalThis.fetch=async()=>{throw Error('offline');};await owner.load();assert.equal(globalThis.window.__virtuosoFavorites,cache);owner.unmount();
+});
+
+test('practice preset loads are latest-request and visit owned; stale handlers and navigation cannot write abandoned UI', async () => {
+  const {picker,group}=presetDom();let calls=0;const owner=createPracticePresets({onSelect:()=>calls++});owner.mount();
+  const stale=[...picker.handlers][0];const gates=[];globalThis.fetch=()=>new Promise(resolve=>gates.push(resolve));
+  const old=owner.load(),newer=owner.load();gates[1](new Response(JSON.stringify({presets:[{id:'new',config:{}}]})));await newer;
+  gates[0](new Response(JSON.stringify({presets:[{id:'old',config:{}}]})));await old;assert.equal(owner.get('fav__old'),undefined);
+  const abandoned=owner.load();owner.unmount();owner.mount();gates[2](new Response(JSON.stringify({presets:[{id:'abandoned'}]})));await abandoned;
+  assert.equal(group.children.length,1);picker.value='fav__new';stale();assert.equal(calls,0);picker.fire();assert.equal(calls,1);owner.unmount();
+  execFileSync(process.execPath,['--input-type=module','-e',`for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});const {createPracticePresets}=await import(${JSON.stringify(new URL('../src/shell/practice-presets.js',import.meta.url).href)});createPracticePresets({onSelect(){throw Error('early selection')}});const {practiceFormDefaults}=await import(${JSON.stringify(new URL('../src/core/practice-form-defaults.js',import.meta.url).href)});practiceFormDefaults({});`]);
+});
+test('real tuning events retain independent dirty 0.2.14 config, controls, presets, modes and file recovery in source and Lab', () => {
+  const source = characterize(undefined,undefined,{tuningSnapshot:true});
+  assert.equal(source.length,fixture.cases);
+  assert.equal(Buffer.byteLength(JSON.stringify(source)),fixture.snapshotBytes);
+  assert.equal(hash(JSON.stringify(source)),fixture.snapshotSha256);
+  const temp = mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-test-'));
+  try {
+    buildLab(temp);
+    const lab = characterize(join(temp,'virtuoso_lab'),undefined,{tuningSnapshot:true});
+    assert.equal(JSON.stringify(lab),transformRuntime(JSON.stringify(source)));
+  } finally { rmSync(temp,{recursive:true,force:true}); }
+});
+
+function dom() {
+  class Element {
+    constructor() {this.handlers=new Map();this.dataset={};this.style={};this.children=[];this.value='';this.classList={add(){},remove(){}};}
+    set innerHTML(_) {this.children=[];}
+    get options() {return this.children.flatMap(el=>el.children.length ? el.children : [el]);}
+    get selectedIndex() {return this.options.findIndex(el=>el.value===this.value);}
+    appendChild(el) {this.children.push(el);}
+    addEventListener(type,fn) {const set=this.handlers.get(type)||new Set();set.add(fn);this.handlers.set(type,set);}
+    removeEventListener(type,fn) {this.handlers.get(type)?.delete(fn);}
+    dispatchEvent(event) {return this.fire(event.type);}
+    async fire(type) {for(const fn of this.handlers.get(type)||[]) await fn();}
+  }
+  const nodes = new Map(['tuning-select','save-tuning','custom-open-midis','custom-tuning','custom-tuning-inputs'].map(id=>['virtuoso-'+id,new Element()]));
+  const setup=new Element(),instrument=new Element(); setup.value='guitar_6_standard'; instrument.value='guitar';
+  globalThis.document={getElementById:id=>nodes.get(id)||null,querySelector:selector=>selector.includes('stringSetup')?setup:instrument,querySelectorAll:()=>nodes.get('virtuoso-custom-tuning-inputs').children,createElement:()=>new Element()};
+  globalThis.window={prompt:()=>null};
+  return {nodes,setup,instrument};
+}
+
+test('tuning controller owns first-match groups, live host reads, cache completion and exact selection declaration ordering', async () => {
+  const {nodes,setup,instrument}=dom();
+  let host=[],declared=0,selected=0,custom=[];
+  const controller=createTuningSettings({hostEntries:()=>host,onDeclaration:()=>declared++,onSelection:()=>selected++,onCustomChange:(...args)=>custom.push(args),onDisplay(){}});
+  const select=nodes.get('virtuoso-tuning-select'),hidden=nodes.get('virtuoso-custom-open-midis');
+  controller.mount();controller.mount();controller.sync();
+  assert.equal(select.handlers.get('change').size,1);
+  host=[{name:'Duplicate',midis:[40,45,50,55,59,64]},{name:'Alternate',midis:[37,44,49,54,58,63]}];
+  controller.sync();assert.equal(select.options.filter(el=>el.value.startsWith('host:')).length,1);
+  hidden.value=host[1].midis.join(',');controller.sync();assert.equal(select.value,'host:Alternate');
+  await select.fire('change');assert.equal(declared,1);assert.equal(selected,1);assert.equal(setup.value,'guitar_6_standard');
+  select.value='custom';await select.fire('change');assert.deepEqual(custom,[[true,false]]);
+  const input=nodes.get('virtuoso-custom-tuning-inputs').children[0]; input.value='C2';await input.fire('input');assert.equal(hidden.value.split(',')[0],'36');assert.deepEqual(custom.at(-1),[false,true]);
+  await input.fire('blur');assert.deepEqual(custom.at(-1),[true,true]);
+  let finish;
+  globalThis.fetch=()=>new Promise(resolve=>{finish=resolve;});
+  const pending=controller.load();instrument.value='bass';setup.value='bass_4_standard';hidden.value='';
+  finish(new Response(JSON.stringify({tunings:[{id:'bass',name:'My bass',family:'bass',string_count:4,midis:[27,32,37,42]}]})));
+  await pending;assert.ok(select.options.some(el=>el.value==='saved:bass'));assert.equal(select.value,'standard');
+  assert.equal(declared,4,'loading only repaints, never persists L1');
+  controller.unmount();
+});
+
+test('tuning listeners are visit-owned, old dynamic inputs cannot write, and canceled page events are not captured', async () => {
+  const {nodes}=dom();let calls=0;
+  const controller=createTuningSettings({hostEntries:()=>[],onDeclaration:()=>calls++,onSelection(){},onCustomChange(){},onDisplay(){}});
+  const select=nodes.get('virtuoso-tuning-select');
+  controller.mount();controller.sync();select.value='custom';await select.fire('change');
+  const old=nodes.get('virtuoso-custom-tuning-inputs').children[0],stale=[...old.handlers.get('blur')][0];
+  controller.syncInputs();const before=calls;await stale();assert.equal(calls,before);
+  const staleSelect=[...select.handlers.get('change')][0];
+  controller.unmount();assert.equal(select.handlers.get('change').size,0);
+  controller.mount();controller.syncInputs();await staleSelect();assert.equal(calls,before);
+  select.value='standard';await select.fire('change');assert.equal(calls,before+1);
+  controller.unmount();
+});
+
+test('tuning settings import and construction are inert without DOM, host, storage or fetch', () => {
+  execFileSync(process.execPath,['--input-type=module','-e',`
+    for(const name of ['document','window','localStorage','fetch']) Object.defineProperty(globalThis,name,{get(){throw Error(name)}});
+    const {createTuningSettings}=await import(${JSON.stringify(new URL('../src/shell/tuning-settings.js',import.meta.url).href)});
+    createTuningSettings({hostEntries(){throw Error('early host')},onDeclaration(){},onCustomChange(){},onSelection(){},onDisplay(){}});
+  `]);
+});
+
+test('real source and Lab tuning hooks preserve canceled unload, detach on SPA exit and reject stale input handlers', () => {
+  characterize(undefined,undefined,{lifecycle:'tuning-navigation'});
+  const temp=mkdtempSync(join(process.env.TMPDIR,'opencode/virtuoso-tuning-navigation-'));
+  try {buildLab(temp);characterize(join(temp,'virtuoso_lab'),undefined,{lifecycle:'tuning-navigation'});}
+  finally {rmSync(temp,{recursive:true,force:true});}
+});
+
+test('tuning save cancellation, HTTP failure and load rejection preserve declaration and cache semantics', async () => {
+  const {nodes}=dom();let declarations=0,requests=0;
+  const controller=createTuningSettings({hostEntries:()=>[],onDeclaration:()=>declarations++,onSelection(){},onCustomChange(){},onDisplay(){}});
+  controller.mount();nodes.get('virtuoso-custom-open-midis').value='37,44,49,54,58,63';
+  globalThis.fetch=async()=>{requests++;return new Response(JSON.stringify({tunings:[{id:'old',name:'Old',family:'guitar',string_count:6,midis:[37,44,49,54,58,63]}]}));};
+  await controller.load();assert.equal(nodes.get('virtuoso-tuning-select').value,'saved:old');
+  await nodes.get('virtuoso-save-tuning').fire('click');assert.equal(requests,1,'canceled prompt does not fetch');
+  globalThis.window.prompt=()=> 'new';
+  globalThis.fetch=async()=>{requests++;return new Response('failed',{status:500});};
+  const warn=console.warn;console.warn=()=>{};
+  try {await nodes.get('virtuoso-save-tuning').fire('click');} finally {console.warn=warn;}
+  assert.equal(requests,2,'failed save does not refetch');
+  await controller.load();assert.equal(nodes.get('virtuoso-tuning-select').value,'saved:old','HTTP load failure keeps old cache');
+  globalThis.fetch=async()=>{throw Error('offline');};await controller.load();
+  assert.equal(nodes.get('virtuoso-tuning-select').value,'custom','rejected load clears old cache');
+  assert.equal(declarations,0);
+  controller.unmount();
+});

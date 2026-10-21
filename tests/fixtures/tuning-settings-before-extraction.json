@@ -1,0 +1,13 @@
+{
+  "sourceVersion": "0.2.14 (unpublished)",
+  "capturedAt": "2026-10-21",
+  "entrySha256": "36557d845ce541c97b076086167f09793049e62377b785fb75b9d3d23de569ef",
+  "physicalNewlines": 16128,
+  "importBindings": 124,
+  "cases": 24,
+  "snapshotBytes": 83739,
+  "snapshotSha256": "5bc4a47464ef1faa4b2a2d0ea6e3774653e4fa603d65c27a6b52d0016215e5ab",
+  "unmovedStatements": 863,
+  "unmovedSha256": "8daa2df0c4b2e6ab7e31ad8963c20b47573c3478ab7398fa53cad186456b35aa",
+  "changedStatements": ["loadHostTunings", "applyHostInstrument", "onInstrumentFamilyClick", "onStringCountClick", "savedTunings", "loadSavedTunings", "syncTuningOptions", "onSaveTuningClick", "syncCustomTuningInputs", "readCustomTuningInputs", "commitCustomTuning", "onCustomTuningEdit", "onTuningPresetChange", "onPasteShareLink", "bind"]
+}

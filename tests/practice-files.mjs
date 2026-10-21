@@ -3,9 +3,11 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import ts from 'typescript';
 import { PATHWAYS } from '../src/content/pathways.js';
 import { parsePracticeMarkdown, validatePractice, validatePracticeIndex, buildPracticeFileExercise, practicePathwayEntry, practicePathwaySelection, practicePathwayCredit } from '../src/core/practice-files.js';
-import { createPracticeFileLoader, displayPracticeProse } from '../src/shell/practice-files.js';
+import { createPracticeFileLoader } from '../src/shell/practice-files.js';
+import { displayPracticeProse } from '../src/shell/practice-presentation.js';
 import { createPracticeCatalog } from '../src/shell/practice-catalog.js';
 import { lifecycleScenarios } from './helpers/lifecycle.mjs';
 
@@ -65,6 +67,46 @@ test('fresh PATHWAYS import is host-independent and ordinary nested data remains
     }
     assert.equal(JSON.stringify(PATHWAYS), before);
   `], { encoding:'utf8' });
+});
+
+test('shared Pathway contract accepts authored hydration and optional density fields but rejects typos', () => {
+  const markdown = readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup-ladder.md', import.meta.url), 'utf8');
+  const {practiceFile, ...authored} = practicePathwayEntry(parsePracticeMarkdown(markdown));
+  assert.equal(practiceFile.id, 'chromatic_warmup');
+  const file = new URL('../src/content/pathway-type-probe.ts', import.meta.url).pathname;
+  const options = {allowJs:true, checkJs:true, noEmit:true, strict:true, target:ts.ScriptTarget.ES2022,
+    module:ts.ModuleKind.ESNext, moduleResolution:ts.ModuleResolutionKind.Bundler, types:[]};
+  const positive = `
+    import {PATHWAYS, type Pathway, type PathwayConfig} from './pathways.js';
+    const hydrated: Pathway = ${JSON.stringify(authored)};
+    PATHWAYS.chromatic_warmup = hydrated;
+    for (const [, pw] of Object.entries(PATHWAYS)) {
+      const subdivisions: string[] | undefined = pw.tempoTierSubdivs;
+      const bars: number[] | undefined = pw.tempoTierBars;
+      const tempos: number[] = pw.tempoTiers;
+      const configs: PathwayConfig[] = [pw.base].concat(pw.vary);
+      for (const cfg of configs) {
+        const shape: string | number | undefined = cfg.shape;
+        const anchor: string | undefined = cfg.anchor;
+      }
+    }
+  `;
+  const diagnose = source => {
+    const host = ts.createCompilerHost(options), read = host.readFile;
+    host.readFile = path => path === file ? source : read(path);
+    const program = ts.createProgram([file], options, host);
+    return ts.getPreEmitDiagnostics(program);
+  };
+  assert.deepEqual(diagnose(positive).map(d => ts.flattenDiagnosticMessageText(d.messageText, '\n')), []);
+  const negative = diagnose(positive + `
+    PATHWAYS.blues_foundation.tempoTierSubdivz;
+    PATHWAYS.blues_foundation.inventedPathwayField;
+    PATHWAYS.blues_foundation.base.inventedConfigField;
+    PATHWAYS.blues_foundation.tempoTierBars = ['eight'];
+  `);
+  assert.equal(negative.length, 4);
+  assert.ok(negative.every(d => d.file?.fileName === file));
+  assert.deepEqual(negative.map(d => d.code), [2551, 2339, 2339, 2322]);
 });
 
 test('real entry hydration inserts authored Warmup into the exported registry without replacing references', () => {

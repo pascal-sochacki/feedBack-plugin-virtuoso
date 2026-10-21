@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-/** @typedef {{ stringSetup?: string, instrument?: string, customOpenMidis?: number[] }} InstrumentTuningConfig */
+/** @typedef {{ stringSetup?: string, instrument?: string, customOpenMidis?: number[] | null }} InstrumentTuningConfig */
 
 /** @type {Record<string, { label: string, instrument: string, openMidis: number[], tuning: number[] }>} */
 export const STRING_SETUPS = {
@@ -32,6 +32,7 @@ export const STRING_SETUPS = {
 // is "a 5-string minus the G", numerically −5; high-C is numerically +5) —
 // a bassist's B string is a B string, never "E down a fourth". Never
 // classify by midis math; the tag decides.
+/** @type {Record<string, {id: string, label: string, midis: number[], offset?: boolean}[]>} */
 export const TUNING_PRESETS = {
   guitar_6: [
     { id:'standard',     label:'Standard (E A D G B E)',      midis:[40,45,50,55,59,64], offset:true },
@@ -81,6 +82,7 @@ export const TUNING_PRESETS = {
 // Maps `${family}_${count}_${tuningId}` → stringSetup name when the preset
 // matches a built-in entry; otherwise the chosen tuning gets stored as
 // customOpenMidis on the config.
+/** @type {Record<string, string>} */
 export const TUNING_TO_SETUP = {
   guitar_6_standard: 'guitar_6_standard',
   guitar_6_drop_d:   'guitar_6_drop_d',

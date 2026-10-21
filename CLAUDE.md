@@ -12,12 +12,15 @@ put procedures and rationale in [development](docs/plugin/development.md).
   on-ramp. Gamification describes competency, never gates content or substitutes
   rank/time/rounds for mastery.
 - This checkout is development source on `dev/modular-source`: ID `virtuoso`,
-  version **0.2.13** (reviewed experimental publication candidate, source local;
-  preserves the prior 0.2.10 WIP). See [practice files](docs/plugin/practice-files.md).
+  version **unpublished 0.2.14** (pure-core + tuning/config/presentation ownership, source
+  local; next isolated candidate 0.2.14-lab.1). See [practice files](docs/plugin/practice-files.md).
   The personal fork's `main` is a generated experimental
   runtime: ID `virtuoso_lab`, published experimental **0.2.13-lab.1** replacing
   published 0.2.11-lab.1 (2026-10-21); verify the installed manifest. Neither is a stable-release
   certification. Do not confuse source `main`, upstream `main`, and fork `main`.
+  USERREPORTED installed 0.2.13-lab.1 Windows checklist smoke PASS (2026-10-21);
+  exact host/detector versions unknown, not independent/exhaustive or DI certification.
+  Local 0.2.14 changes are not user-tested.
 - FeedBack serves plain native JS (`scriptType: "module"`). No runtime build,
   bundler, custom loader, injection, fire-and-forget boot import or transpilation.
   `src/package.json` selects ESM for Node; checkJs is developer-only `noEmit`.

@@ -1,7 +1,7 @@
 import js from '@eslint/js';
 import globals from 'globals';
 
-const unused = { vars: 'all', args: 'none', caughtErrors: 'none' };
+const unused = { vars: 'all', args: 'all', argsIgnorePattern: '^_', caughtErrors: 'none' };
 const firstParty = ['screen.js', 'src/**/*.js', 'scripts/**/*.mjs', 'tests/**/*.mjs', 'eslint.config.mjs'];
 
 export default [
@@ -25,16 +25,10 @@ export default [
     languageOptions: { globals: { window: 'readonly', document: 'readonly' } },
   },
   {
-    files: ['src/core/builders/guide-tones.js'],
-    // Preserve the existing key lookup initializer pending a separate behavior review.
-    rules: { 'no-unused-vars': ['warn', unused] },
-  },
-  {
     files: ['screen.js'],
     languageOptions: { globals: { WebAudioFontPlayer: 'readonly' } },
     // Legacy findings are visible and ratcheted by scripts/lint.mjs, not silently disabled.
     rules: {
-      'no-unused-vars': ['warn', unused],
       'no-dupe-keys': 'warn',
       'no-control-regex': 'warn',
     },

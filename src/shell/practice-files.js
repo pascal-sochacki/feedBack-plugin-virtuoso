@@ -1,15 +1,22 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { parsePracticeMarkdown, validatePracticeIndex } from '../core/practice-files.js';
 
+/** @param {string | URL} baseURL @param {typeof fetch} [fetchFile] @param {number} [timeoutMs] */
 export function createPracticeFileLoader(baseURL, fetchFile = fetch, timeoutMs = 10000) {
   const base = new URL(baseURL);
+  /** @type {Map<string, import('../core/practice-files.js').Practice>} */
   const cache = new Map();
+  /** @type {ReturnType<typeof validatePracticeIndex> | null} */
   let catalog = null;
+  /** @param {string} path @param {AbortSignal | undefined} signal */
   async function read(path, signal) {
     const url = new URL(path, base);
     if (url.origin !== base.origin || !url.pathname.startsWith(base.pathname)) throw new Error('Unsafe practice URL');
     const controller = new AbortController();
-    let timer, cancel;
+    /** @type {ReturnType<typeof setTimeout> | undefined} */
+    let timer;
+    /** @type {() => void} */
+    let cancel = () => {};
     const cancelled = new Promise((_, reject) => {
       cancel = () => { controller.abort(); reject(new Error('Practice load cancelled')); };
       signal?.addEventListener('abort', cancel, { once:true });
@@ -31,6 +38,7 @@ export function createPracticeFileLoader(baseURL, fetchFile = fetch, timeoutMs =
       signal?.removeEventListener('abort', cancel);
     }
   }
+  /** @param {AbortSignal} [signal] */
   async function index(signal) {
     if (catalog) return catalog;
     const parsed = validatePracticeIndex(JSON.parse(await read('index.json', signal)));
@@ -38,8 +46,12 @@ export function createPracticeFileLoader(baseURL, fetchFile = fetch, timeoutMs =
     catalog = parsed;
     return catalog;
   }
+  /** @param {string | undefined} id @param {AbortSignal} [signal] */
   async function load(id, signal) {
-    if (cache.has(id)) return cache.get(id);
+    // Missing UI selection still resolves the index before rejecting, preserving
+    // the loader's original IO/error ordering during partial-DOM startup.
+    const cached = id === undefined ? undefined : cache.get(id);
+    if (cached) return cached;
     const entries = await index(signal);
     const item = entries.find(item => item.id === id);
     if (!item) throw new Error('Unknown practice id');
@@ -47,14 +59,9 @@ export function createPracticeFileLoader(baseURL, fetchFile = fetch, timeoutMs =
     if (practice.id !== item.id || practice.title !== item.title) throw new Error('Practice metadata does not match its index');
     if ((item.use === 'pathway') !== !!practice.pathway) throw new Error('Practice capability does not match its index');
     if (signal?.aborted) throw new Error('Practice load cancelled');
-    cache.set(id, practice);
+    cache.set(item.id, practice);
     return practice;
   }
   load.index = index;
   return load;
-}
-
-// Prose is deliberately plain text: HTML, links and Markdown never execute.
-export function displayPracticeProse(element, practice) {
-  element.textContent = practice ? `${practice.title}\nReference tempo: ${practice.referenceTempo} BPM · ${practice.meter} · guitar standard six-string\n\n${practice.prose}` : '';
 }

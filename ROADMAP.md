@@ -6,6 +6,454 @@ Old upstream release stories, PR states and handoffs are preserved as
 
 ## Current source state
 
+- **TS18047 nullable closure/state correlation batch (2026-10-21; parent-bounded
+  group):** strict entry **233→205** (−28: TS18047 **75→51**, TS2339 **29→26**,
+  TS2538 **4→3**; every other code count unchanged) on TypeScript 5.9.3, exact
+  per-code counts in `coverage/typecheck-entry.json`. Correlated nullable
+  state/closure reads resolved with **13 single-line JSDoc casts** truthfully
+  derived from the same-run guards (`s.feltResult`×3, `s.clearedTier`, `s.ladder`
+  snapshots ×4, `s.chapters`×3, copy-diag `ev.target`/`ev.currentTarget`,
+  `document.activeElement` blur) plus **7 audited runtime guards** (count-up
+  `!el || !el.isConnected || pct === null`, pack dragstart/dragover×2/drop×2
+  `dataTransfer` snapshot returns, woodshed `lv.nextAt != null` correlation);
+  each guard only degrades an unreachable-path throw into a no-op, valid paths
+  render/copy/drag identically, captures stay pinned, and closures keep their
+  late current reads (no early stale cache). The seven guards and the casts are
+  reversed in the audited `normalizeEntrySafety` recipe list, preserving the
+  **5 golden pins** without recapture — typing-foundation AST `10f4e440…`,
+  statement order, selection, transport, renderer pins all pass. Deferments
+  hold: TS2538 7078:58/8489/13541 (nullable numeric array indexes, the `?? -1`
+  rewrite stays deferred for the parent fixture-recapture round) and TS7053
+  `styleVoiceFor` 5422 remain; no touched site degraded into a new code
+  (pre-batch reconstruction diff verified). **408/408** full Node26.12.0 tests,
+  lint 132/0 new-error/1 known warning, root core+shell tsc clean, entry
+  syntax, doc-links, brand hygiene, whitespace pass. No stage/commit/push/
+  install/host/sibling/dist edits; entry still exits 1 with the remaining 205.
+
+- **Reverted TS2538 batch / verified recovery (2026-10-21; batch closed):** the four
+  lookup-equivalent TS2538 edits from the deferred-index batch (TIER_LABELS/ladder
+  `?? -1` narrowing, `typeof dur` drum-duration narrowing, `PROOF_TRANSFER`
+  `String()` coercion) were reverted exactly after they broke the **5 golden SHA
+  pins** (typing-foundation, transport-events, renderer-extraction,
+  entry-statement-order, selection-order) — the pins failed because code edits were
+  **not normalized with the fixtures, NOT pre-existing** in the dirty tree; the
+  earlier "pre-existing" journal claim was a wrong HEAD-reconstruction reading and
+  is corrected in [testing](docs/plugin/testing.md). The prior last-approved
+  408-test pin-clean state is preserved without pin/fixture recapture. Re-verified:
+  `npm test` **408/408**, `test:properties` **4/4** at both seeds20261021/271828
+  (Node26.12.0), root core/shell tsc clean, lint 132/0 new-error/1 known warning,
+  entry syntax + native module graph pass. Strict entry **233** (229+4 reopened
+  TS2538 at 6741/7078/8489/13548), still exits1; TS7053 only deferred
+  `styleVoiceFor` 5422. The four equivalent rewrites need a later review round
+  with legitimate fixture recapture (all five pins regenerated with the fixes),
+  **under the parent review workflow — not self-silently**. All other kept batch
+  edits (TS7053 Record JSDoc records, approved `String(piece)` dictionary
+  coercions, prior waves) unchanged. No stage/commit/push/install/publication/
+  host/dist edits; no strict weakening or suppression banner.
+
+- **Bounded nullable lookup batch (2026-10-21):** recovered supplied interrupted-wave
+  checkpoint **406 tests / 254 entry diagnostics / 1 lint warning**; parent reports
+  prior recovery review LGTM (not a new independent review). Actual TypeScript key/
+  dictionary inspection addressed **17 of 21 TS2538**, strict entry **254→237**,
+  TS2538 **21→4**, every other code count unchanged. Only known string|null/undefined
+  dictionary keys now explicitly perform their existing JS string property coercion;
+  null/undefined, empty, missing and inherited-key captures match. Deferred exact
+  lines6739/7076 (nullable numeric array indexes),8487 (conversion exposed another
+  argument diagnostic, reverted),13541 (finite proof-transfer dictionary needs wider
+  key reconciliation). No fallback-empty, casts, strict weakening or audio/judge/
+  articulation/timing/lifecycle feature changes. Before source SHA256 `8a5733b1…`;
+  before/after normalized complete AST remains `10f4e440…`, original fixtures unchanged.
+  **408/408** full Node24.19.0 tests pass; seven properties/700 cases pass default
+  seed20261021 and alternate271828; focused nullable positive/negative controls pass.
+  Native/root types, lint132/one existing warning, syntax/docs/brand/whitespace pass;
+  full suite includes isolated Lab563/legal/ZIP/graph/parity checks. Source14, versions,
+  runtime module inventory and public/debug surfaces unchanged. No stage/commit/push/
+  install/host/sibling/existing dist edits. Entry remains outside root checking and
+  exits1; remaining237 and live host/Windows DI are explicitly unfinished. Batch stopped.
+
+- **Entry wave6 owner contracts + bounded form guard (2026-10-21; unfinished):**
+  strict entry **346→284 (−62)**, unchanged TypeScript5.9.3 strict flags; reporter
+  still exits1 and entry remains outside normal/root checking. Rolled segments
+  require the cfg their owner always creates; bass figures distinguish generators
+  from complete patterns; resolved audio voices distinguish defaults from authored
+  partial profiles; drum FX require their actual shelf/compressor nodes. Exact
+  authored control lists carry verified tag/data metadata; starter arrays describe
+  the result of existing Boolean filtering. One explicit runtime delta rejects
+  non-control form events before delegated queries. Fail-first source test observed
+  two queries versus zero expected; source/Lab now reject them. Existing valid
+  cfg/events, historical AST/public40/debug91, audio/clock/corpus and Lab legal/ZIP
+  captures remain unchanged without recapture. Independent CURRENT DIRTY source
+  `c024de3c…` was saved before edits; whole AST matches after exact named guard reversal.
+  Source **14,939→14,946 (+7)**; declarations **473→491 (+18)**; no runtime module added.
+  Remaining284:144 nullable,30 property,42 argument,47 nullable-index,2 dynamic-index
+  and19 other diagnostics.
+  Local verification: **405/405** at both property seeds20261021/271828, zero
+  skips/cancellations, Node24.19.0 (seven properties/700 cases per seed); named/root
+  native types, lint132/four unchanged warnings, core81/zero warnings, first-party
+  syntax, docs/brand/whitespace and isolated Lab legal/folder/ZIP/parity pass.
+  Knip full1/production2 retain their intentional nonzero findings. This is not
+  remote CI, live host or Windows DI certification. Full-entry zero/root integration,
+  continued contract
+  reconciliation, parent review and running-host/audio/Windows DI remain owed.
+  Source14/published13 and HEAD unchanged; no stage/commit/push/install/host/sibling/
+  existing dist/publication edits.
+
+- **Entry wave5 audit + DOM reconciliation (2026-10-21; unfinished):** strict entry
+  **501→346 (−155)**; `typecheck:entry` still exits1 and remains outside normal/root
+  checking. An intermediate166-diagnostic attempt was **not accepted**: its untested
+  runtime changes were removed after provenance failures and a detector-fallback/
+  nullable-articulation audit. Retained runtime deltas are only fail-first LCD
+  target/value/blur guards and transient delegated widget target guards. Real source
+  and isolated Lab tests cover absent/text/non-control targets, normal Enter/tempo
+  commits and nested mixer toggle clicks. Historical AST, public40/debug91 and
+  normal audio/clock/corpus pins are unchanged after exact safety reversal; no
+  detector/DSP/credit/scheduling changes remain from this wave. Type-only changes
+  reconcile numeric/null shape IDs, narrow actual chord/motif inputs, form
+  `shapeNotes` ownership, DOM tag overloads/generated widget metadata, nullable
+  stored coach focus and numeric mutable tables. DOM.Iterable supplies genuine
+  browser iterator declarations without weakening strict flags. Source
+  **14,916→14,939 (+23)**; fourteen developer declaration files **425→473 (+48)**,
+  excluded from runtime packaging. Remaining346:178 nullable,39 property,55
+  argument,47 nullable-index,6 dynamic-index and21 other diagnostics. Verification:
+  **402/402**, zero skips/cancellations, Node24.19.0 at seeds
+  20261021/271828 (seven properties/700 cases per seed); named/root native types,
+  lint132/four unchanged warnings, core81/zero warnings, first-party syntax,
+  docs/brand/whitespace and isolated Lab legal/folder/ZIP/parity pass. Knip
+  full1/production2 intentional findings still exit1. The first full run timed
+  out at20s; two subsequent runs exposed a negative-control count mismatch and
+  concurrent-source-edit packaging mismatch. Final reruns pass without fixture
+  replacement or relaxed assertions. These are static/source tests, not live QA.
+  Full-entry zero/root integration, parent review and running-host/audio/Windows DI are still
+  owed. Source HEAD and unpublished0.2.14 are unchanged; no stage/commit/push/
+  install/publication/host/sibling/existing dist changes.
+
+- **Entry wave4, contract + bounded safety reconciliation (2026-10-21; unfinished):**
+  strict entry **752→501 (−251)**, cumulative **2,272→501 (77.9%)**, flags unchanged,
+  command still exits1. RenderNote sustain is genuinely optional; lifecycle requires
+  actual EntryExercise; transport preserves caller bundle type via generics; meter
+  show-state/span metadata are discriminated. Source/Lab fail-first tests reproduce
+  released canvas/context during resize, host navigation capability withdrawal,
+  missing Play control and non-element delegated clicks. Explicit context parameters,
+  bounded guards and once-read optional capability snapshots repair these paths.
+  Normal paint/audio/event/corpus/API40/debug91/historical fixture outputs remain
+  pinned; whole AST reversal is limited to exact reviewed safety edits. Undefined
+  comparison guards only make existing no-op outcomes explicit; no DSP/judge/credit/
+  timing policy changes or late-verdict filtering. **393→398 tests**, zero skips,
+  full suites at both seeds20261021/271828 (seven properties/700 cases each);
+  native/root types/lint132/four unchanged warnings and isolated Lab563/legal/ZIP pass.
+  Entry **14,901→14,916 (+15)**, thirteen declarations425 lines. Remaining501 errors
+  include252 nullable diagnostics,109 properties,80 arguments; no whole-entry pass.
+  Full completion, parent review and live host/audio/DI remain owed. No stage/commit/
+  push/install/version/host/sibling/existing publication/dist changes.
+
+- **Entry typing wave3 (2026-10-21; unfinished):** exact baseline **1,210→752
+  (−458)**, cumulative **2,272→752 (−1,520, 66.9%)**, unchanged strict configuration.
+  Remaining implicit parameters **313→0**, implicit declarations/reads **22/32→0**,
+  indexed accesses **78→25**, missing properties **233→116**. Explicit entry bundle/
+  accompaniment/beat metadata, authored pre-form cfg, internal ledger writer and
+  host tuning/frame contracts; audio/scheduler/transport/geometry/UI callbacks
+  annotated coherently. Mutable workouts/roles/tuning/theme registries retain actual
+  numeric/string record contracts. Literal DOM ID/selector/list overloads preserve
+  nullable lookup and dynamic fallback. No guessed nonnull assertions, suppressions,
+  any types, DSP/credit/timing/runtime statements or new imports/globals.
+  **752 errors remain**, including **392 null/undefined diagnostics**, reported by the
+  ignored entry report; command **exits1**, normal native/root types exclude entry.
+  **392→393 tests**, no skips, both property seeds20261021/271828; full Node24 suites
+  (seven properties/700 cases each) and source/Lab AST/statement/API/
+  legal/ZIP pins pass. Entry **14,693→14,901 (+208)**; thirteen declarations **405
+  lines**, not a shrink claim. Further extraction remains blocked on full typing;
+  parent review/live-host/version floor remain owed. No stage/commit/push/install,
+  version/publication/host/sibling/existing dist changes.
+
+- **Entry typing wave 2 + power review correction (2026-10-21; unfinished):**
+  removed invented `setPreventSleep`; verified desktop `00653cf4` exposes
+  `setScreenAwake(keep)` and its main IPC handler returns nothing (**Promise<void>**,
+  not the requested boolean). Correction **1,647→1,645**; continued unchanged-strict
+  entry typing **1,645→1,210 (−435)**, cumulative **2,272→1,210 (−1,062, 46.7%)**.
+  Internal session/results/felt/coach/share snapshots, mixer/drum/theme registries,
+  form nullable cfg, exact form selectors and plugin-owned shape/coach debug fields
+  now have explicit contracts. External persisted JSON is **not** certified/typed
+  as validated state. Implicit params **605→313**, indexed accesses **159→78**;
+  null/availability and inferred boundary mismatches stay visible, no suppressions.
+  Full entry command still **exits1**, all 1,210 errors are in screen.js; normal
+  native/root typechecks pass but exclude entry. **390→392 tests**, both seeds,
+  zero skips; lint130/4 unchanged, core81/0, named/root types, isolated Lab563/legal/
+  ZIP/parity and historical executable/statement/API pins pass. Entry **14,520→14,693
+  (+173)**; ten declarations **333 lines**. No runtime statements/DSP/judge/audio/
+  timing/publication changes, no stage/commit/push/install/host/sibling/dist edits.
+  Further extraction remains deferred; full-entry zero, parent review and running
+  host/version-floor validation remain owed.
+
+- **Entry typing foundation (local 0.2.14, 2026-10-21; unfinished):** exact strict
+  TypeScript 5.9.3 browser-entry diagnostics **2,272→1,647 (−625, 27.5%)**, same
+  inherited flags/lib. `npm run typecheck:entry` now reproduces the complete check,
+  exits **1** while errors remain and writes grouped full diagnostics to ignored
+  `coverage/typecheck-entry.json`. Normal named/root typechecks still cover the 81
+  native modules, **not** whole entry. Precise nullable literal DOM IDs, optional
+  host/minigames/desktop/note_detect, bundle/chart, audio graph/cache and judgment
+  records replace major implicit-state fan-out; no production suppressions or `any`.
+  Complete executable AST equals independently saved dirty-before source; historical
+  statement pins remove only new JSDoc trivia, not behavior/comments. Entry grows
+  **14,365→14,520 (+155)** plus 171 declaration lines, not a shrink claim.
+  Remaining **605 implicit parameters, 85 implicit reads, 41 implicit declarations,
+  159 indexed accesses, 329 null/undefined and 276 missing-property diagnostics**
+  require continued coherent typing before further extraction; this is **not** the
+  requested zero-diagnostic milestone. Public40/debug91, synchronous publication,
+  judging/audio/transport behavior and source14/published13 identities unchanged.
+  **390/390 tests** pass both seeds 20261021/271828 (seven properties/700 cases per
+  seed), zero skips; lint130/4 unchanged warnings, core lint/typechecks/root IDE,
+  syntax/graph/docs/brand/whitespace and isolated Lab563/legal/ZIP gates pass.
+  Host source evidence only; running host/version floor and parent review remain owed.
+
+- **Complete unused-declaration cleanup (local 0.2.14, 2026-10-21):** all 128
+  first-party lint files audited; 12 initial unused findings plus one newly exposed
+  private label table removed. Entry unused diagnostics **11→0**, native **1→0**;
+  full browser-entry TypeScript unused probe **12→0** (2,272 unrelated diagnostics
+  remain; no full-entry typecheck claim). Unused bindings/parameters now errors
+  everywhere; no underscore-local exemption, dummy reads or unused debt allowance.
+  Lint debt **16→4** (only existing duplicate keys/control regex); core lint zero.
+  Retired private card delegation adapters, kept owned card/save paths and public40/
+  debug91 unchanged. Guide-tone key accessor evaluation retained without its binding.
+  Entry **14,445→14,365 (−80)**; exact named statement removals pin saved dirty-before
+  source, historical runtime fixtures unchanged. **383→386 tests**, zero skips;
+  seven properties/700 cases pass both seeds, named/root types/syntax/docs/brand
+  and isolated Lab14/563-file legal/folder/ZIP gates pass. Source-only verification
+  and host limits are recorded in [testing](docs/plugin/testing.md); no publication/install/
+  version/stage/commit/push/host/sibling changes. Parent review remains owed.
+
+- **Unused callback guard (local 0.2.14, 2026-10-21):** results ladder `b` →
+  `_tier` preserves the index slot; ESLint now checks **all** parameters with only
+  intentional `_` argument slots exempted (catch policy unchanged). Eight newly
+  exposed findings repaired: one private trailing parameter removed, seven
+  positional/render/audio/mock signature slots marked. Existing 16-warning
+  baseline and historical fixtures unchanged; narrow parameter normalization
+  retains statement pins. **383 tests**, strict named/root types and lint pass;
+  no version/publication/install/host/sibling/stage/commit/push changes. Parent
+  review and live-host validation remain separate.
+
+- **Bounded Pathway IDE fix (local 0.2.14, 2026-10-21):** authoritative mutable
+  `PATHWAYS` has a shared JSDoc contract for all 151 static lessons plus hydrated
+  Warmup, optional density arrays and precise partial authored base/variation cfg.
+  Root `tsconfig.json` discovers the existing checked core/content/selected shell
+  scope; main `screen.js` remains unchecked as a whole. Isolated strict browser
+  diagnostics **2,366→2,282**, reported line1731 fields and all related missing
+  density-property errors clear; unrelated entry typing debt is not hidden/fixed.
+  **381→382 passing tests**, zero skips; strict named/root types, lint16, existing
+  Knip1/2 findings and isolated Lab14/563-file packaging verified. Entry stays14,445;
+  no runtime values/identity/version, stage/commit/push/install or host/sibling/
+  existing publication/dist changes. Parent review remains owed.
+
+- **Run transport foundation (local 0.2.14, 2026-10-21):** pure clock/run domain
+  plus native `shell/run-transport.js` own playing/paused, cursor/start/dual-clock
+  anchors, pause duration, resume runway, committed/authoring loop points and
+  pending readiness→voices→start approval. All writers moved; entry reads live
+  getters and keeps audio scheduling, host targets/verdicts, session credit/storage,
+  wake lock and draw/RAF. Play/Workout/Jam share one start contract and lifecycle
+  operation identity; no parallel cancellation counter. Fail-first repeated Play
+  reproduced two voice preparations; one pending request now warms/starts once.
+  Independent saved-dirty **15 rows / 70,054 bytes** retain exact audio calls,
+  clock/target/status state; source/Lab parity and **782** normalized untouched
+  statements pinned. **373→381 tests**, zero skips; seven properties/700 cases at
+  both seeds. Entry **14,541→14,445**, owners **69+108**, combined **+81**;
+  direct bindings **124→125**, native entry DAG79/all-source82, Lab **563** files.
+  Strict types, lint16, Knip1/2 and coverage pass; no judging/DSP/timing/XP policy
+  changes or host launch. Same Oct-20 HOST CHECK, transport BUILD/host judge BORROW.
+  Source14 stays unpublished; installed13 smoke remains separate. Parent review
+  and RUNNING HOST audio/cache/navigation/Windows DI validation are outstanding.
+  No stage/commit/push/install, siblings or existing publication/dist edits.
+
+- **QA2 renderer readiness corrections (local 0.2.14, 2026-10-21):** fail-first
+  real source/Lab tests reproduce current held Play rejection escaping its handler;
+  request-owned readiness catch now reports `Renderer failed`, remains stopped and
+  never warms voices/starts targets. Old rejection after Stop/new render/new Play
+  cannot overwrite status or destroy the new renderer/loop. Borrowed ready promises
+  are observed immediately before draw/init validation/getters; malformed objects,
+  throwing ready/init/draw/then getters retain rejecting attachment and exact-once
+  cleanup, without unhandled rejection. Baseline **369→373 passing**, zero skips;
+  six properties/600 cases pass both seeds. Strict types, lint16, Knip1/2, syntax/
+  DAG77/all-source80, links/brand/whitespace and isolated Lab14/561-file gates pass.
+  c8 **14,209/29,091 lines (48.84%)**, native owner **261/264 (98.86%)**, branches
+  **128/149 (85.9%)**. Entry **14,541**, owner **264**, combined **+148** versus
+  pre-owner 14,657 (bindings124 unchanged). No version/publication/install/host/
+  sibling/stage/commit/push changes. Review-ready source fixes; live browser/audio/
+  Windows DI acceptance remains outstanding, installed13 user smoke is separate.
+
+- **Renderer attachment/readiness owner (unpublished 0.2.14, 2026-10-21):** native
+  `shell/renderer-lifecycle.js` owns candidate/canvas/active handle, init/ready/commit,
+  view readouts, exact-once destroy and resize/debounce/layout RAF teardown. One
+  monotonic operation identity serves entry sink/voices/generation/start cancellation;
+  selection still owns catalog/file/visit, entry retains full bundle/lastExercise,
+  transport/audio clock/note_detect/credit/progress/L1. Existing UI publication and
+  actual fallback cfg persistence unchanged. Fail-first Play race fixed explicitly:
+  published candidate readiness must finish before voice warm/start. Throwing init
+  readiness rejection observed; stale completion cleans only its own candidate.
+  Baseline/checkpoint **348**, final **369 passing**, zero skips; 21 new tests,
+  six bounded properties/600 cases at both seeds. Independent **17 operation rows /
+  446,780 bytes** and previous cfg/selection/event captures match source/Lab;
+  791 untouched statements pinned, all historical/API fixtures retained. c8 **80
+  files**, **14,201/29,072 lines (48.84%)**; native owner 98.82% lines/86.09% branches,
+  entry still zero-measured. Lint **16**, strict types/Knip1/2/syntax/graph/docs/
+  legal/folder/ZIP pass. Entry **14,657→14,530**, owner **256**, combined **+129**;
+  bindings **124→124**, real selection import replaced, not a size-win claim.
+  Shared bundle derivation/host-fit resize and operation predicate remove duplication.
+  Same Oct-20 `eef58c88…` HOST CHECK: BORROW preferred/legacy host viz factories at
+  call time; MIRROR local fallbacks, private host 2D not a standalone API. DAG77/
+  all-source80, isolated Lab **561** runtime files. No stage/commit/push/install,
+  host/sibling/existing dist/publication edits. Published/installed **0.2.13-lab.1**
+  unchanged; Oct-21 user smoke PASS does not cover local14. Parent review and live
+  browser/font/cache/audio/host/Windows DI remain outstanding; clock extraction deferred.
+
+- **Joint practice selection/load boundary (unpublished 0.2.14, 2026-10-21):**
+  `shell/practice-selection.js` owns mode intent, rung/variation/tier/band state,
+  pending first lesson, catalog/file requests, fixed-field eligibility, shape/scale
+  controls and visit listeners. Plain `core/practice-selection.js` owns deterministic
+  rung transitions, tier field realization and the shared mutable applicability
+  table. Five semantic entry hooks plus the existing presentation dependency;
+  no generic state machine/helper bag. Entry retains L1 adaptation/persistence,
+  mode panels, renderer/ready/voice/clock/credit and progress storage.
+  Independent dirty-before **24 cfg rows / 83,739 bytes**, **3,044 selection rows /
+  9,850,708 bytes**, **10 event rows / 76,298 bytes** match full bytes and parsed
+  output; source/Lab hashes and 805 untouched-statement pin retain provenance.
+  Baseline **337**, checkpoint **347**, final coverage suite **348 passing**, zero
+  skips. Five bounded properties/500 cases pass both seeds. Coverage **79 files**,
+  lines **13,946/28,941 (48.18%)**; native controller 97.86% lines/78% branches;
+  entry still zero-measured, not browser evidence. Lint **16** warnings, strict
+  types/syntax/links/brand/whitespace pass; Knip full1/prod2 unchanged. Isolated
+  0.2.14-lab.1 **560** runtime inventory files, DAG76/all-source79; ZIP verified.
+  No autoplay; incompatible tuning keeps variant for recovery; failed file
+  replacement still clears the old file. Request identity + visit + DOM ownership
+  reject stale A→B→A; canceled unload/BFCache does not detach, confirmed SPA leave
+  does. Physical entry **15,196→14,657 (−539)**, owners **375+44**, existing loader/
+  catalog **+30**, combined **−90**. Bindings **127→124**, not one-line boot.
+  Shared tier realization removes duplicate BPM/subdivision/bars policy; shared
+  clear/reset and request guard remove repeated cancellation branches. Verified
+  callerless `syncCagedButtonStrip` removed; no Knip-driven deletion.
+  Same Oct-20 `eef58c88…` HOST CHECK: BORROW public navigation/settings/meta-DB,
+  MIRROR inner forms. No new capability, Escape handling or host monkey-patch.
+  Published/installed **0.2.13-lab.1 unchanged**; this local 0.2.14 is user-unverified.
+  Parent ownership review and browser/host/audio/Windows DI remain outstanding.
+  No stage/commit/push/install, host/sibling or existing publication/dist edits.
+
+- **Developer coverage + properties (2026-10-21):** no prior partial tooling edits
+  found; baseline **333**, now **337 passing Node tests**, zero skips. Four bounded
+  properties / **400 generated cases** at fixed seed 20261021 and alternate 271828;
+  real parser/generation/shape modules, no runtime or fixture changes. Pinned
+  dev-only c8 12.0.0 / fast-check 4.10.2, ignored HTML/LCOV/JSON/terminal reporting
+  and Node24 CI artifact visibility without a percentage gate. Local Node26 initial
+  scope **77 files**, lines/statements **13,508/29,034 (46.52%)**, branches
+  **4,325/5,121 (84.45%)**, functions **461/478 (96.44%)**. Data-URL entry stays
+  zero-measured **15,196 lines** with synthetic function/branch placeholders;
+  do not read native-only 97.61% lines as whole-plugin or entry coverage.
+  External generated copies excluded, real child native imports merged; source
+  provenance/type-only lines retained. Authentic entry attribution/tapping/branch
+  gaps remain priorities. See [method and replay](docs/plugin/development.md#coverage-reporting-and-bounded-properties).
+  Offline npm ci, strict types, lint **17** unchanged warnings, links/brand/whitespace
+  pass; Knip full1/prod2 intentional findings unchanged. Native entry DAG **74**,
+  all-source **76**, isolated candidate **558 files** with legal/folder/ZIP gates.
+  No source/version/host/sibling/dist/publication, stage/commit/push/install changes;
+  local unpublished 0.2.14 remains untested by user, remote Node24 CI and browser/
+  host/audio/Windows DI unverified. Prior reviews are not repeated/claimed here.
+
+- **Practice presentation owner (unpublished 0.2.14, 2026-10-21):** typed native
+  `shell/practice-presentation.js` owns goal recognition/disclosure, cue/backing/
+  tuning/PB/supports display, Position/variation readout, START transport labels,
+  content description and Custom file prose/options/selected hint. All actual entry
+  callers delegate directly; one view-scoped plain snapshot hook, no state/tools bag.
+  Mutable PATHWAYS hydration stays live; authored titles/goals/hints remain textContent.
+  Eligibility, form disabling, config-changing rung/variant/Next listeners, storage,
+  grading/progression and ready/audio lifecycle remain entry-owned. No autoplay.
+  Independent dirty source **3,044 rows / 9,850,708 bytes** (all 151 static pathways,
+  24 hydrated Warmup combinations, 40 Custom configs) and **10 real-event rows /
+  76,298 bytes** match full source and isolated Lab. **326→333 tests**, zero skips;
+  strict types, lint **17**, Knip full1/prod2 intentional findings retained.
+  Physical entry **15,443→15,196 (−247)**, owner **222**, existing prose owner
+  **60→55**; combined **−30**, not just relocation. Optional-line writes share one
+  implementation; repeated form cfg reads become one goal snapshot. Bindings
+  **128→127** (three real dependencies removed, two owner bindings added).
+  Latest native entry DAG **74**, all-source **76**, isolated Lab **558 files**.
+  Same Oct-20 `eef58c88…` HOST CHECK: BORROW existing public navigation/settings,
+  MIRROR private forms; no new SDK/CSS/API/security policy. Prior public40/debug91
+  and historical fixtures retained. Local 0.2.14 remains untested by the user;
+  installed/published 0.2.13 target unchanged. Browser/host/Windows DI and parent
+  ownership review outstanding. No stage/commit/push/install or sibling/dist edits.
+
+- **Configuration/preset/cue boundary (unpublished 0.2.14, 2026-10-21):** three
+  internal checkpoints **315→319→323→325→326 source tests**, zero skips. Typed shell
+  owns sole DOM→cfg reader, silent associated form writes/advanced disabling and
+  ordered apply; plain core owns anti-leak prewrites and explicit cue selection,
+  passive content owns mutable vocabulary. Saved-practice recall owns GET cache,
+  both option destinations and visit listeners, no save/manage feature or autoplay.
+  Explicitly cut HTML save button proves dormant private writer removal;
+  lint **18→17**, strict core/content/shell/renderer types, Knip full1/prod2
+  intentional findings. Separate async safety fix rejects old-request/abandoned
+  visit/DOM writes; real source/Lab canceled-unload/reentry regression covers it.
+  Independent dirty complete-entry **24 config/event rows (83,739 bytes)**,
+  **6 preset rows (13,864 bytes)** and **3,776 cue rows (593,644 bytes)** match;
+  small provenance fixture only, historical music/renderer/API40/debug91 retained.
+  Physical entry **15,881→15,443 (−438)**, five owners **346**, combined **−92**;
+  bindings **123→128**, actual dependencies explicit (no barrel/public-ref masking).
+  Two preset option builders become one; L1/host shared writes, eligibility,
+  full goal-card selection, readiness/audio/transport remain cohesive entry owners.
+  Local 0.2.14 is unverified by the user; published/installed 0.2.13 target unchanged.
+  No stage/commit/push/install, host/sibling or existing dist/publication edits.
+  Final isolated **0.2.14-lab.1** folder/ZIP/legal checks pass; native entry DAG
+  **73 modules**, including all five new owners; all-source inventory **75**,
+  artifact **557 files**. Browser MIME/cache/BFCache/audio/Windows DI and parent ownership review
+  remain outstanding; no independent running-host certification is claimed.
+
+- **Tuning-settings ownership (unpublished 0.2.14, 2026-10-21):** native
+  `shell/tuning-settings.js` owns saved cache/load/save, ordered preset groups,
+  canonical/CSV selection, custom validation/seeding/writes and both original
+  listener clusters. All entry callers use the owner, no proxy wrappers/barrels.
+  Three option builders become one with exact built-in→host→saved priority.
+  Five semantic hooks; entry retains L1/host persistence, eligibility, pathway
+  recovery, `readConfig` and contained transport. SPA exit unmounts, return mounts
+  once; stale dynamic inputs cannot write, canceled unload keeps listeners.
+  Independent dirty pre-edit **0.2.14** complete-entry **24-row / 83,739 UTF-8
+  byte** event capture matches full source and isolated Lab output after cleanup
+  and lifecycle hardening; historical generation/Markdown/renderer/API pins stay.
+  Physical newline counts (`wc -l`, split-newline length minus one): entry
+  **16,128→15,881 (−247)**, owner **194**, combined **−53**. Prior 16,126 prose
+  was historical, not this baseline. Import bindings **124→123**: remove two
+  actual tuning-helper dependencies, add one controller; API-only imports elsewhere
+  remain honest/explicit. **309→315 tests**, zero skips; strict controller DOM
+  checkJs, lint 18, Knip full1/prod2 intentional inventory. Isolated candidate only;
+  no staging/commit/push/install, host/sibling or existing dist/publication edits.
+
+- **USERREPORTED smoke PASS (2026-10-21):** user answered “all works” to the
+  Windows checklist for installed **0.2.13-lab.1**: basic Play/audio/detection,
+  views/Tab/Notation minor flats, Markdown variants, Ladder tuning, Workout
+  navigation. Exact FeedBack desktop/detector versions unknown. This is not
+  independently observed testing, exhaustive regression or Windows DI certification.
+  Published runtime `6d8ede92…` / source `03a0c04…` stay unchanged. Local
+  **0.2.14 was not tested by the user**; its live-host acceptance remains owed.
+
+- **Pure-core quality cleanup (unpublished 0.2.14, 2026-10-21):** four block
+  assemblers share chord geometry cloning/template-ID offsets; five local backing
+  builds share pitched-before-drums ordering; incoming and wrap breaths share
+  count-in emission. Whole-cell tiling deliberately retains its distinct ID and
+  optional-array contracts. No UI/player/navigation/lifecycle/music-policy change;
+  entry's historical **16,126 LOC** figure is not authoritative (physical newline count is
+  **16,128 before and after**; only paired manifest/header version reservation).
+  Independent pre-edit captures retain exact **61,309,037 foundation / 42,443,466
+  session / 13,777,002 backing / 5,028,817 cluster UTF-8 bytes**, including after
+  the badge bump; historical fixtures are untouched. Seven direct semantic tests cover
+  guitar/bass rung math, IDs, shared/cloned aliases, empty-array handling, ordering,
+  count-in endpoint tolerance/live reads, sequence turns/annotations/RNG counts and
+  inert native imports. Published personal `main` remains **0.2.13-lab.1**;
+  **302→309 source tests, zero skips**, lint **106 files / 18 unchanged warnings**,
+  strict core/content/shell/renderer types, syntax, all-source/Lab **70-module DAG**,
+  docs/brand/whitespace and legal/withdrawn-assets/folder/ZIP checks pass. Knip
+  remains full1/prod2 intentional findings; no speculative exports were deleted.
+  Core combined LOC **841→877 (+36)** including shared contracts/comments, not source shrink;
+  duplicated geometry implementations **4→1**, accompaniment builds **5→1**,
+  breath emission **2→1**; no benchmark/performance improvement is claimed.
+  0.2.14-lab.1 is an isolated temporary candidate only. No stage/commit/push,
+  installation, host/sibling or existing publication/dist changes. Known fret-51
+  3NPS, NaN-BPM backing and nonpositive ladder-step behavior remains deferred.
+  Windows DI and browser MIME/cache/BFCache/navigation/render/audio/detection smoke
+  remain owed; pure source checks cannot certify them.
+
 - **Publication completed (2026-10-21):** experimental **0.2.13-lab.1** pushed
   non-force over SSH to personal-fork `main` only, runtime revision
   `6d8ede92c607eb14d3d175766258e405e134088d`, replacing `ac8fc44…`.
@@ -404,7 +852,7 @@ Old upstream release stories, PR states and handoffs are preserved as
   claim or installed-host/Windows acceptance is inferred.
 
 - Local development branch: **`dev/modular-source`**, source ID **`virtuoso`**,
-  manifest/header **0.2.13** (local Ladder pilot WIP), based on
+  manifest/header **unpublished 0.2.14** (pure-core quality WIP), based on
   `485f657`. No stable promotion is implied.
 - Native module entry retains the strict IIFE and synchronous API/debug/boot
   order. Pure mutable pitch, scale-interval, chord-theory and timing leaves are extracted into `src/`;

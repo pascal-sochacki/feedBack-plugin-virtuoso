@@ -1,20 +1,3 @@
 [
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'SEQUENCE_LABELS' is assigned a value but never used.\",\"9514ee30ef47386e5ae2e22820d48ec521f819e0aacfae3425567cd10ff0c047\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'PT_WIN_LATE' is assigned a value but never used.\",\"b99039406758b72b36da2044811e466413f3af94d3a1760f7256a2c70b045ef4\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'fretboardSystemLabel' is defined but never used.\",\"93ae8ef142981d8c73d26791b4e61c4f434b3a6f91cd1bf66dde9bbe8b88e5c2\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'inWindow' is defined but never used.\",\"afd0295164b2f50cdb3fcb503f64f55babfd195f9c8bd440835b4bb187e85452\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'pianoPathwayActive' is defined but never used.\",\"116c240c91dc36764f5b86e37ce1fe1ac9d6a3b66124d978fb33a452019eefc4\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'usableW' is assigned a value but never used.\",\"1621f1876a647041a3a234a9088f78f0561e68ddbf7bb9c7ccdb1ccef54f84bf\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'savePreset' is defined but never used.\",\"1a9eb02683d62b7ede7e5b80fb6e8d5d3fdc06c13c06e26e5860836073125ce1\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'syncCagedButtonStrip' is defined but never used.\",\"47d17df683806ce0b863cb50d2770fc6ddac2207646411b1e1a4308645ec7df5\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'proofCardText' is defined but never used.\",\"ce72a1461dd038a11a2b210e3f79c23c60158970bd4a6db8d5521ce4ff83fe84\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'FAINT' is assigned a value but never used.\",\"11b65de662097ccfdbdf9bb205394c597778a6425b4543712033fbb18e0accdf\"]","count":1},
-  {"key":"[\"screen.js\",\"no-control-regex\",\"Unexpected control character(s) in regular expression: \\\\x00, \\\\x1f.\",\"692fc75cd6f47ce320650fcb4dd646486a07a09e57824e11552a0ad1524d4d32\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'_ndCardApi' is defined but never used.\",\"94c326de4591d8ceb994a2b77ea4dba13e151f144151d4da0ac22c98ef302dbe\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'_resultsCardData' is defined but never used.\",\"2a1cbe29c4a78efadfd63cbcad5cc4f5ca8b04d6c9fed1a1a72d1a9990d71984\"]","count":1},
-  {"key":"[\"screen.js\",\"no-unused-vars\",\"'_virCardOverlay' is defined but never used.\",\"63d805540dac7bd503dd60e11a3cfc8023c5b51ca742be5c1f7edd840ccf0642\"]","count":1},
-  {"key":"[\"screen.js\",\"no-dupe-keys\",\"Duplicate key 'shareCardText'.\",\"201f4a3cb3697b1104cbe7040adc680cc3353d0217d1957f257abee39f46a685\"]","count":1},
-  {"key":"[\"screen.js\",\"no-dupe-keys\",\"Duplicate key 'isShareworthy'.\",\"201f4a3cb3697b1104cbe7040adc680cc3353d0217d1957f257abee39f46a685\"]","count":1},
-  {"key":"[\"screen.js\",\"no-dupe-keys\",\"Duplicate key 'resolveHumanSeed'.\",\"d0bd7c6da2a0ec98370f2e64e7a9f4ac393adf024f6cf16e13c7051807e85fe4\"]","count":1},
-  {"key":"[\"src/core/builders/guide-tones.js\",\"no-unused-vars\",\"'keyPc' is assigned a value but never used.\",\"77e5068147dc22b498e9c05bcf59418ac012aec838536e87ac758a891b0c6da3\"]","count":1}
+  {"key":"[\"screen.js\",\"no-control-regex\",\"Unexpected control character(s) in regular expression: \\\\x00, \\\\x1f.\",\"692fc75cd6f47ce320650fcb4dd646486a07a09e57824e11552a0ad1524d4d32\"]","count":1}
 ]

@@ -18,7 +18,7 @@ export function cagedShapeQualityKey(quality) {
   return 'maj';
 }
 
-/** @param {import('./generation-types.js').GenerationConfig} cfg @param {string} shape @param {string} quality @param {number} rootFret @returns {import('./generation-types.js').ChordPosition[] | null} */
+/** @param {import('./generation-types.js').GenerationConfig} cfg @param {string | number} shape @param {string} quality @param {number} rootFret @returns {import('./generation-types.js').ChordPosition[] | null} */
 export function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
   // CAGED chord-tone templates are a 6-string (EADGBE) system. Need ≥6 GUITAR
   // strings; bass 4/5 (<6) → null so the caller falls back — and bass at ANY
@@ -47,7 +47,7 @@ export function cagedShapeNotesForChord(cfg, shape, quality, rootFret) {
   return out;
 }
 
-/** @param {import('./generation-types.js').GenerationConfig} cfg @param {string} shape @param {number} rootPc @param {number | null} prevRootFret @param {string} mode */
+/** @param {import('./generation-types.js').GenerationConfig} cfg @param {string | number} shape @param {number} rootPc @param {number | null} prevRootFret @param {string} mode */
 export function pickShapeRootFret(cfg, shape, rootPc, prevRootFret, mode) {
   const def = CAGED_SHAPES[shape];
   if (!def) return null;
@@ -135,7 +135,7 @@ export function chordTonePositionsInPosition(cfg, rootPc, quality) {
 // the generator knows which CAGED shape it's working in. Produces the full
 // chord voicing (all strings the shape covers, not just the strings the
 // generator happened to play) with sensible fingerings.
-/** @param {string} name @param {string} shape @param {string} quality @param {number} rootFret @param {import('./generation-types.js').GenerationConfig} cfg @param {boolean} arp */
+/** @param {string} name @param {string | number} shape @param {string} quality @param {number} rootFret @param {import('./generation-types.js').GenerationConfig} cfg @param {boolean} arp */
 export function templateFromShape(name, shape, quality, rootFret, cfg, arp) {
   // 6-string (EADGBE) template; need ≥6 GUITAR strings (a 6-string bass passes
   // the count but its all-4ths tuning breaks the template intervals — see

@@ -18,9 +18,18 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   console.error = (...args) => logError(...args.map(x => x instanceof Error ? x.stack.replace(/data:text[^\s)]+:(\d+):(\d+)/g, 'entry:$1:$2') : x));
   console.warn = console.error;
   const prefix = lab ? 'virtuoso_lab' : 'virtuoso';
+  const transportScenario = scenario === 'transport-events';
+  const audioEvents = [];
+  let wall = 1000, context = null;
+  if (transportScenario) globalThis.performance = {now:()=>wall};
   const editorScenario = scenario === 'editor-capture' || scenario === 'editor-page-events';
+  const tuningScenario = scenario.startsWith('tuning-');
+  const presetScenario = scenario.startsWith('preset-');
+  const presentationScenario = scenario === 'presentation-events';
+  const selectionScenario = scenario === 'selection-events';
   const pageHandlers = new Map();
-  if (editorScenario) window.addEventListener = (type, handler) => {
+  window.removeEventListener = (type, handler) => pageHandlers.set(type, (pageHandlers.get(type) || []).filter(item => item !== handler));
+  if (editorScenario || tuningScenario || presetScenario || presentationScenario || selectionScenario) window.addEventListener = (type, handler) => {
     const handlers = pageHandlers.get(type) || []; handlers.push(handler); pageHandlers.set(type, handlers);
   };
   const nodes = new Map();
@@ -28,7 +37,7 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   const advanced = new Set(['fretMin', 'fretMax', 'sequence', 'fretboardSystem', 'shape']);
   class Element {
     constructor(id = '', name = '', value = '') {
-      Object.assign(this, { id, name, value, checked:false, disabled:false, hidden:false, dataset:{}, style:{}, options:[], width:800, height:500 });
+      Object.assign(this, { nodeType:1, id, name, value, checked:false, disabled:false, hidden:false, dataset:{}, style:{}, options:[], width:800, height:500 });
       this.handlers = {};
       const classes = new Set();
       this.classList = { add: (...xs) => xs.forEach(x => classes.add(x)), remove: (...xs) => xs.forEach(x => classes.delete(x)), contains: x => classes.has(x), toggle: (x, on) => on ? classes.add(x) : classes.delete(x) };
@@ -54,29 +63,47 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   }
   const add = id => { const el = new Element(`${prefix}-${id}`); nodes.set(el.id, el); return el; };
   const form = add('controls'); form.elements = fields;
+  Object.defineProperty(fields, 'namedItem', {value:name => fields[name] || null});
   for (const [name, value] of Object.entries({ instrument:'guitar', stringSetup:'guitar_6_standard', practiceType:'scale', key:'C', scale:'major', bpm:'60', bars:'2', countIn:'1', meter:'4/4', subdivision:'eighth', fretMin:'0', fretMax:'12', fretboardSystem:'position', shape:'E', sequence:'none', direction:'up', keyCycle:'none', swing:'straight', renderer:'highway_2d' })) fields[name] = new Element('', name, value);
   add('root'); add('summary'); add('status'); add('renderer-status'); add('render-host');
   add('play'); add('stop');
+  if (scenario === 'non-element-event') add('library-body');
+  if (scenario === 'delegated-events') for (const id of ['climb-next', 'session-progress', 'starters-confirm', 'progress-sheet-body', 'mixer', 'mixer-rig', 'mixer-channels']) add(id);
+  if (scenario === 'lcd-events') {
+    const bpm = add('lcd-bpm'); bpm.value = '83';
+    bpm.blur = () => { bpm.blurred = true; };
+  }
+  if (presentationScenario) for (const id of ['pathway-goal-card','pathway-tag','pathway-title','pathway-goal','pathway-goal-rest','pathway-form-cue','pathway-backing-note','pathway-tuning-note','pathway-pb','prove-clean','goal-more','start-cta','start-verb','start-name','start-skill','position-row','position-label','position-readout','shape','fretboard-system','climb-next','tier-buttons']) add(id);
   add('mode-custom'); add('mode-session'); add('mode-jam'); add('mode-guided'); add('go-library'); add('jam-go'); add('launch-session');
   if (editorScenario) for (const id of ['session-info','segment-list','length-preset','breathe-toggle','workout-refresh','refresh-summary']) add(id);
   fields.customOpenMidis = add('custom-open-midis'); fields.customOpenMidis.name = 'customOpenMidis';
+  if (presetScenario) { add('pathway'); add('preset-picker'); add('preset-picker-wrap'); }
+  if (tuningScenario) {
+    for (const id of ['tuning-select','save-tuning','custom-tuning','custom-tuning-inputs']) add(id);
+    const select = nodes.get(`${prefix}-tuning-select`);
+    Object.defineProperty(select, 'options', {get() { return (this.children || []).flatMap(el => el.children || [el]); }});
+    Object.defineProperty(select, 'selectedIndex', {get() { return this.options.findIndex(el => el.value === this.value); }});
+    for (const id of ['tuning-select','custom-tuning-inputs']) Object.defineProperty(nodes.get(`${prefix}-${id}`), 'innerHTML', {set() { this.children = []; }});
+  }
   const customInputs = ['E2', 'A2', 'D3', 'G3', 'B3', 'E4'].map(value => new Element('', '', value));
   add('file-select').value = 'chromatic-warmup'; add('file-load'); add('file-unload'); add('file-prose'); add('regenerate'); add('view-select');
   add('file-variants').hidden = true; add('file-variant').disabled = true; add('file-next').disabled = true; add('file-hint');
   for (const id of ['file-hint', 'file-prose']) Object.defineProperty(nodes.get(`${prefix}-${id}`), 'innerHTML', {set() { throw Error('File text must never use HTML'); }});
   const toggle = add('advanced-toggle'); toggle.name = 'advancedMode'; toggle.type = 'checkbox'; fields.advancedMode = toggle;
-  if (scenario.startsWith('boot-') || scenario === 'ladder-credit' || scenario === 'ladder-type-exit') {
+  if (scenario.startsWith('boot-') || scenario === 'ladder-credit' || scenario === 'ladder-type-exit' || presentationScenario || selectionScenario) {
     const picker = add('pathway'); picker.name = 'pathway'; fields.pathway = picker;
     picker.options = ['custom', 'chromatic_warmup', 'pent_foundation'].map(value => new Element('', '', value));
     picker.options[0].disabled = false;
   }
+  const favoritesGroup = new Element();
   const query = selector => {
-    if (selector.startsWith('optgroup')) return null;
+    if (selector.startsWith('optgroup')) return presetScenario ? favoritesGroup : null;
     const name = selector.match(/\[name="([^"]+)"\]/)?.[1];
     if (name) return fields[name] || null;
     return selector.startsWith('#') ? nodes.get(selector.slice(1)) || null : null;
   };
   document.getElementById = id => nodes.get(id) || null;
+  if (scenario === 'missing-play') nodes.delete(`${prefix}-play`);
   document.querySelector = query;
   document.querySelectorAll = selector => selector === `.${prefix}-custom-tuning-input` ? (nodes.get(`${prefix}-custom-tuning-inputs`)?.children || customInputs) : selector.includes(`.${prefix}-advanced-only`) ? [...advanced].map(n => fields[n]) : [];
   document.createElement = () => new Element();
@@ -91,9 +118,9 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   globalThis.cancelAnimationFrame = () => {};
   window.location = { href:'https://host.test/', hash:'' };
   const param = () => ({ value:0, setValueAtTime() {}, exponentialRampToValueAtTime() {}, linearRampToValueAtTime() {}, cancelScheduledValues() {} });
-  const audioNode = () => ({ gain:param(), frequency:param(), Q:param(), pan:param(), threshold:param(), knee:param(), ratio:param(), attack:param(), release:param(), connect() {}, disconnect() {}, start() {}, stop() {} });
+  const audioNode = () => ({ gain:param(), frequency:param(), Q:param(), pan:param(), threshold:param(), knee:param(), ratio:param(), attack:param(), release:param(), connect() {}, disconnect() {}, start(...args) {if(transportScenario)audioEvents.push(['start',...args]);}, stop(...args) {if(transportScenario)audioEvents.push(['stop',...args]);} });
   window.AudioContext = class {
-    constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
+    constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; context=this; }
     createOscillator = audioNode; createGain = audioNode; createBiquadFilter = audioNode;
     createDynamicsCompressor = audioNode; createAnalyser = audioNode; createStereoPanner = audioNode;
   };
@@ -103,7 +130,13 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   const source = readFileSync(resolve(root, 'assets/practices/guitar/beginner/chromatic-warmup.md'), 'utf8');
   const index = readFileSync(resolve(root, 'assets/practices/index.json'), 'utf8');
   let fetchGate = null, fetchFailure = false, ladderRequests = 0;
+  const presetGate = ['preset-navigation','preset-late-load'].includes(scenario) ? deferred() : null;
+  let presetRequests = 0;
   globalThis.fetch = async url => {
+    if (presetGate && String(url).endsWith('/presets')) {
+      if (++presetRequests <= 2) await presetGate.promise;
+      return new Response(JSON.stringify({presets:[{id:'nav',config:{practiceType:'chromatic',key:'G'}}]}));
+    }
     if (String(url).endsWith('chromatic-warmup-ladder.md')) {
       ladderRequests++;
       if (fetchGate) await fetchGate.promise;
@@ -121,7 +154,7 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   };
   window.feedBackViz_highway_2d = factory;
   const hostHandlers = new Map();
-  if (editorScenario || scenario.startsWith('navigation-reentry') || scenario === 'ladder-navigation' || scenario.startsWith('boot-')) window.feedBack = {
+  if (editorScenario || presetScenario || presentationScenario || selectionScenario || scenario === 'variant-navigation' || scenario === 'tuning-navigation' || scenario.startsWith('navigation-reentry') || scenario === 'ladder-navigation' || scenario.startsWith('boot-')) window.feedBack = {
     on(type, handler) { const handlers = hostHandlers.get(type) || []; handlers.push(handler); hostHandlers.set(type, handlers); },
     emit() {}
   };
@@ -263,8 +296,307 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
   }
   await lifecycle.initialize();
   assert.equal(lifecycle.bind(), scenario !== 'catalog-pending');
+  if (scenario === 'missing-play') {
+    assert.equal(nodes.has(`${prefix}-play`), false);
+    return {entrySafety:'missing-play'};
+  }
+  if (scenario === 'non-element-event') {
+    const target = {nodeType:3};
+    for (const handler of nodes.get(`${prefix}-library-body`).handlers.click || []) await handler({type:'click', target});
+    return {entrySafety:'non-element-event'};
+  }
+  if (scenario === 'form-events') {
+    const form = nodes.get(`${prefix}-controls`);
+    let closestCalls = 0;
+    const before = instances.length;
+    for (const target of [null, {nodeType:3}, {nodeType:1}, {nodeType:1, name:'key', closest() {closestCalls++; return null;}}]) {
+      for (const handler of form.handlers.change || []) await handler({target});
+    }
+    assert.equal(closestCalls, 0, 'non-control target must be rejected before delegated form queries');
+    assert.equal(instances.length, before, 'malformed form events must not generate an exercise');
+    return {entrySafety:'form-events'};
+  }
+  if (scenario === 'lcd-events') {
+    const summary = nodes.get(`${prefix}-summary`), bpm = nodes.get(`${prefix}-lcd-bpm`);
+    for (const target of [null, {nodeType:3}, {nodeType:1, id:`${prefix}-lcd-bpm`, closest() {return null;}}, new Element('', '', '')]) {
+      for (const handler of summary.handlers.keydown || []) handler({target, key:'Enter', preventDefault() {}});
+      for (const handler of summary.handlers.change || []) handler({target});
+    }
+    let prevented = false;
+    for (const handler of summary.handlers.keydown || []) handler({target:bpm, key:'Enter', preventDefault() {prevented = true;}});
+    assert.equal(prevented, true); assert.equal(bpm.blurred, true);
+    for (const handler of summary.handlers.change || []) handler({target:bpm});
+    assert.equal(fields.bpm.value, '83');
+    return {entrySafety:'lcd-events'};
+  }
+  if (scenario === 'delegated-events') {
+    for (const id of ['climb-next', 'session-progress', 'starters-confirm', 'progress-sheet-body', 'mixer', 'mixer-rig', 'mixer-channels']) {
+      const element = nodes.get(`${prefix}-${id}`);
+      for (const [type, handlers] of Object.entries(element.handlers)) for (const handler of handlers) {
+        for (const target of [null, {nodeType:3}, {nodeType:1}, new Element()]) await handler({type, target});
+      }
+    }
+    const consoleTab = new Element(); consoleTab.dataset.view = 'console';
+    const nestedTab = new Element(); nestedTab.closest = selector => selector === `.${prefix}-mixer-viewtab` ? consoleTab : null;
+    for (const handler of nodes.get(`${prefix}-mixer`).handlers.click) handler({target:nestedTab});
+    assert.equal(nodes.get(`${prefix}-mixer`).classList.contains(lab ? 'vir-lab-rig-view' : 'vir-rig-view'), false);
+    const mute = new Element(); mute.dataset = {k:'notes', act:'mute'};
+    const nestedMute = new Element(); nestedMute.closest = selector => selector === `.${prefix}-mixer-tog` ? mute : null;
+    for (const handler of nodes.get(`${prefix}-mixer-channels`).handlers.click) handler({target:nestedMute});
+    assert.equal(debug.mixerStateRef().notes.mute, true);
+    for (const handler of nodes.get(`${prefix}-mixer-channels`).handlers.click) handler({target:nestedMute});
+    assert.equal(debug.mixerStateRef().notes.mute, false);
+    return {entrySafety:'delegated-events'};
+  }
   await flush();
   const change = (name, value) => { fields[name].value = value; fields[name].dispatchEvent({ type:'change', bubbles:true }); };
+  if (transportScenario) {
+    const probe=globalThis[Symbol.for('transport-probe')], rows=[];
+    nodes.get(`${prefix}-root`).offsetParent={};
+    await lifecycle.generate();
+    const record=label=>rows.push({label,...probe.state(),status:nodes.get(`${prefix}-status`).textContent,
+      audio:audioEvents.splice(0),targets:lifecycle.state().activeBundle.notes.map(note=>({detected:note.detected||false,detectedSongTime:note.detectedSongTime??null}))});
+    record('ready');await probe.onPlayToggle();record('play-countin');
+    context.currentTime=0.04;wall=9000;probe.tick(wall);record('lookahead');
+    context.currentTime=2.25;probe.tick(wall);record('audio-not-wall');
+    await probe.onPlayToggle();wall+=5000;probe.tick(wall);record('pause');
+    probe.seekTo(9);record('paused-seek');await probe.onPlayToggle();record('resume-preroll');
+    context.currentTime+=2.5;probe.tick(wall);record('resume-advance');
+    api.setSegmentLoop(4,6);record('loop-set');context.currentTime+=2.3;probe.tick(wall);record('loop-cross');
+    api.clearSegmentLoop();record('loop-clear');probe.onStop();record('stop');
+    probe.reset();record('reset');await probe.onPlayToggle();record('replay');
+    nodes.get(`${prefix}-root`).offsetParent=null;probe.tick(wall);record('hidden-stop');
+    return rows;
+  }
+  if (scenario === 'renderer-capture') {
+    const rows=[];
+    const capture=label=>{
+      const state=lifecycle.state();
+      rows.push({label,active:state.renderer?instances.indexOf(state.renderer):null,
+        cfg:state.activeBundle?.config||null,exercise:state.lastExercise,
+        time:state.currentPracticeTime,loop:api.getSegmentLoop(),
+        status:nodes.get(`${prefix}-status`).textContent,rendererStatus:nodes.get(`${prefix}-renderer-status`).textContent,
+        summary:nodes.get(`${prefix}-summary`).innerHTML,
+        instances:instances.map(instance=>({draws:instance.draws,resizes:instance.resizes,destroys:instance.destroys}))});
+    };
+    await lifecycle.generate();capture('initial');
+    for(const phase of ['resolver','ready'])for(const reject of [false,true]) {
+      const gate=deferred();
+      if(phase==='ready')ready=gate;else lifecycle.resolveFactory(()=>gate.promise);
+      const pending=lifecycle.generate();await flush();capture(`${phase}-pending-${reject}`);
+      ready=null;lifecycle.resolveFactory(null);await lifecycle.generate();
+      api.setSegmentLoop(0.2,0.7);capture(`${phase}-new-${reject}`);
+      if(reject)gate.reject(Error('old renderer'));else gate.resolve({factory,label:'old'});
+      await pending;capture(`${phase}-late-${reject}`);
+    }
+    ready=deferred();const gate=ready;const pending=lifecycle.generate();await flush();capture('stop-pending');
+    lifecycle.stop();capture('stop');gate.resolve();await pending;capture('stop-late');ready=null;
+    await lifecycle.switchView('highway_2d');capture('view-recovery');
+    return rows;
+  }
+  if (scenario === 'transport-repeat-play') {
+    const gate=deferred(); let warms=0, starts=0;
+    lifecycle.playback(()=>starts++,async()=>{warms++;await gate.promise;});
+    await lifecycle.generate();
+    const first=nodes.get(`${prefix}-play`).click();await flush();
+    const second=nodes.get(`${prefix}-play`).click();await flush();
+    gate.resolve();await Promise.all([first,second]);
+    assert.equal(warms,1,'repeated Play joins the same pending voice preparation');
+    assert.equal(starts,1,'one request starts one run');
+    return;
+  }
+  if (scenario.startsWith('renderer-held-play')) {
+    const gate = deferred(); ready = gate;
+    const voices = deferred();
+    let starts = 0, warms = 0;
+    lifecycle.playback(() => { starts++; }, async () => { warms++; if (scenario.includes('voices')) await voices.promise; });
+    const generation = lifecycle.generate(); await flush();
+    const candidate = lifecycle.state().renderer;
+    if (scenario.includes('session')) {
+      nodes.get(`${prefix}-root`).classList.add(`${prefix}-session-mode`);
+      lifecycle.state().activeBundle.config.mode = 'session';
+    }
+    const play = nodes.get(`${prefix}-play`).click(); await flush();
+    assert.equal(starts, 0, 'Play must wait for the already published candidate to be ready');
+    assert.equal(warms, 0);
+    if (scenario.includes('voices')) { gate.resolve(); await generation; await flush(); assert.equal(warms, 1); }
+    if (scenario.includes('stop')) nodes.get(`${prefix}-stop`).click();
+    if (scenario.includes('new')) {
+      ready=null;await lifecycle.generate();api.setSegmentLoop(0.2,0.7);
+      if (scenario.includes('new-play')) {await nodes.get(`${prefix}-play`).click();assert.equal(starts,1);}
+    }
+    const cancelled = scenario.includes('stop') || scenario.includes('new');
+    const currentRenderer = lifecycle.state().renderer;
+    const warmsBefore = warms;
+    const statusBefore = nodes.get(`${prefix}-status`).textContent;
+    const unhandled = [];
+    const onUnhandled = error => unhandled.push(error);
+    process.on('unhandledRejection', onUnhandled);
+    if (scenario.includes('voices')) voices.resolve();
+    else if (scenario.endsWith('reject')) gate.reject(Error('held ready'));
+    else gate.resolve();
+    await generation;
+    await new Promise(resolve => setImmediate(resolve));
+    process.removeListener('unhandledRejection', onUnhandled);
+    assert.deepEqual(unhandled, [], 'real bound Play must consume current readiness rejection');
+    await play;
+    const rejected = scenario.endsWith('reject');
+    assert.equal(starts, scenario.includes('new-play') || (!cancelled && !rejected) ? 1 : 0); assert.equal(candidate.destroys, cancelled || rejected ? 1 : 0);
+    if (rejected && !cancelled) {
+      assert.equal(warms, 0, 'readiness failure never warms voices');
+      assert.match(nodes.get(`${prefix}-status`).textContent, /Renderer failed: held ready/);
+      assert.equal(nodes.get(`${prefix}-stop`).disabled, true);
+      assert.equal(nodes.get(`${prefix}-play`).classList.contains('is-playing'), false);
+      assert.equal(lifecycle.state().renderer, null);
+    }
+    if (rejected && cancelled) {
+      assert.equal(nodes.get(`${prefix}-status`).textContent, statusBefore);
+      assert.equal(warms, warmsBefore);
+      if (scenario.includes('new')) {assert.equal(lifecycle.state().renderer,currentRenderer);assert.equal(currentRenderer.destroys,0);}
+    }
+    if(scenario.includes('new'))assert.deepEqual(api.getSegmentLoop(),{a:0.2,b:0.7});
+    return;
+  }
+  if (selectionScenario) {
+    const screen = id => {for(const handler of hostHandlers.get('screen:changed')||[])handler({detail:{id}});};
+    let starts=0;lifecycle.playback(()=>starts++);
+    const fileLoad=nodes.get(`${prefix}-file-load`),next=nodes.get(`${prefix}-file-next`),variant=nodes.get(`${prefix}-file-variant`);
+    await fileLoad.click();await flush();
+    const file=lifecycle.state().loadedPracticeFile;
+    variant.value=file.variants.at(-1).id;await variant.dispatchEvent({type:'change'});await flush();
+    api.setSegmentLoop(0.1,0.5);
+    for(const type of ['beforeunload','pagehide'])for(const handler of pageHandlers.get(type)||[])handler({defaultPrevented:true,persisted:true});
+    await next.click();await flush();
+    assert.equal(lifecycle.state().activeBundle.config.practiceFileVariantId,file.variants[0].id);
+    assert.deepEqual(api.getSegmentLoop(),{a:null,b:null},'Next clears loop before validation');
+    change('customOpenMidis','38,45,50,55,59,64');await flush();assert.equal(lifecycle.state().activeBundle,null);
+    await next.click();await flush();assert.equal(variant.value,file.variants[1].id,'incompatible tuning retains requested variant');
+    change('customOpenMidis','40,45,50,55,59,64');await flush();assert.equal(lifecycle.state().activeBundle.config.practiceFileVariantId,file.variants[1].id);
+    const stale=[...fileLoad.handlers.click];
+    for(let visit=0;visit<3;visit++) {
+      screen('home');assert.equal(fileLoad.handlers.click.length,0);const count=instances.length;
+      for(const handler of stale)await handler({target:fileLoad});await flush();assert.equal(instances.length,count);
+      screen(`plugin-${prefix}`);screen(`plugin-${prefix}`);await flush();
+      assert.equal(fileLoad.handlers.click.length,1);assert.equal(next.handlers.click.length,1);assert.equal(variant.handlers.change.length,1);
+      await fileLoad.click();await flush();assert.ok(lifecycle.state().loadedPracticeFile);
+    }
+    ready=deferred();const gate=ready;const pending=next.click();await flush();
+    await nodes.get(`${prefix}-mode-custom`).click();ready=null;await flush();
+    gate.reject(Error('old selected ready rejected'));await pending;assert.equal(lifecycle.state().loadedPracticeFile,null);
+    assert.equal(starts,0,'no selection or recovery auto-plays');assert.equal(lifecycle.bind(),false);
+    return {starts,visits:3};
+  }
+  if (presentationScenario) {
+    let starts=0; lifecycle.playback(()=>starts++);
+    const rows=[];
+    const capture=label=>rows.push({label,starts,dom:Object.fromEntries([...nodes].filter(([id])=>/pathway-|file-|start-|position-|tier-buttons|climb-next|goal-more|prove-clean|status$/.test(id)).map(([id,el])=>[id,{text:el.textContent||'',html:el.innerHTML||'',hidden:el.hidden,disabled:el.disabled,value:el.value,display:el.style.display||'',modified:el.classList.contains('modified'),children:(el.children||[]).map(child=>({value:child.value,text:child.textContent||'',html:child.innerHTML||'',className:child.className||'',handlers:Object.fromEntries(Object.entries(child.handlers).map(([type,handlers])=>[type,handlers.length]))}))}]))});
+    lifecycle.applyPathway('chromatic_warmup',2);capture('selected-before-ready');
+    await lifecycle.generate();capture('selected-ready');
+    const buttons=nodes.get(`${prefix}-tier-buttons`).children;
+    await buttons[3].click();await flush();capture('rung-click');
+    await nodes.get(`${prefix}-file-load`).click();await flush();capture('custom-file');
+    const select=nodes.get(`${prefix}-file-variant`);select.value='fifth-position';await select.dispatchEvent({type:'change'});await flush();capture('variant-select');
+    await nodes.get(`${prefix}-file-next`).click();await flush();capture('variant-next');
+    nodes.get(`${prefix}-file-select`).value='unknown-practice';
+    await nodes.get(`${prefix}-file-load`).click();await flush();
+    assert.equal(lifecycle.state().loadedPracticeFile,null);assert.equal(select.value,'');
+    assert.match(nodes.get(`${prefix}-status`).textContent,/Unknown practice id/);capture('failed-load-clears-file');
+    nodes.get(`${prefix}-file-select`).value='chromatic-warmup';
+    for(const type of ['beforeunload','pagehide'])for(const handler of pageHandlers.get(type)||[])handler({persisted:true});
+    await nodes.get(`${prefix}-file-next`).click();await flush();capture('cancelled-unload-next');
+    const screen=id=>(hostHandlers.get('screenChanged')||[]).forEach(handler=>handler({screen:id}));
+    screen('home');await flush();capture('left');screen(`plugin-${prefix}`);await flush();capture('returned');
+    assert.equal(starts,0,'presentation and return never autoplay');
+    return rows;
+  }
+  if (presetScenario) {
+    const picker=nodes.get(`${prefix}-preset-picker`);
+    if (scenario === 'preset-navigation' || scenario === 'preset-late-load') {
+      const navigate=id=>{for(const callback of hostHandlers.get('screen:changed') || [])callback({detail:{id}});};
+      const stale=picker.handlers.change[0];
+      for (const type of ['beforeunload','pagehide']) for (const callback of pageHandlers.get(type) || []) callback({persisted:true});
+      assert.equal(picker.handlers.change.length,1,'canceled unload retains preset handlers');
+      navigate('home');await flush();
+      if (scenario === 'preset-navigation') assert.equal(picker.handlers.change.length,0,'confirmed exit detaches recall');
+      presetGate.resolve();await flush();
+      assert.equal((favoritesGroup.children || []).length,0,'abandoned completion does not append presets');
+      navigate(`plugin-${prefix}`);await flush();navigate(`plugin-${prefix}`);await flush();
+      assert.equal(picker.handlers.change.length,1,'reentry mounts recall once');
+      picker.value='fav__nav';const before=fields.key.value;await stale({target:picker});assert.equal(fields.key.value,before);
+      await picker.dispatchEvent({type:'change'});await flush();assert.equal(fields.key.value,'G');
+      return;
+    }
+    const saved={id:'a',name:'My practice',config:{practiceType:'chromatic',key:'D',bpm:83,fretMin:7,fretMax:11,stringSetup:'guitar_6_standard'}};
+    window.__virtuosoFavorites={fav__a:saved};
+    if (lab) window.__virtuoso_labFavorites=window.__virtuosoFavorites;
+    const snapshot=[];
+    const record=label=>snapshot.push(JSON.parse(JSON.stringify({label,cfg:api.readConfig(),bundle:lifecycle.state().activeBundle?.config||null})));
+    record('initial');picker.value='';await picker.dispatchEvent({type:'change'});record('empty');
+    picker.value='fav__missing';await picker.dispatchEvent({type:'change'});record('unknown');
+    picker.value='fav__a';await picker.dispatchEvent({type:'change'});await flush();record('apply without preview');
+    await lifecycle.generate();record('generated');saved.config.key='G';saved.config.bpm=91;
+    await picker.dispatchEvent({type:'change'});await flush();record('apply with preview');
+    return snapshot;
+  }
+  if (tuningScenario) {
+    if (scenario === 'tuning-navigation') {
+      const select = nodes.get(`${prefix}-tuning-select`);
+      select.value='custom'; await select.dispatchEvent({type:'change'}); await flush();
+      const input = nodes.get(`${prefix}-custom-tuning-inputs`).children[0];
+      const blur = input.handlers.blur[0];
+      const handler = select.handlers.change[0];
+      const original = fields.customOpenMidis.value;
+      for (const type of ['beforeunload','pagehide']) for (const callback of pageHandlers.get(type) || []) callback({persisted:true});
+      assert.equal(select.handlers.change.length,2,'canceled page unload retains both original tuning listener clusters');
+      input.value='D2'; await input.dispatchEvent({type:'blur'}); await flush();
+      assert.equal(fields.customOpenMidis.value.split(',')[0],'38');
+      const navigate = id => { for (const callback of hostHandlers.get('screen:changed') || []) callback({detail:{id}}); };
+      navigate('home'); await flush();
+      assert.equal(select.handlers.change.length,0);
+      fields.customOpenMidis.value=original;
+      await handler({}); await blur({});
+      assert.equal(fields.customOpenMidis.value,original,'stale handlers cannot persist a newer visit');
+      navigate(`plugin-${prefix}`); await flush();
+      navigate(`plugin-${prefix}`); await flush();
+      assert.equal(select.handlers.change.length,2,'repeated screen publication mounts both clusters once');
+      select.value='custom'; await select.dispatchEvent({type:'change'}); await flush();
+      const current=nodes.get(`${prefix}-custom-tuning-inputs`).children[0];
+      current.value='D2'; await current.dispatchEvent({type:'blur'}); await flush();
+      assert.equal(fields.customOpenMidis.value.split(',')[0],'38');
+      return;
+    }
+    const snapshot = [];
+    const select = nodes.get(`${prefix}-tuning-select`);
+    const record = label => snapshot.push(JSON.parse(JSON.stringify({label, config:api.readConfig(), setup:fields.stringSetup.value, hidden:fields.customOpenMidis.value, selection:select.value, groups:(select.children || []).map(el => ({label:el.label, options:(el.children || [el]).map(opt => ({value:opt.value,text:opt.textContent,midis:opt.dataset.midis}))})), inputs:(nodes.get(`${prefix}-custom-tuning-inputs`).children || []).map(el => el.value), display:nodes.get(`${prefix}-custom-tuning`).style.display, bundle:lifecycle.state().activeBundle?.config || null})));
+    record('initial');
+    for (const mode of ['custom','session','jam','guided']) { await nodes.get(`${prefix}-mode-${mode}`).click(); await flush(); record(mode); }
+    await nodes.get(`${prefix}-mode-custom`).click();
+    for (const setup of ['guitar_6_standard','guitar_7_standard','guitar_8_standard','bass_4_standard','bass_5_standard','bass_6_standard','guitar_6_standard']) {
+      change('stringSetup',setup); await flush(); record(setup);
+    }
+    for (const preset of ['drop_d','dadgad','standard','custom']) { select.value=preset; await select.dispatchEvent({type:'change'}); await flush(); record(preset); }
+    const inputs = nodes.get(`${prefix}-custom-tuning-inputs`).children;
+    inputs[0].value='no note'; await inputs[0].dispatchEvent({type:'input'}); record('invalid edit');
+    inputs[0].value='Eb2'; await inputs[0].dispatchEvent({type:'blur'}); await flush(); record('blur edit');
+    let saved=[];
+    window.prompt=()=> '  My tuning  ';
+    const originalFetch=globalThis.fetch;
+    globalThis.fetch=async (url,options) => {
+      if (String(url).endsWith('/tunings')) {
+        if (options?.method==='POST') { const body=JSON.parse(options.body); saved=[{...body,id:'mine'}]; }
+        return new Response(JSON.stringify({tunings:saved}));
+      }
+      return originalFetch(url,options);
+    };
+    await nodes.get(`${prefix}-save-tuning`).click(); await flush(); record('saved');
+    select.value='saved:mine'; await select.dispatchEvent({type:'change'}); await flush(); record('saved pick');
+    // Existing file ownership must survive mismatch and recover through the same setup event.
+    await nodes.get(`${prefix}-file-load`).click(); await flush(); record('file mismatched');
+    fields.customOpenMidis.value=''; change('stringSetup','guitar_6_standard'); await flush(); record('file recovered');
+    change('bpm','90'); await flush(); record('tempo');
+    await nodes.get(`${prefix}-file-unload`).click(); await flush(); record('file canceled');
+    return snapshot;
+  }
   if (editorScenario) {
     const probe = globalThis[Symbol.for('workout-editor-probe')];
     const snapshot = [];
@@ -521,6 +853,9 @@ export async function runLifecycle({ root, api, debug, lab, scenario, boot }) {
       assert.equal(lifecycle.state().loadedPracticeFile, null);
       assert.equal(lifecycle.state().activeBundle, null);
       fetchGate = null;
+      // A departed visit no longer owns file listeners; resume through the host event.
+      const enter = hostHandlers.get('screen:changed') || [];
+      if (enter.length) for (const handler of enter) handler({detail:{id:`plugin-${prefix}`}});
       await load(); await selectVariant('fifth-position');
       nodes.get(`${prefix}-go-library`).click(); await flush();
       assert.equal(lifecycle.state().loadedPracticeFile, null);
