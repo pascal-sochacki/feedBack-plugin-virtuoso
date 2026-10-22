@@ -5,6 +5,7 @@
     "lint": "eslint --config eslint.config.mjs screen.js 'src/**/*.js'",
     "lint:core": "eslint --config eslint.config.mjs 'src/**/*.js'",
     "typecheck": "tsc --project tsconfig.core.json && tsc --project tsconfig.shell.json && tsc --project tsconfig.renderer.json",
+    "check:precommit": "npm run lint -- --max-warnings 18 && npm run typecheck",
     "deadcode": "knip --config knip.json --no-progress",
     "deadcode:production": "knip --config knip.json --no-progress --production"
   },

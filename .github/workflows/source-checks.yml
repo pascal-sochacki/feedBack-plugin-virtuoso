@@ -22,11 +22,8 @@ jobs:
 
       - run: npm ci --ignore-scripts
 
-      - name: ESLint
-        run: npm run lint -- --max-warnings 18
-
-      - name: TypeScript checks
-        run: npm run typecheck
+      - name: ESLint and TypeScript checks
+        run: npm run check:precommit
 
       - name: Knip
         continue-on-error: true

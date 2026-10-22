@@ -233,6 +233,11 @@ warnings; Knip intentionally reports one full/two production export findings
 maintainer-only ESLint, TypeScript and Knip configs/tooling for its source-checks
 workflow; these are not used by the plugin at runtime. Only `src/package.json`
 selects native ESM. No runtime npm install is required.
+
+To enable the same blocking checks before each local commit, install the
+maintainer dependencies with `npm ci --ignore-scripts`, then run
+`git config core.hooksPath .githooks` once in the checkout. The pre-commit hook
+runs ESLint and TypeScript; Knip also runs as advisory inventory, matching CI.
 Known inherited low-level 3NPS cases can reach fret 51; malformed NaN BPM or
 nonpositive ladder steps may not terminate. These are not fixed or certified
 by this experimental candidate; do not treat unusual inputs as supported.

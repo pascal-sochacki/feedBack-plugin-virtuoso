@@ -26,7 +26,7 @@ export default [
   },
   {
     files: ['screen.js'],
-    languageOptions: { globals: { WebAudioFontPlayer: 'readonly' } },
+    languageOptions: { globals: { VirtuosoLabWebAudioFontPlayer: 'readonly' } },
     // Legacy findings are visible and ratcheted by scripts/lint.mjs, not silently disabled.
     rules: {
       'no-dupe-keys': 'warn',
