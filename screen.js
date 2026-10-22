@@ -12480,7 +12480,11 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     try { const m = shareCardModel(s); what = (m && (m.hero || m.lane)) || what; } catch (_) {}
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    return `Virtuoso - ${what} - ${date}.png`.replace(/[<>:"/\\|?* -]/g, '-');
+    const invalidFilenameCharacters = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*']);
+    return Array.from(`Virtuoso - ${what} - ${date}.png`, character => {
+      const codePoint = character.codePointAt(0);
+      return invalidFilenameCharacters.has(character) || codePoint < 0x20 ? '-' : character;
+    }).join('');
   }
   // Save the card PNG to the user's configured folder via the local server route —
   // the save FOLDER is SHARED with note_detect (localStorage slopsmith_notedetect_save_dir),
