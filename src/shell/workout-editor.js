@@ -5,13 +5,12 @@ import { materializeSegment, segmentEstDuration, refreshWorkout } from '../core/
 import { lengthPresetSec } from '../core/workout-length.js';
 import { materializeWorkoutConfig } from '../core/workout-config.js';
 import { KIND_COLORS, KIND_LABELS } from './workout-display.js';
+import { el } from './dom.js';
 
 /** @typedef {import('../core/workout-config.js').WorkoutDraft} WorkoutDraft */
 /** @typedef {import('../core/session-types.js').Segment} Segment */
 /** @param {string} id */
 const $ = id => document.getElementById(id);
-/** @param {unknown} value */
-const esc = value => String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 /** @param {Event} event */
 const target = event => /** @type {HTMLElement | null} */ (event.target);
 /** @param {WorkoutDraft | null} session */
@@ -42,21 +41,29 @@ export function createWorkoutEditor(preview) {
     return base ? JSON.parse(JSON.stringify(base)) : null;
   }
   function clearSummary() {
-    const el = $('virtuoso_lab-refresh-summary'); if (el) { el.hidden = true; el.innerHTML = ''; }
+    const summary = $('virtuoso_lab-refresh-summary'); if (summary) { summary.hidden = true; summary.replaceChildren(); }
   }
-  /** @param {string[]} lines */
+  /** @param {Array<{label: string, details: string}>} lines */
   function showSummary(lines) {
-    const el = $('virtuoso_lab-refresh-summary'); if (!el) return;
-    if (!lines.length) {
-      el.innerHTML = `<span>Refreshed — nothing changed this pass.</span><button type="button" class="virtuoso_lab-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
-    } else {
-      const shown = lines.slice(0, 2), more = lines.length - shown.length;
-      el.innerHTML = `<span>Re-rolled — ${shown.join(' · ')}${more > 0 ? ` · +${more} more` : ''}</span><button type="button" class="virtuoso_lab-refresh-summary-close" aria-label="Dismiss" title="Dismiss">✕</button>`;
-    }
-    el.hidden = false;
+    const summary = $('virtuoso_lab-refresh-summary'); if (!summary) return;
+    const shown = lines.slice(0, 2), more = lines.length - shown.length;
+    const content = !lines.length ? 'Refreshed — nothing changed this pass.' : [
+      'Re-rolled — ',
+      ...shown.flatMap((line, i) => [
+        ...(i ? [' · '] : []),
+        el('b', {}, line.label),
+        ` ${line.details}`
+      ]),
+      ...(more > 0 ? [` · +${more} more`] : [])
+    ];
+    summary.replaceChildren(
+      el('span', {}, content),
+      el('button', {type:'button', className:'virtuoso_lab-refresh-summary-close', 'aria-label':'Dismiss', title:'Dismiss'}, '✕')
+    );
+    summary.hidden = false;
   }
   /** @param {Segment} seg @param {number} index */
-  function cardHtml(seg, index) {
+  function cardNode(seg, index) {
     const color = KIND_COLORS[seg.kind || ''] || '#94a3b8';
     const label = KIND_LABELS[seg.kind || ''] || seg.kind;
     const dur = segmentEstDuration(seg);
@@ -82,26 +89,26 @@ export function createWorkoutEditor(preview) {
     const tmpl = seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
     const canReroll = !!(tmpl && tmpl.vary && tmpl.vary.length > 1);
     const canRemove = (draft?.segments || []).length > 1;
-    return `<div class="virtuoso_lab-segment-card" data-kind="${esc(seg.kind)}" data-seg-index="${index}" draggable="true" title="Drag to reorder · click to preview from here">
-      <div class="virtuoso_lab-segment-header">
-        <span class="virtuoso_lab-segment-grip" data-act="grip" aria-hidden="true" title="Drag to reorder">⋮⋮</span>
-        <span class="virtuoso_lab-segment-badge" style="color:${color}">${esc(label)}</span>
-        <span class="virtuoso_lab-segment-name">${esc(seg.name || '')}</span>
-        <button type="button" class="virtuoso_lab-segment-menu-btn" data-act="menu" aria-label="Block actions" title="Block actions">⋯</button>
-      </div>
-      <div class="virtuoso_lab-segment-meta">${esc(parts.join(' · '))}</div>
-      <div class="virtuoso_lab-segment-actions" hidden>
-        <button type="button" data-act="dup" title="Add a copy of this block below">Duplicate</button>
-        <button type="button" data-act="reroll"${canReroll ? '' : ' disabled'} title="${canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}">↻ Re-roll</button>
-        <button type="button" data-act="remove"${canRemove ? '' : ' disabled'} title="${canRemove ? 'Remove this block' : 'A workout needs at least one block'}">Remove</button>
-      </div>
-    </div>`;
+    return el('div', {className:'virtuoso_lab-segment-card', dataset:{kind:seg.kind || '', segIndex:index}, draggable:true, title:'Drag to reorder · click to preview from here'},
+      el('div', {className:'virtuoso_lab-segment-header'},
+        el('span', {className:'virtuoso_lab-segment-grip', dataset:{act:'grip'}, 'aria-hidden':true, title:'Drag to reorder'}, '⋮⋮'),
+        el('span', {className:'virtuoso_lab-segment-badge', style:{color}}, label),
+        el('span', {className:'virtuoso_lab-segment-name'}, seg.name || ''),
+        el('button', {type:'button', className:'virtuoso_lab-segment-menu-btn', dataset:{act:'menu'}, 'aria-label':'Block actions', title:'Block actions'}, '⋯')
+      ),
+      el('div', {className:'virtuoso_lab-segment-meta'}, parts.join(' · ')),
+      el('div', {className:'virtuoso_lab-segment-actions', hidden:true},
+        el('button', {type:'button', dataset:{act:'dup'}, title:'Add a copy of this block below'}, 'Duplicate'),
+        el('button', {type:'button', dataset:{act:'reroll'}, disabled:!canReroll, title:canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}, '↻ Re-roll'),
+        el('button', {type:'button', dataset:{act:'remove'}, disabled:!canRemove, title:canRemove ? 'Remove this block' : 'A workout needs at least one block'}, 'Remove')
+      )
+    );
   }
   function render() {
     const session = draft;
     const info = $('virtuoso_lab-session-info'), list = $('virtuoso_lab-segment-list');
     if (!info || !list) return;
-    if (!session) { info.innerHTML = ''; list.innerHTML = ''; return; }
+    if (!session) { info.replaceChildren(); list.replaceChildren(); return; }
     // Raw indexes must survive unresolved refs so edit actions still address the draft.
     const materialized = (session.segments || []).map(materializeSegment);
     const displaySegs = materialized.filter(isSegment);
@@ -114,19 +121,18 @@ export function createWorkoutEditor(preview) {
     const lenSel = /** @type {HTMLSelectElement | null} */ ($('virtuoso_lab-length-preset'));
     if (lenSel) lenSel.value = session.lengthPreset || '';
     const tags = (session.tags || []).join(', ');
-    const longNote = displaySegs.length >= 10
-      ? `<div class="virtuoso_lab-session-longnote">That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.</div>`
-      : '';
-    info.innerHTML = `
-      <div class="virtuoso_lab-session-info-name">${session.name}</div>
-      <div class="virtuoso_lab-session-info-desc">${session.description || ''}</div>
-      <div class="virtuoso_lab-session-info-stats">
-        <span class="virtuoso_lab-session-info-stat">${displaySegs.length} segments</span>
-        <span class="virtuoso_lab-session-info-stat">${durStr}</span>
-        ${bpmStr ? `<span class="virtuoso_lab-session-info-stat">${bpmStr}</span>` : ''}
-        ${tags ? `<span class="virtuoso_lab-session-info-stat">${tags}</span>` : ''}
-      </div>${longNote}`;
-    list.innerHTML = materialized.map((m, i) => m ? cardHtml(m, i) : '').join('');
+    info.replaceChildren(
+      el('div', {className:'virtuoso_lab-session-info-name'}, session.name || ''),
+      el('div', {className:'virtuoso_lab-session-info-desc'}, session.description || ''),
+      el('div', {className:'virtuoso_lab-session-info-stats'}, [
+        el('span', {className:'virtuoso_lab-session-info-stat'}, `${displaySegs.length} segments`),
+        el('span', {className:'virtuoso_lab-session-info-stat'}, durStr),
+        bpmStr ? el('span', {className:'virtuoso_lab-session-info-stat'}, bpmStr) : null,
+        tags ? el('span', {className:'virtuoso_lab-session-info-stat'}, tags) : null
+      ]),
+      ...(displaySegs.length >= 10 ? [el('div', {className:'virtuoso_lab-session-longnote'}, "That's a long set — every block can loop or be trimmed, and you never have to finish it all in one sitting.")] : [])
+    );
+    list.replaceChildren(...materialized.flatMap((m, i) => m ? [cardNode(m, i)] : []));
     const breathe = /** @type {HTMLInputElement | null} */ ($('virtuoso_lab-breathe-toggle'));
     if (breathe) breathe.checked = (session.interBlockBreak || 'auto') !== 'off';
     const btn = /** @type {HTMLButtonElement | null} */ ($('virtuoso_lab-workout-refresh'));
@@ -294,7 +300,7 @@ function cardUnder(container, clientY) {
 }
 /** @param {string | undefined} v */
 function voiceLabel(v) { return ({thirds_only:'3rds',sevenths_only:'7ths',both_alternating:'3rds+7ths'})[v || ''] || v; }
-/** @param {WorkoutDraft} before @param {WorkoutDraft} after */
+/** @param {WorkoutDraft} before @param {WorkoutDraft} after @returns {Array<{label: string, details: string}>} */
 function describeRefreshDiff(before, after) {
   const lines = [], a = before.segments || [], b = after.segments || [];
   /** @param {unknown} s */
@@ -318,7 +324,7 @@ function describeRefreshDiff(before, after) {
     if (cb.subdivision && ca.subdivision !== cb.subdivision) parts.push(`${pretty(ca.subdivision)}→${pretty(cb.subdivision)}`);
     if (cb.bendTarget != null && ca.bendTarget !== cb.bendTarget) parts.push(`bend ${ca.bendTarget ?? '?'}→${cb.bendTarget}`);
     if (cb.swing != null && ca.swing !== cb.swing) parts.push(`swing ${ca.swing ? 'on' : 'off'}→${cb.swing ? 'on' : 'off'}`);
-    if (parts.length) lines.push(`<b>${label}</b> ${parts.join(' · ')}`);
+    if (parts.length) lines.push({label, details:parts.join(' · ')});
   }
   return lines;
 }

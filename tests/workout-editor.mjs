@@ -4,21 +4,45 @@ import {createWorkoutEditor} from '../src/shell/workout-editor.js';
 import {materializeWorkoutConfig} from '../src/core/workout-config.js';
 import {BUILT_IN_SESSIONS} from '../src/content/workouts.js';
 import {SEGMENT_TEMPLATES} from '../src/content/segments.js';
+import {el} from '../src/shell/dom.js';
 
 function dom() {
   class Element {
-    constructor() {this.handlers=new Map();this.dataset={};this.classList={add(){},remove(){},toggle(){}};this.value='';this.checked=false;}
+    constructor(tag='div') {this.tagName=tag;this.handlers=new Map();this.dataset={};this.style={};this.attributes={};this.children=[];this.classList={add(){},remove(){},toggle(){}};this.value='';this.checked=false;this.hidden=false;this.disabled=false;this.draggable=false;}
     addEventListener(type,fn) {const set=this.handlers.get(type)||new Set();set.add(fn);this.handlers.set(type,set);}
     removeEventListener(type,fn) {this.handlers.get(type)?.delete(fn);}
+    appendChild(child) {this.children.push(child);return child;}
+    replaceChildren(...children) {this.children=[];for(const child of children)if(child!=null)this.appendChild(child);}
+    setAttribute(name,value) {this.attributes[name]=String(value);}
     querySelectorAll(){return [];}
+    get textContent() {return this.children.map(child=>child.textContent).join('');}
     async fire(type,target=this,extra={}) {for (const fn of this.handlers.get(type)||[]) await fn({target,preventDefault(){},...extra});}
   }
+  class TextNode {constructor(text){this.textContent=text;}}
   const nodes=new Map(['session-info','segment-list','length-preset','breathe-toggle','workout-refresh','refresh-summary'].map(id=>['virtuoso_lab-'+id,new Element()]));
-  globalThis.document={getElementById:id=>nodes.get(id)||null};
+  globalThis.HTMLElement=Element;
+  globalThis.document={getElementById:id=>nodes.get(id)||null,createElement:tag=>new Element(tag),createTextNode:text=>new TextNode(text)};
   globalThis.window={matchMedia:()=>({matches:true})};
   const action=(act,index)=>({closest:sel=>sel==='.virtuoso_lab-segment-card'?{dataset:{segIndex:String(index)},classList:{add(){}}}:sel==='[data-act]'?{dataset:{act},disabled:false}:null});
   return {nodes,action};
 }
+
+test('DOM builder flattens children and sets safe properties and attributes', () => {
+  dom();
+  const node=el('button',{className:'action',dataset:{segIndex:4},style:{color:'red'},disabled:true,hidden:false,'aria-label':'<close>'},'one',[2,false,null,undefined,['<img src=x>']]);
+  assert.equal(node.className,'action');assert.equal(node.dataset.segIndex,'4');assert.equal(node.style.color,'red');
+  assert.equal(node.disabled,true);assert.equal(node.hidden,false);assert.equal(node.attributes['aria-label'],'<close>');
+  assert.equal(node.children.length,3);assert.equal(node.textContent,'one2<img src=x>');
+  assert.equal(node.children.some(child=>child.tagName==='img'),false);
+});
+
+test('DOM builder ignores unsupported and executable properties', () => {
+  dom();
+  const node=el('iframe',{srcdoc:'<script>alert(1)</script>',href:'javascript:alert(1)',src:'javascript:alert(1)',onerror:'alert(1)',onclick:()=>{},unknown:'value'});
+  assert.equal(node.attributes.srcdoc,undefined);assert.equal(node.attributes.href,undefined);assert.equal(node.attributes.src,undefined);
+  assert.equal(node.attributes.onerror,undefined);assert.equal(node.attributes.onclick,undefined);assert.equal(node.attributes.unknown,undefined);
+  assert.equal(Object.hasOwn(node,'onerror'),false);assert.equal(Object.hasOwn(node,'onclick'),false);
+});
 
 test('controller owns mutable clone edits, raw indexes, refresh aliases, selectors and visit listener teardown', async () => {
   for(const [id,t] of Object.entries(SEGMENT_TEMPLATES)) t.id=id;
@@ -48,12 +72,26 @@ test('controller owns mutable clone edits, raw indexes, refresh aliases, selecto
   const templateId=Object.keys(SEGMENT_TEMPLATES).find(id=>SEGMENT_TEMPLATES[id].vary?.length>1);
   editor.replace('refs',{segments:[{templateId,variantIdx:0},{kind:'scale',config:{key:'C'}}]});
   const before=editor.draft,inline=before.segments[1];
+  const template=SEGMENT_TEMPLATES[templateId], originalLabel=template.label;
+  template.label='<img src=x>';
   await list.fire('click',action('reroll',0));
+  template.label=originalLabel;
   assert.notEqual(editor.draft,before);assert.equal(editor.draft.segments[1],inline,'refresh keeps inline aliases');
   assert.equal(before.segments[0].variantIdx,0,'old ref draft is not edited by refresh');
+  const summary=nodes.get('virtuoso_lab-refresh-summary');
+  const bold=summary.children[0].children.find(child=>child.tagName==='b');
+  assert.ok(bold);assert.equal(bold.textContent,'<img src=x>');
+  assert.equal(bold.children[0].tagName,undefined);
   editor.replace('refs',{stringSetup:'guitar_6_standard',segments:[{templateId:'missing'},{kind:'scale',config:{bpm:80}}]});
-  assert.match(nodes.get('virtuoso_lab-segment-list').innerHTML,/data-seg-index="1"/);
-  editor.select('absent');assert.equal(editor.draft,null);assert.equal(nodes.get('virtuoso_lab-segment-list').innerHTML,'');
+  const listChildren=nodes.get('virtuoso_lab-segment-list').children;
+  assert.equal(listChildren.length,1);assert.equal(listChildren[0].dataset.segIndex,'1');
+  editor.replace('unsafe',{name:'<img src=x>',description:'<b>description</b>',segments:[{kind:'<script>',name:'<svg onload=x>'}]});
+  const info=nodes.get('virtuoso_lab-session-info');
+  assert.equal(info.children[0].textContent,'<img src=x>');assert.equal(info.children[1].textContent,'<b>description</b>');
+  assert.equal(info.children[0].children[0].tagName,undefined);
+  const card=nodes.get('virtuoso_lab-segment-list').children[0];
+  assert.equal(card.dataset.kind,'<script>');assert.equal(card.children[0].children[2].textContent,'<svg onload=x>');
+  editor.select('absent');assert.equal(editor.draft,null);assert.equal(nodes.get('virtuoso_lab-segment-list').children.length,0);
   editor.unmount();
 });
 
