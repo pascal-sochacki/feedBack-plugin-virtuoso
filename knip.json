@@ -1,0 +1,18 @@
+{
+  "$schema": "https://unpkg.com/knip@6.42.1/schema.json",
+  "includeEntryExports": true,
+  "ignoreExportsUsedInFile": true,
+  "workspaces": {
+    ".": {
+      "entry": [
+        "screen.js!"
+      ],
+      "project": [],
+      "eslint": { "config": ["eslint.config.mjs"] }
+    },
+    "src": {
+      "entry": [],
+      "project": ["**/*.js!"]
+    }
+  }
+}

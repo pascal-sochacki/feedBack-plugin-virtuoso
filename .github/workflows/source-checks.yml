@@ -1,0 +1,36 @@
+name: main source checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci --ignore-scripts
+
+      - name: ESLint
+        run: npm run lint -- --max-warnings 18
+
+      - name: TypeScript checks
+        run: npm run typecheck
+
+      - name: Knip
+        continue-on-error: true
+        run: npm run deadcode
+
+      - name: Whitespace check
+        run: git diff --check
