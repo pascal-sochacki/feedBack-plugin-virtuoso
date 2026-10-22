@@ -110,7 +110,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.14-lab.3';
+  const VIRTUOSO_VERSION = '0.2.14-lab.4';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -761,13 +761,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   /** @type {{d: number, t: number, sb: number}[]} */
   let _ptDevs = [];                // first-evidence deviations vs onset (s) — the timing-tendency aggregate
   let _ptNearMiss = 0;             // in-pitch frames just OUTSIDE their window (the near-miss aggregate)
-  /** @type {{key: string | null, cents: number}} */
-  let _ptMeterEma = { key: null, cents: NaN };  // display-only cents smoothing (scoring uses raw frames)
   /** @param {import('./src/types/entry-data.js').EntryNote[]} notes @param {(note: import('./src/types/entry-data.js').EntryNote) => string} gk */
   function ptBuildWindows(notes, gk) {
     _ptWin = []; _ptWinByKey = new Map(); _ptWinLo = 0; _ptWinLastT = -Infinity; _ptWinPassedNotes = [];
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptCalLog = [];
-    _ptMeterEma = { key: null, cents: NaN };
     /** @type {Map<string, import('./src/types/entry-data.js').EntryNote[]>} */
     const groups = new Map();
     for (const n of notes) { const k = gk(n); if (!groups.has(k)) groups.set(k, []); (/** @type {import('./src/types/entry-data.js').EntryNote[]} */ (groups.get(k))).push(n); }
@@ -7111,16 +7108,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const open = force != null ? force : pop.hidden;
     pop.hidden = !open;
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-    // The Tune… row needs the host scoring SDK (the mic detector) — sync its
-    // visibility on every open so a host without it never shows a dead button.
-    // (The old courtesy "Floating tuner ↗" button retired 2026-07-10: the header
-    // Tuner badge is that affordance now, in the host's own topbar position.)
-    if (open) {
-      const row = $('virtuoso_lab-tune-row');
-      if (row) row.style.display = (ptAvailable() || ndVerifyAvailable()) ? '' : 'none';
-      const tuneBtn = $('virtuoso_lab-tune-btn');
-      if (tuneBtn) tuneBtn.style.display = ptAvailable() ? '' : 'none';
-    }
   }
   // ── Host topbar parity: tuner + profile badges & instrument-settings sync ───
   // (docs/plugin/design/topbar-host-parity.md, 2026-07-10.) Virtuoso's "fullscreen":true hides
@@ -8669,7 +8656,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (playbackProbe) return playbackProbe(activeBundle);
     previewStop();         // a graded run supersedes any "Hear it" preview
     closeResultsModal();   // a new run dismisses the previous run's results
-    stopTuner();  // the practice scorer owns the strip during playback
     sessionEnd(); // flush any in-progress session before starting a new one
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
@@ -10926,6 +10912,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   /** @param {number} raw */
   function _lvlPushSample(raw) {
     if (!(raw >= 0)) raw = 0;
+    const level = Math.min(1, raw);
+    const micLevel = $('virtuoso_lab-mic-level');
+    if (micLevel) {
+      micLevel.setAttribute('aria-valuenow', String(Math.round(level * 100)));
+      if (micLevel.firstElementChild) micLevel.firstElementChild.style.width = `${level * 100}%`;
+    }
     const jt = transport.time - ptLatency();
     // Input-presence (arms miss gems + the recap ●/○): real signal ≥ the host
     // floor. No onset/baseline/calibration — the host's gate is level-only.
@@ -11043,6 +11035,11 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (_lvlRaf) { try { cancelAnimationFrame(_lvlRaf); } catch (_) {} _lvlRaf = 0; }
     if (_lvlStream) { try { _lvlStream.getTracks().forEach(t => t.stop()); } catch (_) {} _lvlStream = null; }
     _lvlAnalyser = null; _lvlData = null; _lvlMode = 'none';
+    const micLevel = $('virtuoso_lab-mic-level');
+    if (micLevel) {
+      micLevel.setAttribute('aria-valuenow', '0');
+      if (micLevel.firstElementChild) micLevel.firstElementChild.style.width = '0%';
+    }
   }
 
   // ── Pitch tracker ──────────────────────────────────────────────────────────
@@ -11263,8 +11260,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       winChordMs: Math.round(_ptNdWin.chord * 1000),
       winInherited: _ptNdWin.single !== PT_WIN_EARLY || _ptNdWin.chord !== 0.150,
     };
-    ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
-    syncStripTuneBtn();   // the scorer owns the strip — hide the idle Tune… button
+    ptUpdateMeter({ show: true, hits: 0, total: 0 });
   }
 
   /** @param {Pick<import('./src/types/host-interfaces.js').PitchFrame, 'freqHz' | 'confidence'>} arg */
@@ -11285,7 +11281,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // the bug). Fall back to confidence only when there is NO level source.
     if (_lvlMode === 'none' && confidence >= PT_CONF_INPUT) { _ptHadInput = true; markBlockInput(); }   // no level source: confidence arms input (+ credit the block, recap ●/○)
     if (confidence < PT_CONF_INPUT) {
-      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
+      ptUpdateMeter({ show: true, hits: _ptScoredUnits, total: passedTotal });
       return;
     }
     // Live-ear snapshot for the borrowed-highway keep-alive gem (feedBack#254): a
@@ -11369,23 +11365,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         }
       }
     }
-    // Meter readout: the midpoint-split OWNER (what you should be playing now),
-    // cents vs its pitch — display only, re-smoothed here because the scoring
-    // handle now runs near-raw (smoothingMs 12).
-    const own = ptWinOwnerAt(tJudge);
-    if (!own) {
-      ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: _ptScoredUnits, total: passedTotal });
-      return;
-    }
-    const n0 = own.notes[0];
-    const om0 = _ptOpenMidis[n0.s];
-    if (om0 == null) return;
-    const expectedMidi = om0 + n0.f;
-    const cents = 1200 * Math.log2(freqHz / midiToFreq(expectedMidi));
-    if (_ptMeterEma.key !== own.key || !isFinite(_ptMeterEma.cents)) _ptMeterEma = { key: own.key, cents };
-    else _ptMeterEma.cents += 0.45 * (cents - _ptMeterEma.cents);
-    const noteName = NOTE_NAMES[((expectedMidi % 12) + 12) % 12] + (Math.floor(expectedMidi / 12) - 1);
-    ptUpdateMeter({ show: true, active: true, cents: Math.round(_ptMeterEma.cents), note: noteName, hits: _ptScoredUnits, total: passedTotal });
+    ptUpdateMeter({ show: true, hits: _ptScoredUnits, total: passedTotal });
   }
 
   function stopPitchTracker() {
@@ -11401,7 +11381,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     _ptScoredUnits = 0; _ptSpanPending = []; _ptDevs = []; _ptNearMiss = 0; _ptSpanCount = 0; _ptExempt = null;
     _ptExemptIv = []; _ptChipIdx = 0; _ptChipLastT = -Infinity; _ptCalLog = []; _ptJamRun = false;
     { const jc = $('virtuoso_lab-judge-chip'); if (jc) jc.style.display = 'none'; }
-    _ptMeterEma = { key: null, cents: NaN };
     // Return to the resting state instead of hiding — the strip stays a
     // standing affordance between runs (hidden only on detector-less hosts).
     ptUpdateMeter({ show: false });
@@ -11493,20 +11472,14 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   }
 
   /** @param {import('./src/types/results-data.js').MeterState} state */
-  function ptUpdateMeter({ show, active, cents, note, hits, total }) {
+  function ptUpdateMeter({ show, hits, total }) {
     const meter = $('virtuoso_lab-pitch-meter');
     if (!meter) return;
     if (!show) { meter.style.display = 'none'; return; }
     const wasHidden = meter.style.display !== 'flex';
     meter.style.display = 'flex';
     if (wasHidden) ptDodgeOverlays();
-    const noteEl = $('virtuoso_lab-pitch-note'), centsEl = $('virtuoso_lab-pitch-cents');
-    const needleEl = $('virtuoso_lab-cents-needle'), accEl = $('virtuoso_lab-pitch-accuracy');
-    if (noteEl) noteEl.textContent = active ? note : '--';
-    const cc = Math.max(-100, Math.min(100, cents || 0));
-    const color = !active ? '#475569' : Math.abs(cents) <= 25 ? '#22c55e' : Math.abs(cents) <= 50 ? '#eab308' : '#ef4444';
-    if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
-    if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
+    const accEl = $('virtuoso_lab-pitch-accuracy');
     if (accEl) {
       // Gained-only live tally (2026-06-06 feel panel — gamification + L&D +
       // market converged): a count that only goes UP, in meter green. The old
@@ -11517,11 +11490,9 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       else { accEl.textContent = total > 0 ? '0' : '--'; accEl.style.color = ''; }
     }
   }
-  // Resting-state strip (2026-06-06, discoverability ask): the mic-monitor /
-  // scoring strip and the Tune… affordance stay VISIBLE whenever the host has a
-  // detection surface — not only mid-run — so a player knows the scorer and the
-  // tuner exist before ever pressing Play. INERT: no mic is opened until Play
-  // (the scorer) or Tune… (the tuner); this is display-only chrome. On a
+  // Resting-state strip: the mic-monitor / scoring strip stays visible whenever
+  // the host has a detection surface, not only mid-run. INERT: no mic is opened
+  // until Play; this is display-only chrome. On a
   // detector-less host the strip stays hidden (never show dead UI).
   // Pre-run judge preview (Slice-2 disclosure UX): the SAME classification
   // startPitchTracker applies, counts only — drives the resting strip's
@@ -11575,8 +11546,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   }
   function ptShowIdleStrip() {
     if (!ptAvailable() && !ndVerifyAvailable()) return;
-    if (transport.playing || _tunerHandle) return;   // a live owner is already painting the strip
-    ptUpdateMeter({ show: true, active: false, cents: 0, note: '--', hits: 0, total: 0 });
+    if (transport.playing) return;
+    ptUpdateMeter({ show: true, hits: 0, total: 0 });
     // The pre-run denominator line ("Judging 20 of 24 notes — …") — disclosure
     // BEFORE play, so the player never discovers an exemption from the score.
     const jn = $('virtuoso_lab-judge-note');
@@ -11597,7 +11568,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       } else { jn.style.display = 'none'; }
     }
     const jc = $('virtuoso_lab-judge-chip'); if (jc) jc.style.display = 'none';
-    syncStripTuneBtn();
   }
   // Dwell chip (Slice-2 disclosure): while the playhead sits on a MERGED run of
   // shown-not-judged content ≥0.5s long, name the class on the strip. Built
@@ -11617,124 +11587,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
     if (label) { if (el.textContent !== label) el.textContent = label; el.style.display = ''; }
     else if (el.style.display !== 'none') el.style.display = 'none';
-  }
-  // The strip's own Tune… button: idle-only (the scorer owns the strip during a
-  // run, incl. paused; the tuner shows Done instead), and only when the YIN ear
-  // exists (the tuner needs the mic detector specifically — the verifier can't
-  // drive per-string cents).
-  function syncStripTuneBtn() {
-    const btn = $('virtuoso_lab-strip-tune');
-    if (btn) btn.style.display = (!transport.playing && !_tunerHandle && ptAvailable()) ? '' : 'none';
-  }
-  // ── Target-aware tuner (Setup popover "Tune…" — UX panel 2026-06-05) ────────
-  // Runs the same continuous detector OUTSIDE playback to tune against the
-  // SELECTED tuning: the strip's MIC cluster shows the nearest target string +
-  // cents (so the tuner can say "tune THIS string to THIS note" — something a
-  // generic chromatic tuner can't), and per-string chips lock green after the
-  // pitch holds within ±TUNER_LOCK_CENTS for TUNER_LOCK_FRAMES consecutive
-  // frames (the lock-on-sweep lesson: the detector's pitch sweep must never
-  // false-lock a chip). Mic in, nothing out. Stops on Done / Play / screen
-  // leave (self-healing in the pitch callback, mirroring the screen-scoped
-  // AudioContext discipline). This is also the hand-off surface for the
-  // tuning-model retune prompts ("drop your low D to C → Tune…", Phase 2).
-  let /** @type {import('./src/types/host-interfaces.js').ContinuousPitchHandle | null} */ _tunerHandle = null, /** @type {{midi: number, name: string}[]} */ _tunerTargets = [], _tunerHold = { idx: -1, count: 0 }, /** @type {Set<number>} */ _tunerLocked = new Set();
-  const TUNER_LOCK_FRAMES = 12;   // ~500ms at the 40ms smoothing cadence
-  const TUNER_LOCK_CENTS = 5;
-
-  function startTuner() {
-    if (!ptAvailable() || transport.playing) return;
-    stopTuner();
-    let opens = null;
-    try { opens = openMidisForConfig(readConfig()); } catch (_) { return; }
-    if (!opens || !opens.length) return;
-    _tunerTargets = opens.map((midi) => ({ midi, name: NOTE_NAMES[((midi % 12) + 12) % 12] + (Math.floor(midi / 12) - 1) }));
-    _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
-    // Same guarded SDK call as startPitchTracker — no mic / no SDK degrades to a no-op.
-    try { _tunerHandle = (/** @type {NonNullable<ReturnType<typeof hostMinigames>> & {scoring: Required<NonNullable<NonNullable<ReturnType<typeof hostMinigames>>['scoring']>>}} */ (hostMinigames())).scoring.createContinuous({ smoothingMs: 40 }); } catch (_) { _tunerHandle = null; }
-    if (!_tunerHandle || typeof _tunerHandle.on !== 'function') { _tunerHandle = null; return; }
-    _tunerHandle.on('pitch', tunerOnPitch);
-    _tunerHandle.on('end', () => { _tunerHandle = null; });
-    syncStripTuneBtn();   // the tuner owns the strip — Done replaces the idle Tune…
-    const meter = $('virtuoso_lab-pitch-meter');
-    if (meter) { meter.classList.add('virtuoso_lab-pm-tuner'); meter.style.display = 'flex'; }
-    const chips = $('virtuoso_lab-tuner-chips'), done = $('virtuoso_lab-tuner-done');
-    if (chips) {
-      chips.style.display = 'inline-flex';
-      chips.innerHTML = '';
-      _tunerTargets.forEach((t, i) => {
-        const c = document.createElement('span');
-        c.className = 'virtuoso_lab-tuner-chip';
-        c.dataset.idx = String(i);
-        c.textContent = t.name;
-        c.title = `String ${i + 1} (low → high): tune to ${t.name}`;
-        chips.appendChild(c);
-      });
-    }
-    if (done) done.style.display = '';
-    tunerPaint(null, 0, false);
-    ptDodgeOverlays();
-  }
-
-  /** @param {Pick<import('./src/types/host-interfaces.js').PitchFrame, 'freqHz' | 'confidence'>} arg */
-  function tunerOnPitch({ freqHz, confidence }) {
-    // Self-heal: Virtuoso backgrounded or playback started → the tuner ends.
-    if (!$('virtuoso_lab-root')?.offsetParent || transport.playing) { stopTuner(); return; }
-    if (!(freqHz > 0) || confidence < 0.55) { tunerPaint(null, 0, false); return; }
-    const midiF = 69 + 12 * Math.log2(freqHz / 440);
-    // Nearest target — with an OCTAVE FOLD for sub-floor strings (70 Hz plan):
-    // YIN can't see fundamentals below DETECTOR_MIN_HZ and reports the 2nd
-    // harmonic instead, so a sub-floor target's reference is its octave-up.
-    // Folding ONLY sub-floor targets keeps same-pc string pairs (the two E
-    // strings in standard tuning) unambiguous.
-    let idx = 0, best = Infinity, bestRef = 0;
-    for (let i = 0; i < _tunerTargets.length; i++) {
-      const t = _tunerTargets[i];
-      const ref = midiToFreq(t.midi) < DETECTOR_MIN_HZ ? t.midi + 12 : t.midi;
-      const d = Math.abs(midiF - ref);
-      if (d < best) { best = d; idx = i; bestRef = ref; }
-    }
-    const cents = Math.round((midiF - bestRef) * 100);
-    if (Math.abs(cents) > 700) { tunerPaint(null, 0, false); return; }   // nowhere near any string — ignore the frame
-    if (_tunerHold.idx === idx && Math.abs(cents) <= TUNER_LOCK_CENTS) _tunerHold.count++;
-    else _tunerHold = { idx, count: Math.abs(cents) <= TUNER_LOCK_CENTS ? 1 : 0 };
-    if (_tunerHold.count >= TUNER_LOCK_FRAMES) _tunerLocked.add(idx);
-    tunerPaint(idx, cents, true);
-  }
-
-  /** @param {number | null} idx @param {number} cents @param {boolean} active */
-  function tunerPaint(idx, cents, active) {
-    const noteEl = $('virtuoso_lab-pitch-note'), centsEl = $('virtuoso_lab-pitch-cents'), needleEl = $('virtuoso_lab-cents-needle');
-    const t = (idx != null && _tunerTargets[idx]) || null;
-    if (noteEl) noteEl.textContent = t ? t.name : '--';
-    const cc = Math.max(-100, Math.min(100, cents || 0));
-    const color = !active ? '#475569'
-      : Math.abs(cents) <= TUNER_LOCK_CENTS ? 'var(--virtuoso_lab_vir-meter, #22c55e)'
-      : Math.abs(cents) <= 25 ? '#eab308' : '#ef4444';
-    if (needleEl) { needleEl.style.left = `${50 + cc / 2}%`; needleEl.style.background = color; }
-    if (centsEl) { centsEl.textContent = active ? `${cents >= 0 ? '+' : ''}${cents}¢` : ''; centsEl.style.color = color; }
-    const chips = $('virtuoso_lab-tuner-chips');
-    if (chips) {
-      for (const c of chips.children) {
-        const i = Number(c.dataset.idx);
-        c.classList.toggle('near', !!(active && i === idx));
-        c.classList.toggle('tuned', _tunerLocked.has(i));
-      }
-    }
-  }
-
-  function stopTuner() {
-    if (_tunerHandle) { try { _tunerHandle.stop(); } catch (_) {} _tunerHandle = null; }
-    const meter = $('virtuoso_lab-pitch-meter');
-    if (meter && meter.classList.contains('virtuoso_lab-pm-tuner')) {
-      meter.classList.remove('virtuoso_lab-pm-tuner');
-    }
-    const chips = $('virtuoso_lab-tuner-chips'), done = $('virtuoso_lab-tuner-done');
-    if (chips) { chips.style.display = 'none'; chips.innerHTML = ''; }
-    if (done) done.style.display = 'none';
-    _tunerTargets = []; _tunerHold = { idx: -1, count: 0 }; _tunerLocked = new Set();
-    // Done returns the strip to its RESTING state (visible, inert, Tune… shown)
-    // rather than hiding it — self-gated: a starting scorer repaints it anyway.
-    ptShowIdleStrip();
   }
   // ── End pitch tracker ──────────────────────────────────────────────────────
 
@@ -14149,9 +14001,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     $('virtuoso_lab-downshift-x')?.addEventListener('click', () => hideDownshiftChip());
     // Header Setup popover: toggle on the button, close on outside click, label tracks tuning.
     $('virtuoso_lab-setup-btn')?.addEventListener('click', (e) => { e.stopPropagation(); toggleSetupPopover(); });
-    // Target-aware tuner: entry in the Setup popover; Done chip on the strip.
-    $('virtuoso_lab-tune-btn')?.addEventListener('click', () => { toggleSetupPopover(false); startTuner(); });
-    $('virtuoso_lab-strip-tune')?.addEventListener('click', () => startTuner());
     // Results modal: close on ✕ or an overlay click (never Escape — host-owned).
     $('virtuoso_lab-results-close')?.addEventListener('click', closeResultsModal);
     $('virtuoso_lab-results-modal')?.addEventListener('click', (e) => { if (e.target === e.currentTarget) closeResultsModal(); });
@@ -14159,7 +14008,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // load order (the minigames / note_detect surfaces may register after us).
     ptShowIdleStrip();
     setTimeout(ptShowIdleStrip, 2000);
-    $('virtuoso_lab-tuner-done')?.addEventListener('click', () => stopTuner());
     // Header tuner badge (topbar parity) — the host topbar card's exact action.
     // Feature-detected by initHostTopbar/syncTunerBadge; never touches the tuner's
     // DOM, its own public API only.

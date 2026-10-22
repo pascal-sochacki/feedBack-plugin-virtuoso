@@ -88,6 +88,27 @@ test('generated-facts strip uses host surfaces, dividers, text and editing affor
   assert.match(html, /\.virtuoso_lab-lcd-select:focus-visible[^}]*vir-accent-edge/);
 });
 
+test('bottom strip retains mic level and judging disclosure without a Virtuoso tuner', () => {
+  for (const removed of [
+    'virtuoso_lab-tune-row', 'virtuoso_lab-tune-btn', 'virtuoso_lab-strip-tune',
+    'virtuoso_lab-tuner-chips', 'virtuoso_lab-tuner-done', 'virtuoso_lab-cents-needle',
+    'virtuoso_lab-pitch-note', 'virtuoso_lab-pitch-cents', 'virtuoso_lab-pm-tuner',
+    'startTuner', 'stopTuner', 'tunerOnPitch', 'tunerPaint', '_tunerTargets',
+    'TUNER_LOCK_FRAMES', 'syncStripTuneBtn',
+  ]) {
+    assert.equal(html.includes(removed) || screen.includes(removed), false, `${removed} should be absent`);
+  }
+  assert.match(html, /id="virtuoso_lab-tuner-badge"/);
+  assert.match(html, /id="virtuoso_lab-mic-level"[^>]*role="meter"/);
+  assert.match(html, /id="virtuoso_lab-pitch-accuracy"/);
+  assert.match(html, /id="virtuoso_lab-judge-note"/);
+  assert.match(html, /id="virtuoso_lab-judge-chip"/);
+  assert.match(screen, /function ptPreviewJudgeCounts\(/);
+  assert.match(screen, /function ptUpdateJudgeChip\(/);
+  assert.match(screen, /function ptUpdateMeter\(\{ show, hits, total \}\)/);
+  assert.match(screen, /function _lvlPushSample\(raw\)[\s\S]*?virtuoso_lab-mic-level/);
+});
+
 test('Tab and Notation retain only the fixed light palette', () => {
   assert.deepEqual(Object.keys(RENDER_THEMES), ['light']);
   assert.equal(RENDER_THEMES.light.bg, '#fbf8ef');

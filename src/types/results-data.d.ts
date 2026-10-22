@@ -60,8 +60,8 @@ export interface RunSummary {
 export interface CoachCandidate {fault: string; why: string; pathwayId: string}
 export interface CoachContext {isBass?: boolean; curPw?: string | null; info?: Partial<RunInfo> | null; felt?: FeltAnalysis | null}
 export interface CoachFocus {cat: string; streak: number}
-export type MeterState = {show: false; active?: never; cents?: never; note?: never; hits?: never; total?: never}
-  | {show: true; active: boolean; cents: number; note: string; hits: number; total: number};
+export type MeterState = {show: false; hits?: never; total?: never}
+  | {show: true; hits: number; total: number};
 export interface ShareModel {
   lane: string; dur: string; eyebrow: string; hero: string; heroGreen: boolean; sub: string;
   stats: {label: string; value: string}[]; extra: string[];
