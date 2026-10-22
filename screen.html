@@ -1,50 +1,52 @@
 <style>
-  /* ── Design tokens — the themeable layer ───────────────────────────────────
-     Single source of truth for Virtuoso's visual language (default theme:
-     calm pro-dark, Apple/Logic-Pro-leaning). Look-defining rules consume these
-     custom properties, so a theme = a token set, and the host can "paint over"
-     Virtuoso by reassigning --virtuoso_lab_vir-* on .virtuoso_lab-root (e.g. mapping --virtuoso_lab_vir-accent
-     onto a host theme variable). Scoped to .virtuoso_lab-root so nothing leaks into
-     the host page. Defaults mirror the prior literal values — this pass is a
-     refactor, not a recolor; the few deliberate nudges are noted inline. */
+  /* ── Design tokens — the host-themed layer ───────────────────────────────────
+     Single source of truth for Virtuoso's visual language. Roles follow FeedBack's
+     --fbv-* RGB tokens when available, with Virtuoso RGB-triplet fallbacks for older
+     hosts. Scoped to .virtuoso_lab-root so nothing leaks into the host page. */
   .virtuoso_lab-root {
-    /* Dark UI (follow the host): tell the browser this subtree is dark so native
-       controls — dropdown option popups, scrollbars — render dark + high-contrast
-       to match. The host never declares color-scheme, so a bare <select> otherwise
-       inherits Tailwind's light text on a default-light popup (low contrast). */
-    color-scheme: dark;
     /* ════════ DESIGN TOKENS — semantic model (design-system §2) ════════
        Canonical names first; LEGACY names alias to them (migration §10), so
-       existing CSS is untouched and the look is unchanged. Themeable layer =
-       accent / ring / glow (swapped per .virtuoso_lab_vir-theme-*); everything else is the
-       stable neutral base + the LOCKED §8 semantics (green=progress, the two
-       distinct reds, heat). ⚠ --virtuoso_lab_vir-accent-edge / --virtuoso_lab_vir-accent-soft / --virtuoso_lab_vir-mono
-       are read BY NAME in screen.js — never rename without grepping getPropertyValue. */
+       surface, text, border, accent, and focus roles follow FeedBack's --fbv-* tokens.
+       Space-separated RGB values are wrapped with rgb()/rgba() so host palette changes
+       flow through without a JavaScript theme bridge. Locked progress/error semantics remain local. */
 
-    /* ── neutrals: surface + -fg pairs ── */
-    --virtuoso_lab_vir-bg-0: #0d0d10; --virtuoso_lab_vir-bg-1: #151519;          /* page-canvas gradient stops (neutral graphite — no blue tint) */
-    --virtuoso_lab_vir-bg: var(--virtuoso_lab_vir-bg-0);   --virtuoso_lab_vir-fg: #f8fafc;     /* canvas / default text */
-    --virtuoso_lab_vir-card: rgba(17, 24, 39, 0.94);     --virtuoso_lab_vir-card-fg: #f8fafc;      /* elevated panels */
-    --virtuoso_lab_vir-popover: rgba(17, 24, 39, 0.97);  --virtuoso_lab_vir-popover-fg: #f8fafc;   /* menus / sheets / popovers */
-    --virtuoso_lab_vir-muted: rgba(30, 41, 59, 0.45);    --virtuoso_lab_vir-muted-fg: #94a3b8;     /* subtle fills + helper text */
-    --virtuoso_lab_vir-secondary: #172033;               --virtuoso_lab_vir-secondary-fg: #cbd5e1; /* low-emphasis buttons/keys */
-    --virtuoso_lab_vir-input: #111827;                                               /* recessed form/control surface */
-    --virtuoso_lab_vir-surface-bar: rgba(18, 18, 22, 0.92);                        /* transport / switcher bars (graphite, not navy) */
-    --virtuoso_lab_vir-text-dim: #cbd5e1; --virtuoso_lab_vir-text-muted: #94a3b8; --virtuoso_lab_vir-text-faint: #64748b;
-    --virtuoso_lab_vir-border: rgba(75, 85, 99, 0.75);
-    --virtuoso_lab_vir-hairline: rgba(148, 163, 184, 0.16);
-    /* optional distinct rail (sidebar) — defaults to card; diverge later for free */
-    --virtuoso_lab_vir-rail: var(--virtuoso_lab_vir-card); --virtuoso_lab_vir-rail-fg: var(--virtuoso_lab_vir-card-fg); --virtuoso_lab_vir-rail-border: var(--virtuoso_lab_vir-border);
+    /* ── FeedBack host roles (RGB triplet tokens with Virtuoso fallbacks) ── */
+    --virtuoso_lab_vir-bg-0: rgb(var(--fbv-bg, 13 13 16));
+    --virtuoso_lab_vir-bg-1: rgb(var(--fbv-sidebar, 21 21 25));
+    --virtuoso_lab_vir-bg: var(--virtuoso_lab_vir-bg-0);
+    --virtuoso_lab_vir-fg: rgb(var(--fbv-text, 248 250 252));
+    --virtuoso_lab_vir-card: rgb(var(--fbv-card, 17 24 39));
+    --virtuoso_lab_vir-card-fg: rgb(var(--fbv-text, 248 250 252));
+    --virtuoso_lab_vir-popover: rgb(var(--fbv-card, 17 24 39));
+    --virtuoso_lab_vir-popover-fg: rgb(var(--fbv-text, 248 250 252));
+    --virtuoso_lab_vir-muted: rgb(var(--fbv-cardMuted, 30 41 59));
+    --virtuoso_lab_vir-muted-fg: rgb(var(--fbv-textDim, 148 163 184));
+    --virtuoso_lab_vir-secondary: rgb(var(--fbv-sidebar, 23 32 51));
+    --virtuoso_lab_vir-secondary-fg: rgb(var(--fbv-textDim, 203 213 225));
+    --virtuoso_lab_vir-input: rgb(var(--fbv-card, 17 24 39));
+    --virtuoso_lab_vir-surface-bar: rgb(var(--fbv-sidebar, 18 18 22));
+    --virtuoso_lab_vir-text-dim: rgb(var(--fbv-textDim, 203 213 225));
+    --virtuoso_lab_vir-text-muted: rgb(var(--fbv-textDim, 148 163 184));
+    --virtuoso_lab_vir-text-faint: rgb(var(--fbv-textDim, 100 116 139));
+    --virtuoso_lab_vir-border: rgb(var(--fbv-border, 75 85 99));
+    --virtuoso_lab_vir-hairline: rgb(var(--fbv-border, 148 163 184) / 0.24);
+    --virtuoso_lab_vir-rail: rgb(var(--fbv-sidebar, 17 24 39));
+    --virtuoso_lab_vir-rail-fg: rgb(var(--fbv-text, 248 250 252));
+    --virtuoso_lab_vir-rail-border: var(--virtuoso_lab_vir-border);
 
-    /* ── primary (themeable accent) ── */
-    --virtuoso_lab_vir-accent: #3b82f6;  --virtuoso_lab_vir-accent-fg: #ffffff;
-    --virtuoso_lab_vir-accent-hover: #60a5fa;
-    --virtuoso_lab_vir-accent-soft: rgba(59, 130, 246, 0.26);             /* (read in screen.js) */
-    --virtuoso_lab_vir-accent-glow: rgba(59, 130, 246, 0.55);             /* lit-moment glow (the 3 beats) — brighter than -soft, themeable */
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #1d4ed8, #2563eb);
-    --virtuoso_lab_vir-accent-edge: #7cb0ff;                               /* (read in screen.js) */
-    --virtuoso_lab_vir-ring: var(--virtuoso_lab_vir-accent);                             /* focus ring — follows accent */
-    --virtuoso_lab_vir-glow: rgba(59, 130, 246, 0.16);                     /* ambient hero glow (restrained — the lit budget lives on the 3 beats) */
+    /* ── primary accent follows the host and updates without JS ── */
+    --virtuoso_lab_vir-accent: rgb(var(--fbv-primary, 59 130 246));
+    --virtuoso_lab_vir-accent-fg: rgb(var(--fbv-on-accent, 255 255 255));
+    --virtuoso_lab_vir-accent-hover: rgb(var(--fbv-primaryHi, 96 165 250));
+    --virtuoso_lab_vir-accent-soft: rgb(var(--fbv-primary, 59 130 246) / 0.26);
+    --virtuoso_lab_vir-accent-glow: rgb(var(--fbv-primary, 59 130 246) / 0.55);
+    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, rgb(var(--fbv-primaryHi, 96 165 250)), rgb(var(--fbv-primary, 59 130 246)));
+    --virtuoso_lab_vir-accent-edge: rgb(var(--fbv-primaryHi, 124 176 255));
+    --virtuoso_lab_vir-ring: rgb(var(--fbv-focus-ring, 59 130 246));
+    --virtuoso_lab_vir-glow: rgb(var(--fbv-primary, 59 130 246) / 0.16);
+    --virtuoso_lab_vir-track: rgb(var(--fbv-cardMuted, 20 29 51));
+    --virtuoso_lab_vir-btn-hover: rgb(var(--fbv-sidebar, 36 50 74));
+    --virtuoso_lab_vir-hover-soft: rgb(var(--fbv-cardMuted, 30 41 59) / 0.8);
 
     /* ── locked semantics (design-system §8 — never themed) ── */
     --virtuoso_lab_vir-meter: #22c55e; --virtuoso_lab_vir-meter-soft: rgba(34,197,94,0.12); --virtuoso_lab_vir-meter-edge: rgba(34,197,94,0.45); /* progress/cleared — the ONLY green */
@@ -57,15 +59,14 @@
     --virtuoso_lab_vir-radius: 13px; --virtuoso_lab_vir-radius-sm: 8px; --virtuoso_lab_vir-radius-lg: 16px; --virtuoso_lab_vir-radius-pill: 999px;
 
     /* ── material / elevation ── */
-    --virtuoso_lab_vir-edge-top: inset 0 1px 0 rgba(255,255,255,0.06);
-    --virtuoso_lab_vir-recess: inset 0 1px 3px rgba(0,0,0,0.62), inset 0 -1px 0 rgba(255,255,255,0.045);
+    --virtuoso_lab_vir-edge-top: inset 0 1px 0 rgb(var(--fbv-text, 255 255 255) / 0.06);
+    --virtuoso_lab_vir-recess: inset 0 1px 3px rgba(0,0,0,0.62), inset 0 -1px 0 rgb(var(--fbv-text, 255 255 255) / 0.045);
     --virtuoso_lab_vir-shadow-sm: 0 1px 3px rgba(0,0,0,0.35);
     --virtuoso_lab_vir-shadow-lg: 0 14px 48px rgba(0,0,0,0.28);
-    --virtuoso_lab_vir-track: #141d33; --virtuoso_lab_vir-btn-hover: #24324a; --virtuoso_lab_vir-hover-soft: #1e293b;
-    /* etched-plate recipe (Etched-base / lit-moments language — graphite surfaces defined by light, not borders+fills) */
-    --virtuoso_lab_vir-plate-grad: linear-gradient(180deg, #1f1f24, #131315);
-    --virtuoso_lab_vir-plate-shadow: inset 0 1px 0 rgba(255,255,255,0.10), 0 1px 0 rgba(0,0,0,0.7), 0 6px 18px rgba(0,0,0,0.45);
-    --virtuoso_lab_vir-plate-edge: rgba(255,255,255,0.14);
+    /* Etched plates keep their restrained gradient while borrowing the host's card/background roles. */
+    --virtuoso_lab_vir-plate-grad: linear-gradient(180deg, rgb(var(--fbv-card, 31 31 36)), rgb(var(--fbv-bg, 19 19 21)));
+    --virtuoso_lab_vir-plate-shadow: inset 0 1px 0 rgb(var(--fbv-text, 255 255 255) / 0.10), 0 1px 0 rgba(0,0,0,0.7), 0 6px 18px rgba(0,0,0,0.45);
+    --virtuoso_lab_vir-plate-edge: rgb(var(--fbv-border, 255 255 255) / 0.14);
     --virtuoso_lab_vir-mono: ui-monospace, "SF Mono", Menlo, monospace;   /* (read in screen.js) */
     --virtuoso_lab_vir-font-display: 'VirtuosoLabDisplay', 'Orbitron', ui-sans-serif, system-ui, sans-serif; /* esports/lit display face (self-hosted Orbitron, OFL — assets/fonts) */
     --virtuoso_lab_vir-sp-1: 4px; --virtuoso_lab_vir-sp-2: 8px; --virtuoso_lab_vir-sp-3: 12px; --virtuoso_lab_vir-sp-4: 16px; --virtuoso_lab_vir-sp-5: 24px;
@@ -82,34 +83,6 @@
     --virtuoso_lab_vir-r-pill: var(--virtuoso_lab_vir-radius-pill);
     --virtuoso_lab_vir-shadow-panel: var(--virtuoso_lab_vir-shadow-lg);
   }
-  /* Accent themes (settings → Accent). Remap the accent tokens via a root class —
-     additive, default = the base tokens above. As more CSS moves to tokens these
-     recolor more of the UI; today they cover the active-state accents. */
-  .virtuoso_lab-root.virtuoso_lab_vir-theme-violet {
-    --virtuoso_lab_vir-accent: #8b3de6; --virtuoso_lab_vir-accent-hover: #a868f5; --virtuoso_lab_vir-accent-soft: rgba(139,61,230,0.26);
-    --virtuoso_lab_vir-accent-glow: rgba(139,61,230,0.55); --virtuoso_lab_vir-glow: rgba(139,61,230,0.16);
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #5e1fb8, #7a2bd8); --virtuoso_lab_vir-accent-edge: #b07cff;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-theme-ember {
-    --virtuoso_lab_vir-accent: #e0803a; --virtuoso_lab_vir-accent-hover: #f0974f; --virtuoso_lab_vir-accent-soft: rgba(224,128,58,0.22);
-    --virtuoso_lab_vir-accent-glow: rgba(224,128,58,0.50); --virtuoso_lab_vir-glow: rgba(224,128,58,0.16);
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #9a4a12, #c2630f); --virtuoso_lab_vir-accent-edge: #f0a050;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-theme-teal {
-    --virtuoso_lab_vir-accent: #14b8a6; --virtuoso_lab_vir-accent-hover: #2dd4bf; --virtuoso_lab_vir-accent-soft: rgba(20,184,166,0.22);
-    --virtuoso_lab_vir-accent-glow: rgba(20,184,166,0.50); --virtuoso_lab_vir-glow: rgba(20,184,166,0.16);
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #0d7d70, #109184); --virtuoso_lab_vir-accent-edge: #5eead4;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-theme-rose {
-    --virtuoso_lab_vir-accent: #ec4899; --virtuoso_lab_vir-accent-hover: #f472b6; --virtuoso_lab_vir-accent-soft: rgba(236,72,153,0.22);
-    --virtuoso_lab_vir-accent-glow: rgba(236,72,153,0.50); --virtuoso_lab_vir-glow: rgba(236,72,153,0.16);
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #9d174d, #be185d); --virtuoso_lab_vir-accent-edge: #f9a8d4;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-theme-cyan {
-    --virtuoso_lab_vir-accent: #06b6d4; --virtuoso_lab_vir-accent-hover: #22d3ee; --virtuoso_lab_vir-accent-soft: rgba(6,182,212,0.22);
-    --virtuoso_lab_vir-accent-glow: rgba(6,182,212,0.50); --virtuoso_lab_vir-glow: rgba(6,182,212,0.16);
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, #0e7490, #0891b2); --virtuoso_lab_vir-accent-edge: #67e8f9;
-  }
   /* ── Studio energy: the "Lit" treatment (settings → Studio energy; default on) ──
      Host-parity polish (charette 2026-06-28) + the earned-bloom, ALL gated on
      .virtuoso_lab_vir-lit so "Calm" is EXACTLY the restrained base look — the toggle-back
@@ -117,10 +90,10 @@
      surface / fretboard / judge. Reduced-motion degrades every motion to static.
      Borrow the host's glow GRAMMAR (MIRRORed into our own --virtuoso_lab_vir-* tokens), never
      its heat-engine: no speed rainbow, no fill-and-drain meter, no failure-smoke. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-mixer { background: rgba(9,15,30,0.82); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-mixer { background: rgb(var(--fbv-card, 9 15 30) / 0.82); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-progress-sheet,
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card { background: rgba(13,20,36,0.84); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card { background: rgb(var(--fbv-card, 17 24 39) / 0.84); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
   /* The LCD reads as a lit screen — a touch more rationed-accent inner glow + edge. */
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-summary { box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), inset 0 0 22px var(--virtuoso_lab_vir-accent-soft), inset 0 1px 0 rgba(255,255,255,0.03); border-top-color: var(--virtuoso_lab_vir-accent-edge); }
   /* "Next ▸" seam caption as the host's neon gradient-headline idiom (static). */
@@ -162,25 +135,9 @@
      restrained static card — the toggle-back guarantee); an EARNED card swaps the
      comet to meter-green so it HARMONIZES with the earn-bloom instead of fighting it.
      Reduced-motion freezes it to a static arc — no startle. */
-  /* Self-hosted display face — Orbitron 700 (SIL OFL 1.1; assets/fonts/OFL-orbitron.txt).
-     Data-URI so it is self-contained (no CDN, no extra route) and loads for BOTH the DOM
-     card CSS and the copy-card canvas. Used only in the Lit treatment. */
+  /* Self-hosted Orbitron display face for the Lit card and share-card canvas. */
   @font-face { font-family: 'VirtuosoLabDisplay'; font-style: normal; font-weight: 700; font-display: swap; src: url('data:font/woff2;base64,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') format('woff2'); }
-  /* Results-card THEME faces (settings → Card theme) — the note_detect skin fonts,
-     self-hosted + LAZY: served from assets/fonts via routes.py (/font/<name>.woff2)
-     and font-display:swap, so the 79KB Rajdhani only fetches when an Esports/Metal
-     card actually renders — nothing added to the always-loaded HTML. All SIL OFL 1.1
-     (assets/fonts/OFL-*.txt, AGPL-compatible). Neon reuses VirtuosoLabDisplay (Orbitron).
-     Family names match note_detect's --nd-font-display so the copy-card canvas + the
-     DOM card read identically. */
-  /* NAMESPACED family names (like VirtuosoLabDisplay=Orbitron) so they can't collide with
-     note_detect's identically-named 'Rajdhani'/'Russo One' faces in the shared host page
-     (the collision made the canvas match note_detect's UNLOADED face and drop to a fallback).
-     One design weight per file, declared over a weight RANGE so the card's 700/800 draws
-     resolve to the single woff2 (canvas font-matching is stricter than the DOM). */
-  @font-face { font-family: 'VirtuosoLabEsports'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('/api/plugins/virtuoso_lab/font/rajdhani-600.woff2') format('woff2'); }
-  @font-face { font-family: 'VirtuosoLabMetal'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('/api/plugins/virtuoso_lab/font/russo-one-400.woff2') format('woff2'); }
-  @font-face { font-family: 'VirtuosoLabMetalStencil'; font-style: normal; font-weight: 400 800; font-display: swap; src: url('/api/plugins/virtuoso_lab/font/black-ops-one-400.woff2') format('woff2'); }
+  /* The share-card canvas uses the same self-contained display face as the Lit card. */
   @property --virtuoso_lab_vir-ring-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card {
     --virtuoso_lab_vir-ring-w: 2px; --virtuoso_lab_vir-ring-overhang: 2px;
@@ -227,378 +184,11 @@
     .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-strip > * { animation: none; opacity: 1; transform: none; }
   }
 
-  /* ══ Results-card THEMES (settings → Card theme) ════════════════════════════
-     note_detect-parity skins for the RESULTS CARD + copy-card PNG ONLY — the cockpit
-     stays calm (these --virtuoso_lab_vir-card-* tokens are read solely by the card CSS below +
-     renderShareCardImage; the shell keeps reading --virtuoso_lab_vir-accent*). Mirrors note_detect's
-     --nd-* skin CONTRACT as our OWN token set (so an eventual host --fb-* theme contract
-     remaps in one place, not scattered through the renderer). Signature = today's look,
-     UNTOUCHED (no skin attribute → the existing cheat-card / .virtuoso_lab_vir-lit rules stand). A
-     skin's palette/type/shape is energy-independent IDENTITY; only MOTION stays Lit-gated.
-     Cleared-green (--virtuoso_lab_vir-meter) is NEVER themed — .virtuoso_lab_vir-earned always wins (invariant).
-     The three skin faces (Rajdhani/Russo One/Black Ops One) lazy-load via @font-face above. */
-  .virtuoso_lab-root {
-    --virtuoso_lab_vir-card-accent: var(--virtuoso_lab_vir-accent-edge);
-    --virtuoso_lab_vir-card-accent-soft: var(--virtuoso_lab_vir-accent-soft);
-    --virtuoso_lab_vir-card-accent2: var(--virtuoso_lab_vir-accent);
-    --virtuoso_lab_vir-card-warn: var(--virtuoso_lab_vir-heat);
-    --virtuoso_lab_vir-card-text: #f8fafc; --virtuoso_lab_vir-card-dim: #cbd5e1; --virtuoso_lab_vir-card-faint: #94a3b8;
-    --virtuoso_lab_vir-card-bg: rgba(13,20,36,0.84);
-    --virtuoso_lab_vir-card-frame: var(--virtuoso_lab_vir-accent);
-    --virtuoso_lab_vir-card-font-display: var(--virtuoso_lab_vir-font-display);
-    --virtuoso_lab_vir-card-force-display: 0;
-    --virtuoso_lab_vir-card-radius: 16px;
-    --virtuoso_lab_vir-card-glow: 1;
-    --virtuoso_lab_vir-card-text-glow: 0 0 16px var(--virtuoso_lab_vir-accent-glow);
-    --virtuoso_lab_vir-card-bevel: none;
-    --virtuoso_lab_vir-card-texture: none;
-    --virtuoso_lab_vir-card-ring-stops: var(--virtuoso_lab_vir-accent-soft) 0deg, var(--virtuoso_lab_vir-accent-soft) 248deg, var(--virtuoso_lab_vir-accent-edge) 312deg, var(--virtuoso_lab_vir-accent) 332deg, var(--virtuoso_lab_vir-accent-soft) 360deg;
-    --virtuoso_lab_vir-card-ring-anim: virtuoso_lab_vir-ring-spin 6s linear infinite;
-  }
-  /* NEON — arcade cyan/magenta, Orbitron, animated glow-ring, gradient accent. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"] {
-    --virtuoso_lab_vir-card-accent: #00f0ff; --virtuoso_lab_vir-card-accent-soft: rgba(0,240,255,0.18); --virtuoso_lab_vir-card-accent2: #ff2ec4; --virtuoso_lab_vir-card-warn: #ffcc00;
-    --virtuoso_lab_vir-card-text: #e8f6ff; --virtuoso_lab_vir-card-dim: #7c93a8; --virtuoso_lab_vir-card-faint: #54708a;
-    --virtuoso_lab_vir-card-bg: rgba(6,10,24,0.86); --virtuoso_lab_vir-card-frame: rgba(0,240,255,0.5);
-    --virtuoso_lab_vir-card-font-display: var(--virtuoso_lab_vir-font-display); --virtuoso_lab_vir-card-force-display: 1;
-    --virtuoso_lab_vir-card-radius: 12px; --virtuoso_lab_vir-card-glow: 1; --virtuoso_lab_vir-card-text-glow: 0 0 16px rgba(0,240,255,0.5);
-    --virtuoso_lab_vir-card-bevel: 0 0 22px rgba(0,240,255,0.14); --virtuoso_lab_vir-card-texture: none;
-    --virtuoso_lab_vir-card-ring-stops: #00f0ff, #7a4dff 90deg, #ff2ec4 180deg, #7a4dff 270deg, #00f0ff;
-    --virtuoso_lab_vir-card-ring-anim: virtuoso_lab_vir-ring-spin 5s linear infinite;
-  }
-  /* ESPORTS — AAA-minimal single amber, Rajdhani, NO glow, SQUARE corners, solid accent,
-     solid-border hero device (note_detect's current esports standard; the old "esports/lit"
-     card polish is now just Signature's Lit typography — this is the real, distinct skin). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"] {
-    --virtuoso_lab_vir-card-accent: #e8b43a; --virtuoso_lab_vir-card-accent-soft: rgba(232,180,58,0.16); --virtuoso_lab_vir-card-accent2: #f5f5f4; --virtuoso_lab_vir-card-warn: #e8b43a;
-    --virtuoso_lab_vir-card-text: #f5f5f4; --virtuoso_lab_vir-card-dim: #8b8f94; --virtuoso_lab_vir-card-faint: #6b7075;
-    --virtuoso_lab_vir-card-bg: rgba(10,12,14,0.9); --virtuoso_lab_vir-card-frame: #e8b43a;
-    --virtuoso_lab_vir-card-font-display: 'VirtuosoLabEsports', var(--virtuoso_lab_vir-font-display); --virtuoso_lab_vir-card-force-display: 1;
-    --virtuoso_lab_vir-card-radius: 0; --virtuoso_lab_vir-card-glow: 0; --virtuoso_lab_vir-card-text-glow: none;
-    --virtuoso_lab_vir-card-bevel: none; --virtuoso_lab_vir-card-texture: none;
-    --virtuoso_lab_vir-card-ring-anim: none;
-  }
-  /* METAL — brushed steel, amber/orange, Russo One stencil, hard bevel, feTurbulence
-     grunge (inline SVG — no binary), ember-pulse ring (breathes, doesn't spin). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"] {
-    --virtuoso_lab_vir-card-accent: #ffb347; --virtuoso_lab_vir-card-accent-soft: rgba(255,179,71,0.16); --virtuoso_lab_vir-card-accent2: #ff6b35; --virtuoso_lab_vir-card-warn: #facc15;
-    --virtuoso_lab_vir-card-text: #f3efe7; --virtuoso_lab_vir-card-dim: #9aa0a6; --virtuoso_lab_vir-card-faint: #6f747a;
-    --virtuoso_lab_vir-card-bg: #24272c; --virtuoso_lab_vir-card-frame: rgba(255,179,71,0.42);
-    --virtuoso_lab_vir-card-font-display: 'VirtuosoLabMetal', var(--virtuoso_lab_vir-font-display); --virtuoso_lab_vir-card-force-display: 1;
-    --virtuoso_lab_vir-card-radius: 6px; --virtuoso_lab_vir-card-glow: 1; --virtuoso_lab_vir-card-text-glow: 0 1px 0 rgba(0,0,0,0.85);
-    --virtuoso_lab_vir-card-bevel: inset 0 1px 0 rgba(255,255,255,0.14), inset 0 -2px 5px rgba(0,0,0,0.65), 0 0 0 1px #14161a, 0 2px 6px rgba(0,0,0,0.5);
-    --virtuoso_lab_vir-card-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.06 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>"), linear-gradient(180deg, #3a3f46, #24272c 55%, #1a1c20);
-    --virtuoso_lab_vir-card-ring-stops: #ffb347, #ff6b35 108deg, #8a3c1a 180deg, #ff6b35 252deg, #ffb347;
-    --virtuoso_lab_vir-card-ring-anim: virtuoso_lab_vir-card-ring-pulse 2.8s ease-in-out infinite alternate;
-  }
-  /* WARM / ANALOG — vintage-amp: pilot-lamp amber + oxblood tolex, cream SLAB-SERIF (the
-     only serif in the set → instantly "analog studio, not gamer"), warm tweed grain
-     (feTurbulence, no binary), slow lamp/VU breathe. System serif = no new font asset. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"] {
-    --virtuoso_lab_vir-card-accent: #e8a13c; --virtuoso_lab_vir-card-accent-soft: rgba(232,161,60,0.18); --virtuoso_lab_vir-card-accent2: #8a3324; --virtuoso_lab_vir-card-warn: #d4772a;
-    --virtuoso_lab_vir-card-text: #f5ecd8; --virtuoso_lab_vir-card-dim: #c9b79a; --virtuoso_lab_vir-card-faint: #93826a;
-    --virtuoso_lab_vir-card-bg: #2a1d16; --virtuoso_lab_vir-card-frame: rgba(232,161,60,0.45);
-    --virtuoso_lab_vir-card-font-display: 'Rockwell', 'Roboto Slab', 'Zilla Slab', Georgia, 'Times New Roman', serif; --virtuoso_lab_vir-card-force-display: 1;
-    --virtuoso_lab_vir-card-radius: 10px; --virtuoso_lab_vir-card-glow: 1; --virtuoso_lab_vir-card-text-glow: 0 0 12px rgba(232,161,60,0.32);
-    --virtuoso_lab_vir-card-bevel: inset 0 1px 0 rgba(245,236,216,0.10), inset 0 -2px 6px rgba(0,0,0,0.5), 0 0 0 1px #16100b, 0 2px 8px rgba(0,0,0,0.45);
-    --virtuoso_lab_vir-card-texture: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='matrix' values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.05 0'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>"), linear-gradient(180deg, #34241a, #2a1d16 55%, #201510);
-    --virtuoso_lab_vir-card-ring-stops: #e8a13c, #c2662a 120deg, #8a3324 200deg, #c2662a 280deg, #e8a13c;
-    --virtuoso_lab_vir-card-ring-anim: virtuoso_lab_vir-card-ring-pulse 4s ease-in-out infinite alternate;
-  }
-  /* FOCUS / MINIMAL — high-contrast + low-stim (the accessibility pole, the ONE skin more
-     restrained than default): calm slate-blue on near-black, BASE UI font, NO glow / motion
-     / texture; the hero device is a crisp solid neutral frame. Dim/faint kept ≥4.5:1. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"] {
-    --virtuoso_lab_vir-card-accent: #93b7de; --virtuoso_lab_vir-card-accent-soft: rgba(147,183,222,0.16); --virtuoso_lab_vir-card-accent2: #e8edf2; --virtuoso_lab_vir-card-warn: #e0a838;
-    --virtuoso_lab_vir-card-text: #f4f7fa; --virtuoso_lab_vir-card-dim: #c2ccd6; --virtuoso_lab_vir-card-faint: #98a3ae;
-    --virtuoso_lab_vir-card-bg: #0d1013; --virtuoso_lab_vir-card-frame: #4a555f;
-    --virtuoso_lab_vir-card-font-display: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --virtuoso_lab_vir-card-force-display: 0;
-    --virtuoso_lab_vir-card-radius: 8px; --virtuoso_lab_vir-card-glow: 0; --virtuoso_lab_vir-card-text-glow: none;
-    --virtuoso_lab_vir-card-bevel: none; --virtuoso_lab_vir-card-texture: none;
-    --virtuoso_lab_vir-card-ring-anim: none;
-  }
-  /* Per-skin colorways. These override only palette tokens; typography, radius,
-     texture, motion, and flat/glow identity stay owned by the selected skin. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-cardtone="violet"] {
-    --virtuoso_lab_vir-card-accent: #8b5cf6; --virtuoso_lab_vir-card-accent-soft: rgba(139,92,246,0.18); --virtuoso_lab_vir-card-accent2: #22d3ee; --virtuoso_lab_vir-card-warn: #f0abfc;
-    --virtuoso_lab_vir-card-frame: rgba(139,92,246,0.52); --virtuoso_lab_vir-card-text-glow: 0 0 16px rgba(139,92,246,0.48);
-    --virtuoso_lab_vir-card-ring-stops: #8b5cf6, #22d3ee 90deg, #f472b6 180deg, #22d3ee 270deg, #8b5cf6;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-cardtone="acid"] {
-    --virtuoso_lab_vir-card-accent: #39ff14; --virtuoso_lab_vir-card-accent-soft: rgba(57,255,20,0.16); --virtuoso_lab_vir-card-accent2: #00f0ff; --virtuoso_lab_vir-card-warn: #f7ff00;
-    --virtuoso_lab_vir-card-frame: rgba(57,255,20,0.48); --virtuoso_lab_vir-card-text-glow: 0 0 16px rgba(57,255,20,0.38);
-    --virtuoso_lab_vir-card-ring-stops: #39ff14, #00f0ff 120deg, #ff2ec4 220deg, #39ff14;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-cardtone="sunset"] {
-    --virtuoso_lab_vir-card-accent: #fb7185; --virtuoso_lab_vir-card-accent-soft: rgba(251,113,133,0.18); --virtuoso_lab_vir-card-accent2: #facc15; --virtuoso_lab_vir-card-warn: #f97316;
-    --virtuoso_lab_vir-card-frame: rgba(251,113,133,0.50); --virtuoso_lab_vir-card-text-glow: 0 0 16px rgba(251,113,133,0.42);
-    --virtuoso_lab_vir-card-ring-stops: #fb7185, #facc15 120deg, #a78bfa 250deg, #fb7185;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-cardtone="cobalt"] {
-    --virtuoso_lab_vir-card-accent: #38bdf8; --virtuoso_lab_vir-card-accent-soft: rgba(56,189,248,0.14); --virtuoso_lab_vir-card-accent2: #f5f5f4; --virtuoso_lab_vir-card-warn: #38bdf8;
-    --virtuoso_lab_vir-card-frame: #38bdf8;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-cardtone="crimson"] {
-    --virtuoso_lab_vir-card-accent: #f43f5e; --virtuoso_lab_vir-card-accent-soft: rgba(244,63,94,0.14); --virtuoso_lab_vir-card-accent2: #f5f5f4; --virtuoso_lab_vir-card-warn: #f43f5e;
-    --virtuoso_lab_vir-card-frame: #f43f5e;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-cardtone="lime"] {
-    --virtuoso_lab_vir-card-accent: #a3e635; --virtuoso_lab_vir-card-accent-soft: rgba(163,230,53,0.13); --virtuoso_lab_vir-card-accent2: #f5f5f4; --virtuoso_lab_vir-card-warn: #a3e635;
-    --virtuoso_lab_vir-card-frame: #a3e635;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-cardtone="blood"] {
-    --virtuoso_lab_vir-card-accent: #ef4444; --virtuoso_lab_vir-card-accent-soft: rgba(239,68,68,0.15); --virtuoso_lab_vir-card-accent2: #f97316; --virtuoso_lab_vir-card-warn: #f59e0b;
-    --virtuoso_lab_vir-card-frame: rgba(239,68,68,0.44); --virtuoso_lab_vir-card-ring-stops: #ef4444, #f97316 120deg, #7f1d1d 230deg, #ef4444;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-cardtone="steel"] {
-    --virtuoso_lab_vir-card-accent: #93c5fd; --virtuoso_lab_vir-card-accent-soft: rgba(147,197,253,0.14); --virtuoso_lab_vir-card-accent2: #cbd5e1; --virtuoso_lab_vir-card-warn: #fbbf24;
-    --virtuoso_lab_vir-card-frame: rgba(147,197,253,0.38); --virtuoso_lab_vir-card-ring-stops: #93c5fd, #cbd5e1 130deg, #334155 240deg, #93c5fd;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-cardtone="toxic"] {
-    --virtuoso_lab_vir-card-accent: #bef264; --virtuoso_lab_vir-card-accent-soft: rgba(190,242,100,0.14); --virtuoso_lab_vir-card-accent2: #84cc16; --virtuoso_lab_vir-card-warn: #eab308;
-    --virtuoso_lab_vir-card-frame: rgba(190,242,100,0.40); --virtuoso_lab_vir-card-ring-stops: #bef264, #84cc16 130deg, #3f6212 230deg, #bef264;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-cardtone="ruby"] {
-    --virtuoso_lab_vir-card-accent: #d86b4f; --virtuoso_lab_vir-card-accent-soft: rgba(216,107,79,0.18); --virtuoso_lab_vir-card-accent2: #8f2f2f; --virtuoso_lab_vir-card-warn: #e8a13c;
-    --virtuoso_lab_vir-card-frame: rgba(216,107,79,0.44); --virtuoso_lab_vir-card-text-glow: 0 0 12px rgba(216,107,79,0.30);
-    --virtuoso_lab_vir-card-ring-stops: #d86b4f, #a44735 120deg, #6f2724 220deg, #d86b4f;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-cardtone="honey"] {
-    --virtuoso_lab_vir-card-accent: #f2c56b; --virtuoso_lab_vir-card-accent-soft: rgba(242,197,107,0.17); --virtuoso_lab_vir-card-accent2: #b7791f; --virtuoso_lab_vir-card-warn: #d69e2e;
-    --virtuoso_lab_vir-card-frame: rgba(242,197,107,0.44); --virtuoso_lab_vir-card-text-glow: 0 0 12px rgba(242,197,107,0.28);
-    --virtuoso_lab_vir-card-ring-stops: #f2c56b, #d69e2e 125deg, #7c4a16 220deg, #f2c56b;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-cardtone="olive"] {
-    --virtuoso_lab_vir-card-accent: #a3a85c; --virtuoso_lab_vir-card-accent-soft: rgba(163,168,92,0.17); --virtuoso_lab_vir-card-accent2: #6f6f38; --virtuoso_lab_vir-card-warn: #d4a24a;
-    --virtuoso_lab_vir-card-frame: rgba(163,168,92,0.42); --virtuoso_lab_vir-card-text-glow: 0 0 12px rgba(163,168,92,0.24);
-    --virtuoso_lab_vir-card-ring-stops: #a3a85c, #6f6f38 130deg, #3b301c 230deg, #a3a85c;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-cardtone="blue"] {
-    --virtuoso_lab_vir-card-accent: #7fb3d5; --virtuoso_lab_vir-card-accent-soft: rgba(127,179,213,0.15); --virtuoso_lab_vir-card-accent2: #d6e7f2; --virtuoso_lab_vir-card-frame: #445a68;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-cardtone="sage"] {
-    --virtuoso_lab_vir-card-accent: #9ab7a0; --virtuoso_lab_vir-card-accent-soft: rgba(154,183,160,0.14); --virtuoso_lab_vir-card-accent2: #e0eadf; --virtuoso_lab_vir-card-frame: #4b5b50;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-cardtone="amber"] {
-    --virtuoso_lab_vir-card-accent: #d6b66d; --virtuoso_lab_vir-card-accent-soft: rgba(214,182,109,0.14); --virtuoso_lab_vir-card-accent2: #efe4c8; --virtuoso_lab_vir-card-frame: #615744;
-  }
-  /* Skins restyle the card SURFACE. [data-virtuoso_lab_vir-cardskin] matches only a chosen skin, so
-     Signature keeps its existing cheat-card/Lit rules (today's look is byte-for-byte). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card {
-    background-color: var(--virtuoso_lab_vir-card-bg);
-    background-image: var(--virtuoso_lab_vir-card-texture);
-    border: 1px solid var(--virtuoso_lab_vir-card-frame);
-    border-radius: var(--virtuoso_lab_vir-card-radius);
-    box-shadow: var(--virtuoso_lab_vir-card-bevel), 0 12px 40px rgba(0,0,0,0.5);
-  }
-  /* An earned card keeps the cleared-green top edge + green ring in EVERY skin (invariant). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card.virtuoso_lab_vir-earned { border-top: 2px solid var(--virtuoso_lab_vir-meter); }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-sheet-head::after { background: linear-gradient(90deg, transparent, var(--virtuoso_lab_vir-card-accent), transparent); }
-  /* Skin TYPOGRAPHY rules live just after the Signature Lit typography block below, so
-     that at equal specificity a chosen skin's face/glow wins over the Lit polish (both
-     apply on a skin+Lit card; source order breaks the tie in the skin's favour). */
-  /* Ring device per skin (Lit only = motion). Never on an earned card (green ring wins). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin].virtuoso_lab_vir-lit .virtuoso_lab-results-card:not(.virtuoso_lab_vir-earned)::before,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin].virtuoso_lab_vir-lit .virtuoso_lab-results-card:not(.virtuoso_lab_vir-earned)::after {
-    --virtuoso_lab_vir-ring-stops: var(--virtuoso_lab_vir-card-ring-stops); animation: var(--virtuoso_lab_vir-card-ring-anim);
-  }
-  /* Esports + Focus have no ring — their device is the solid border. Kill the pseudo-ring. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"] .virtuoso_lab-results-card::before,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"] .virtuoso_lab-results-card::after,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"] .virtuoso_lab-results-card::before,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"] .virtuoso_lab-results-card::after { content: none; }
-  @keyframes virtuoso_lab_vir-card-ring-pulse { from { opacity: 0.3; } to { opacity: 0.85; } }
-  @media (prefers-reduced-motion: reduce) {
-    .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin].virtuoso_lab_vir-lit .virtuoso_lab-results-card::before,
-    .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin].virtuoso_lab_vir-lit .virtuoso_lab-results-card::after { animation: none; }
-  }
-
-  /* ══ Cockpit skin EXTENSION (settings → Card theme → "Apply theme: Whole studio") ═══
-     OPT-IN bleed of the active card skin OUT into the whole cockpit. Default OFF
-     (data-virtuoso_lab_vir-skincockpit absent = "Card only" = calm cockpit, byte-identical). When ON
-     with a non-Signature skin, the cockpit's --virtuoso_lab_vir-accent* tokens are REMAPPED to that
-     skin's already-declared --virtuoso_lab_vir-card-* palette — and because the shell already reads
-     --virtuoso_lab_vir-accent* everywhere, the whole studio recolors with ~no per-control restyle. Four
-     identity levers reach the cockpit: PALETTE (this remap), CORNER (--virtuoso_lab_vir-r-control +
-     scoped control overrides below), MOTION/GLOW (rides the existing .virtuoso_lab_vir-lit chrome), and
-     DISPLAY FONT (masthead only). Texture + bevel stay CARD-ONLY (they fight host-harmony at
-     cockpit scale — Warm/Analog + Focus poles slot into these same levers later). Signature
-     has no [data-virtuoso_lab_vir-cardskin] attribute, so it never matches → the cockpit keeps following
-     the Accent picker. Invariants: cleared-green --virtuoso_lab_vir-meter is NEVER remapped; motion stays
-     Lit-gated + reduced-motion frozen. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-accent: var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-accent-hover: var(--virtuoso_lab_vir-card-accent2);
-    --virtuoso_lab_vir-accent-edge: var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-accent-soft: var(--virtuoso_lab_vir-card-accent-soft);
-    --virtuoso_lab_vir-accent-glow: var(--virtuoso_lab_vir-card-accent-soft);
-    --virtuoso_lab_vir-accent-fg: #0b0f17;                 /* every skin accent is bright → dark text reads */
-    --virtuoso_lab_vir-accent-grad: linear-gradient(180deg, var(--virtuoso_lab_vir-card-accent), var(--virtuoso_lab_vir-card-accent2));
-    --virtuoso_lab_vir-ring: var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-glow: var(--virtuoso_lab_vir-card-accent-soft);
-    --virtuoso_lab_vir-r-control: var(--virtuoso_lab_vir-card-radius);
-  }
-  /* CORNER lever — the shell's hardcoded control radii (mini-btn 6 / view-tabs 9 / actions
-     10px) don't read --virtuoso_lab_vir-r-control, so the remap alone can't reach them. Scope the skin
-     radius onto them ONLY when opted in — base declarations (hence Signature) stay
-     byte-identical. The round transport ▶ is deliberately excluded (host-parity, rule 1). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mini-btn,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-actions button,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-btn,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-view-tabs {
-    border-radius: var(--virtuoso_lab_vir-card-radius);
-  }
-  /* DISPLAY-FONT lever — the skin's display face on the masthead WORDMARK only (identity, not
-     body — legibility). Reads --virtuoso_lab_vir-card-font-display directly (no cycle: we never remap
-     --virtuoso_lab_vir-font-display itself, which the skin token nests as its fallback). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-header h1 {
-    font-family: var(--virtuoso_lab_vir-card-font-display);
-  }
-  /* ESPORTS + FOCUS are flat BY IDENTITY — no glow even in Lit, solid (not gradient) accent
-     fill. For Focus this ALSO flattens the whole .virtuoso_lab_vir-lit chrome to calm without touching the
-     energy system (the Lit glow is all --virtuoso_lab_vir-accent-glow-driven → transparent = calm cockpit). */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"],
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-accent-glow: transparent;
-    --virtuoso_lab_vir-glow: transparent;
-    --virtuoso_lab_vir-accent-grad: var(--virtuoso_lab_vir-card-accent);
-  }
-  /* STAGE-FRAME adapter (theme-framework Phase 1.5): the recipe stamps
-     data-virtuoso_lab_vir-stageframe; CSS maps that platform-agnostic style into the one safe
-     expressive surface around the renderer. Card-only and Signature never match. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 2px;
-    --virtuoso_lab_vir-stage-frame-bg: conic-gradient(from var(--virtuoso_lab_vir-ring-angle), var(--virtuoso_lab_vir-card-ring-stops, var(--virtuoso_lab_vir-card-accent-soft) 0deg, var(--virtuoso_lab_vir-card-accent) 180deg, var(--virtuoso_lab_vir-card-accent-soft) 360deg));
-    --virtuoso_lab_vir-stage-frame-shadow: none;
-    --virtuoso_lab_vir-stage-frame-anim: var(--virtuoso_lab_vir-card-ring-anim, virtuoso_lab_vir-ring-spin 6s linear infinite);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-stageframe="chromatic-ring"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 2px;
-    --virtuoso_lab_vir-stage-frame-bg: conic-gradient(from var(--virtuoso_lab_vir-ring-angle), var(--virtuoso_lab_vir-card-ring-stops));
-    --virtuoso_lab_vir-stage-frame-shadow: 0 0 18px -8px var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-stage-frame-anim: var(--virtuoso_lab_vir-card-ring-anim);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-stageframe="solid-frame"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 2px;
-    --virtuoso_lab_vir-stage-frame-bg: var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-stage-frame-shadow: none;
-    --virtuoso_lab_vir-stage-frame-anim: none;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-stageframe="inset-ring"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 3px;
-    --virtuoso_lab_vir-stage-frame-bg: linear-gradient(135deg, var(--virtuoso_lab_vir-card-bg), var(--virtuoso_lab_vir-card-accent), color-mix(in srgb, var(--virtuoso_lab_vir-card-frame) 70%, var(--virtuoso_lab_vir-card-bg)) 54%, var(--virtuoso_lab_vir-card-accent2));
-    --virtuoso_lab_vir-stage-frame-shadow: inset 0 0 0 1px rgba(255,255,255,0.10), 0 0 20px -13px var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-stage-frame-anim: var(--virtuoso_lab_vir-card-ring-anim);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-stageframe="warm-edge-light"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 2px;
-    --virtuoso_lab_vir-stage-frame-bg: linear-gradient(90deg, rgba(232,161,60,0.18), var(--virtuoso_lab_vir-card-accent), rgba(138,51,36,0.62), var(--virtuoso_lab_vir-card-accent));
-    --virtuoso_lab_vir-stage-frame-shadow: 0 0 18px -11px var(--virtuoso_lab_vir-card-accent);
-    --virtuoso_lab_vir-stage-frame-anim: virtuoso_lab_vir-card-ring-pulse 4s ease-in-out infinite alternate;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-stageframe="quiet-solid"][data-virtuoso_lab_vir-skincockpit="on"] {
-    --virtuoso_lab_vir-stage-frame-size: 1px;
-    --virtuoso_lab_vir-stage-frame-bg: var(--virtuoso_lab_vir-card-frame);
-    --virtuoso_lab_vir-stage-frame-shadow: none;
-    --virtuoso_lab_vir-stage-frame-anim: none;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"].virtuoso_lab_vir-lit .virtuoso_lab-render-host::after {
-    content: ''; position: absolute; inset: 0; border-radius: inherit; padding: var(--virtuoso_lab_vir-stage-frame-size);
-    background: var(--virtuoso_lab_vir-stage-frame-bg); box-shadow: var(--virtuoso_lab_vir-stage-frame-shadow);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
-    pointer-events: none; z-index: 6; animation: var(--virtuoso_lab_vir-stage-frame-anim);
-  }
-  @media (prefers-reduced-motion: reduce) {
-    .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"].virtuoso_lab_vir-lit .virtuoso_lab-render-host::after { animation: none; }
-  }
-
-  /* Cockpit identity pass (theme-framework Phase 1): Whole-studio themes differ by
-     material/control treatment as well as palette. Scoped to non-Signature skins so
-     Signature + Card-only remain the calm host-native baseline. */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    border-color: var(--virtuoso_lab_vir-card-frame);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    background: linear-gradient(180deg, rgba(8,12,30,0.94), rgba(5,8,20,0.96));
-    box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-card-accent-soft), 0 18px 48px rgba(0,0,0,0.54), 0 0 24px -8px var(--virtuoso_lab_vir-card-accent);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-toggle,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer-viewtabs {
-    border-color: var(--virtuoso_lab_vir-card-frame); box-shadow: var(--virtuoso_lab_vir-recess), inset 0 0 14px var(--virtuoso_lab_vir-card-accent-soft);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="neon"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-btn.active { text-shadow: 0 0 10px var(--virtuoso_lab_vir-card-accent-soft); }
-
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    background: #0a0c0e; box-shadow: none;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-lbl,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer-title,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-btn,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-view-btn {
-    text-transform: uppercase; letter-spacing: 0.08em;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mini-btn.active,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="esports"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-actions button.primary {
-    box-shadow: none; background: var(--virtuoso_lab_vir-card-accent); color: #090b0d;
-  }
-
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    background: linear-gradient(180deg, #2e3338, #17191d 58%, #101215);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.13), inset 0 -2px 5px rgba(0,0,0,0.62), 0 16px 42px rgba(0,0,0,0.54);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-toggle,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-view-tabs,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="metal"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer-strip {
-    border-color: var(--virtuoso_lab_vir-card-frame); box-shadow: inset 0 1px 0 rgba(255,255,255,0.11), inset 0 -1px 3px rgba(0,0,0,0.62);
-  }
-
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    background: linear-gradient(180deg, rgba(48,33,23,0.96), rgba(30,20,14,0.98));
-    box-shadow: inset 0 1px 0 rgba(245,236,216,0.08), 0 14px 40px rgba(0,0,0,0.50), 0 0 18px -12px var(--virtuoso_lab_vir-card-accent);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-toggle,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer-viewtabs,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mini-btn {
-    background-color: #201510; border-color: rgba(232,161,60,0.32);
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="warm"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-header h1 { letter-spacing: 0.015em; }
-
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-settings-menu,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer {
-    background: #0d1013; box-shadow: none;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-header h1 {
-    background: none; color: #f4f7fa; -webkit-text-fill-color: #f4f7fa; filter: none; animation: none;
-  }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mode-toggle,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-view-tabs,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin="focus"][data-virtuoso_lab_vir-skincockpit="on"] .virtuoso_lab-mixer-viewtabs {
-    box-shadow: none; border-color: #4a555f;
-  }
-
   /* ══ Mastery CREST — earned-standing emblem (gamification: derived, additive, never a
      tally — Proven → Versed → Fluent; UX: a laurel/aegis that elaborates by rank). Accent-
      family ONLY, NEVER --virtuoso_lab_vir-meter/green — so a CLEARED run shows BOTH the green cleared
-     state AND the accent crest (two meanings, two colors). Rides the live accent (or the skin
-     accent when the cockpit is skinned). Hidden entirely under XP-Off. */
+     state AND the accent crest (two meanings, two colors). Rides the live host accent.
+     Hidden entirely under XP-Off. */
   .virtuoso_lab-crest { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; flex: 0 0 auto; margin-right: 9px; color: var(--virtuoso_lab_vir-accent-edge); line-height: 0; }
   .virtuoso_lab-crest[hidden] { display: none; }
   .virtuoso_lab-crest svg { width: 100%; height: 100%; display: block; }
@@ -612,9 +202,9 @@
   .virtuoso_lab-pm-crest .virtuoso_lab-crest { width: 36px; height: 36px; margin: 0; }
   .virtuoso_lab-pm-crest-label { font-size: 13.5px; font-weight: 700; color: var(--virtuoso_lab_vir-text, #e2e8f0); }
   .virtuoso_lab-pm-crest-desc { font-size: 11.5px; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); margin-top: 1px; }
-  /* Results-card crest — top-right of the card header, left of the ✕. Stays ACCENT even on an
-     earned (green) card: reads the card token family so it follows the skin, never green. */
-  .virtuoso_lab-results-crest { position: absolute; top: 12px; right: 42px; width: 22px; height: 22px; color: var(--virtuoso_lab_vir-card-accent, var(--virtuoso_lab_vir-accent-edge)); z-index: 2; }
+  /* Results-card crest — top-right of the card header, left of the ✕. Stays
+     accent-colored even on an earned (green) card. */
+  .virtuoso_lab-results-crest { position: absolute; top: 12px; right: 42px; width: 22px; height: 22px; color: var(--virtuoso_lab_vir-accent-edge); z-index: 2; }
   .virtuoso_lab-results-crest[hidden] { display: none; }
   .virtuoso_lab-results-crest svg { width: 100%; height: 100%; display: block; }
 
@@ -721,31 +311,10 @@
   .virtuoso_lab-settings-group { padding: 7px 9px; }
   .virtuoso_lab-settings-lbl { display: block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); margin-bottom: 6px; }
   .virtuoso_lab-settings-row { display: flex; gap: 5px; }
-  .virtuoso_lab-theme-swatch { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #334155; background: var(--sw); cursor: pointer; padding: 0; }
-  .virtuoso_lab-theme-swatch.active { border-color: #f8fafc; box-shadow: 0 0 0 2px rgba(248,250,252,0.2); }
-  .virtuoso_lab-cardtone-row { flex-wrap: wrap; }
-  .virtuoso_lab-cardtone-swatch { width: 28px; height: 22px; border-radius: 7px; border: 1px solid #334155; background: linear-gradient(135deg, var(--sw-a), var(--sw-b)); cursor: pointer; padding: 0; box-shadow: inset 0 1px 0 rgba(255,255,255,0.10); }
-  .virtuoso_lab-cardtone-swatch.active { border-color: #f8fafc; box-shadow: 0 0 0 2px rgba(248,250,252,0.18), inset 0 1px 0 rgba(255,255,255,0.14); }
-  .virtuoso_lab-mini-btn { flex: 1; padding: 5px 0; font-size: 11px; font-weight: 600; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: #94a3b8; cursor: pointer; }
-  .virtuoso_lab-mini-btn:hover { background: #1e293b; color: #e2e8f0; }
-  .virtuoso_lab-mini-btn.active { background: var(--virtuoso_lab_vir-accent-grad); border-color: var(--virtuoso_lab_vir-accent-edge); color: #f8fafc; }
-  /* Greyed when the active Card theme is Signature (nothing to extend — it already follows Accent). */
-  .virtuoso_lab-settings-group.is-disabled { opacity: 0.42; }
-  .virtuoso_lab-settings-group.is-disabled .virtuoso_lab-settings-row { pointer-events: none; }
-  /* Card-theme picker previews are rendered from VIR_THEME_RECIPES in screen.js. */
-  #virtuoso_lab-cardskin-pick { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
-  .virtuoso_lab-skin-card { min-width: 0; padding: 7px; display: grid; grid-template-columns: 38px minmax(0,1fr); grid-template-areas: "visual copy" "axes axes"; gap: 6px 8px; text-align: left; border: 1px solid var(--skin-frame); border-radius: 9px; background: linear-gradient(180deg, color-mix(in srgb, var(--skin-surface) 92%, white 8%), var(--skin-surface)); color: var(--skin-text); cursor: pointer; box-shadow: var(--skin-shadow); }
-  .virtuoso_lab-skin-card:hover { border-color: var(--skin-a); }
-  .virtuoso_lab-skin-card.active { outline: 2px solid var(--skin-a); outline-offset: 1px; }
-  .virtuoso_lab-skin-card-visual { grid-area: visual; min-height: 34px; border-radius: var(--skin-radius); border: 1px solid var(--skin-frame); background: linear-gradient(135deg, var(--skin-surface), color-mix(in srgb, var(--skin-a) 24%, var(--skin-surface))); position: relative; overflow: hidden; }
-  .virtuoso_lab-skin-card-visual span { position: absolute; left: 5px; right: 5px; top: 6px; height: 4px; border-radius: 999px; background: linear-gradient(90deg, var(--skin-a), var(--skin-b)); }
-  .virtuoso_lab-skin-card-visual i { position: absolute; left: 6px; bottom: 7px; width: 12px; height: 8px; border-radius: 2px; background: var(--skin-a); opacity: 0.88; }
-  .virtuoso_lab-skin-card-visual b { position: absolute; right: 6px; bottom: 7px; width: 13px; height: 8px; border-radius: 999px; border: 1px solid var(--skin-b); }
-  .virtuoso_lab-skin-card-copy { grid-area: copy; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
-  .virtuoso_lab-skin-card-copy strong { font-size: 12px; line-height: 1.05; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .virtuoso_lab-skin-card-copy em { font-style: normal; font-size: 10px; line-height: 1.15; color: color-mix(in srgb, var(--skin-text) 72%, transparent); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .virtuoso_lab-skin-card-axes { grid-area: axes; display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
-  .virtuoso_lab-skin-card-axes i { font-style: normal; font-size: 9px; line-height: 1; padding: 3px 4px; border-radius: 4px; color: var(--skin-text); background: color-mix(in srgb, var(--skin-a) 18%, transparent); border: 1px solid color-mix(in srgb, var(--skin-frame) 75%, transparent); }
+  .virtuoso_lab-mini-btn { flex: 1; padding: 5px 0; font-size: 11px; font-weight: 600; border-radius: 6px; border: 1px solid var(--virtuoso_lab_vir-border, #334155); background: var(--virtuoso_lab_vir-input, #0b1220); color: var(--virtuoso_lab_vir-text-muted, #94a3b8); cursor: pointer; }
+  .virtuoso_lab-mini-btn:hover { background: var(--virtuoso_lab_vir-btn-hover, #1e293b); color: var(--virtuoso_lab_vir-fg, #e2e8f0); }
+  .virtuoso_lab-mini-btn.active { background: var(--virtuoso_lab_vir-accent-grad); border-color: var(--virtuoso_lab_vir-accent-edge); color: var(--virtuoso_lab_vir-accent-fg, #f8fafc); }
+  .virtuoso_lab-mini-btn:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring, #3b82f6); outline-offset: 2px; }
   .virtuoso_lab-settings-select { width: 100%; padding: 5px 8px; font-size: 12px; border-radius: 6px; border: 1px solid #334155; background: #0b1220; color: #e2e8f0; }
   .virtuoso_lab-settings-divider { height: 1px; background: var(--virtuoso_lab_vir-hairline, rgba(148,163,184,0.14)); margin: 4px 6px; }
   /* Mode dropdown fallback — hidden until the narrowest breakpoint. */
@@ -767,7 +336,7 @@
     .virtuoso_lab-profile-text { display: none; }
   }
   @media (max-width: 1000px) {
-    .virtuoso_lab-view-label, .virtuoso_lab-fb-toggle-label, #virtuoso_lab-theme-toggle { display: none !important; }
+    .virtuoso_lab-view-label, .virtuoso_lab-fb-toggle-label { display: none !important; }
     /* Mode switcher goes icon-only here (aria-label keeps the accessible name). */
     .virtuoso_lab-mode-btn-label { display: none; }
     .virtuoso_lab-mode-btn { gap: 0; padding: 0; }
@@ -783,7 +352,7 @@
   /* Wordmark: mirror the host's signature gradient treatment so "Virtuoso" reads
      as a sibling of the host wordmark, not a flat-white outlier (host-harmony seam).
      The version span resets text-fill so it stays solid muted, not clipped. */
-  .virtuoso_lab-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; background: linear-gradient(115deg, var(--virtuoso_lab_vir-accent-hover) 0%, #b984f5 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .virtuoso_lab-header h1 { margin: 0; font-size: 22px; line-height: 1.1; letter-spacing: -0.02em; font-weight: 800; background: linear-gradient(115deg, var(--virtuoso_lab_vir-accent-hover) 0%, var(--virtuoso_lab_vir-accent) 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
   .virtuoso_lab-version { margin-left: 7px; font-size: 11px; font-weight: 500; letter-spacing: 0.01em; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); -webkit-text-fill-color: var(--virtuoso_lab_vir-text-muted, #94a3b8); vertical-align: middle; }
   .virtuoso_lab-tagline { margin: 3px 0 6px 0; font-size: 12px; line-height: 1.35; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); max-width: 760px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .virtuoso_lab-tagline strong { font-weight: 600; color: var(--virtuoso_lab_vir-text-dim, #cbd5e1); }
@@ -804,23 +373,22 @@
   .virtuoso_lab-controls { padding: var(--virtuoso_lab_vir-sp-4); display: flex; flex-direction: column; gap: var(--virtuoso_lab_vir-sp-5); min-height: 0; min-width: 0; overflow-y: auto; overflow-x: hidden; transition: opacity 0.2s ease; }
   .virtuoso_lab-root.virtuoso_lab-collapsed .virtuoso_lab-layout { grid-template-columns: minmax(0px, 0px) 1fr; gap: 0; }
   .virtuoso_lab-root.virtuoso_lab-collapsed .virtuoso_lab-controls { opacity: 0; pointer-events: none; }
-  .virtuoso_lab-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: #d6deea; font-weight: 650; }
+  .virtuoso_lab-controls label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--virtuoso_lab_vir-text-dim, #d6deea); font-weight: 650; }
   .virtuoso_lab-controls input, .virtuoso_lab-controls select {
-    background: #111827 !important;
-    color: #f8fafc !important;
-    border: 1px solid #475569 !important;
+    background: var(--virtuoso_lab_vir-input, #111827) !important;
+    color: var(--virtuoso_lab_vir-fg, #f8fafc) !important;
+    border: 1px solid var(--virtuoso_lab_vir-border, #475569) !important;
     border-radius: 9px;
     min-height: 36px;
     padding: 0 10px;
     outline: none;
     width: 100%;
   }
-  /* Dropdowns follow the host's dark UI. Apply the dark option-list styling the
+  /* Dropdowns follow the host's UI. Apply the option-list styling the
      form selects already use to ALL selects in the plugin — incl. the Setup-popover
      tuning selector, which sits outside .virtuoso_lab-controls and was otherwise
-     falling through to Tailwind's inherit-light-text default (a low-contrast list).
-     Paired with color-scheme:dark on .virtuoso_lab-root for the native dropdown chrome. */
-  .virtuoso_lab-root option { background: #111827; color: #f8fafc; }
+     falling through to Tailwind's inherit-light-text default (a low-contrast list). */
+  .virtuoso_lab-root option { background: var(--virtuoso_lab_vir-popover, #111827); color: var(--virtuoso_lab_vir-popover-fg, #f8fafc); }
   .virtuoso_lab-controls input:focus, .virtuoso_lab-controls select:focus { border-color: var(--virtuoso_lab_vir-accent) !important; box-shadow: 0 0 0 2px var(--virtuoso_lab_vir-accent-soft); }
   .virtuoso_lab-grid-2, .virtuoso_lab-grid-3 { display: grid; gap: 10px; }
   .virtuoso_lab-grid-2 { grid-template-columns: 1fr 1fr; }
@@ -971,33 +539,36 @@
   .virtuoso_lab-actions-secondary > button { flex: 1 1 140px; }
   .virtuoso_lab-button, .virtuoso_lab-actions button, .virtuoso_lab-actions-secondary button {
     min-height: 38px;
-    border: 1px solid #475569;
+    border: 1px solid var(--virtuoso_lab_vir-border, #475569);
     border-radius: 10px;
-    background: #172033;
-    color: #f8fafc;
+    background: var(--virtuoso_lab_vir-secondary, #172033);
+    color: var(--virtuoso_lab_vir-secondary-fg, #f8fafc);
     font-weight: 750;
     cursor: pointer;
     padding: 0 12px;
   }
   .virtuoso_lab-button:hover,
   .virtuoso_lab-actions button:hover,
-  .virtuoso_lab-actions-secondary button:hover { background: #24324a; border-color: #64748b; }
+  .virtuoso_lab-actions-secondary button:hover { background: var(--virtuoso_lab_vir-btn-hover, #24324a); border-color: var(--virtuoso_lab_vir-accent-edge, #64748b); }
+  .virtuoso_lab-button:focus-visible,
+  .virtuoso_lab-actions button:focus-visible,
+  .virtuoso_lab-actions-secondary button:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring, #3b82f6); outline-offset: 2px; }
   .virtuoso_lab-button.secondary,
   .virtuoso_lab-actions button.secondary,
-  .virtuoso_lab-actions-secondary button.secondary { background: #0f172a; color: #cbd5e1; }
+  .virtuoso_lab-actions-secondary button.secondary { background: var(--virtuoso_lab_vir-input, #0f172a); color: var(--virtuoso_lab_vir-text-dim, #cbd5e1); }
   /* Workout primary = the mode's one lit primary; matches the Ladder START hero (recessed plate + edge-lit accent ring) — no longer a stray blue. */
-  .virtuoso_lab-actions button.primary { background: linear-gradient(180deg, #221a30, #161619); border-color: var(--virtuoso_lab_vir-accent-edge); min-height: 48px; font-size: 15px; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px var(--virtuoso_lab_vir-accent-soft), 0 8px 24px var(--virtuoso_lab_vir-accent-soft), 0 2px 8px rgba(0,0,0,0.5); }
-  .virtuoso_lab-actions button.primary:hover { background: linear-gradient(180deg, #271d36, #161619); filter: brightness(1.06); }
+  .virtuoso_lab-actions button.primary { background: var(--virtuoso_lab_vir-accent-grad); border-color: var(--virtuoso_lab_vir-accent-edge); color: var(--virtuoso_lab_vir-accent-fg, #fff); min-height: 48px; font-size: 15px; letter-spacing: 0.02em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px var(--virtuoso_lab_vir-accent-soft), 0 8px 24px var(--virtuoso_lab_vir-accent-soft), 0 2px 8px rgba(0,0,0,0.5); }
+  .virtuoso_lab-actions button.primary:hover { background: linear-gradient(180deg, var(--virtuoso_lab_vir-accent-hover), var(--virtuoso_lab_vir-accent-hover)); filter: brightness(1.06); }
   /* Running: de-redded to a calm accent "live" inset (mirrors .virtuoso_lab-start-cta.playing + the host #btn-play); stop-red lives only on a dedicated Stop. */
-  .virtuoso_lab-actions button.primary.is-playing { background: linear-gradient(180deg, #221a30, #161619); border-color: var(--virtuoso_lab_vir-accent-edge); box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px var(--virtuoso_lab_vir-accent-edge), 0 0 14px 1px var(--virtuoso_lab_vir-accent-glow), 0 2px 8px rgba(0,0,0,0.5); }
-  .virtuoso_lab-actions button.primary.is-playing:hover { background: linear-gradient(180deg, #271d36, #161619); filter: brightness(1.05); }
+  .virtuoso_lab-actions button.primary.is-playing { background: var(--virtuoso_lab_vir-accent-grad); border-color: var(--virtuoso_lab_vir-accent-edge); color: var(--virtuoso_lab_vir-accent-fg, #fff); box-shadow: inset 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.05), 0 0 0 1px var(--virtuoso_lab_vir-accent-edge), 0 0 14px 1px var(--virtuoso_lab_vir-accent-glow), 0 2px 8px rgba(0,0,0,0.5); }
+  .virtuoso_lab-actions button.primary.is-playing:hover { background: linear-gradient(180deg, var(--virtuoso_lab_vir-accent-hover), var(--virtuoso_lab_vir-accent-hover)); filter: brightness(1.05); }
   /* Paste-share-link input: low-key, parchment-on-night, with a green flash
      on a successful restore + a red flash on a malformed link. */
   .virtuoso_lab-paste-share { margin-top: 4px; }
   #virtuoso_lab-paste-share { width: 100%; min-height: 30px; padding: 0 10px;
-    background: #0a1322; color: #cbd5e1; border: 1px solid #334155;
+    background: var(--virtuoso_lab_vir-input, #0a1322); color: var(--virtuoso_lab_vir-text-dim, #cbd5e1); border: 1px solid var(--virtuoso_lab_vir-border, #334155);
     border-radius: 8px; font-size: 12px; font-family: var(--virtuoso_lab_vir-mono); }
-  #virtuoso_lab-paste-share:focus { outline: none; border-color: var(--virtuoso_lab_vir-accent-edge); }
+  #virtuoso_lab-paste-share:focus { outline: none; border-color: var(--virtuoso_lab_vir-accent-edge); box-shadow: 0 0 0 2px var(--virtuoso_lab_vir-accent-soft); }
   #virtuoso_lab-paste-share.flash-ok { border-color: #16a34a; }
   #virtuoso_lab-paste-share.flash-bad { border-color: #b91c1c; }
   /* ── Playback transport ──────────────────────────────────────────────────
@@ -1033,24 +604,24 @@
   /* Play/Pause keeps the primary accent in all three states (stopped/running/
      paused) — the stop-red moved to the dedicated Stop button when the transport
      split (2026-06-06); a Pause control is not a danger action. */
-  .virtuoso_lab-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: none; background: #1e2740; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s; }
+  .virtuoso_lab-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: var(--virtuoso_lab_vir-secondary, #1e2740); color: var(--virtuoso_lab_vir-secondary-fg, #cbd5e1); font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
   .virtuoso_lab-tp-btn:disabled { opacity: 0.35; cursor: default; }
   .virtuoso_lab-tp-stop:not(:disabled) { color: #fca5a5; }
   .virtuoso_lab-tp-stop:not(:disabled):hover { background: var(--virtuoso_lab_vir-stop); color: #fff; }
-  .virtuoso_lab-tp-btn:not(:disabled):hover { background: #2a3654; }
+  .virtuoso_lab-tp-btn:not(:disabled):hover { background: var(--virtuoso_lab_vir-btn-hover, #2a3654); border-color: var(--virtuoso_lab_vir-accent-edge, #64748b); }
   .virtuoso_lab-tp-btn.active { background: var(--virtuoso_lab_vir-accent); color: #fff; }
-  .virtuoso_lab-tp-time { font-family: var(--virtuoso_lab_vir-mono); font-size: 12px; color: #94a3b8; min-width: 84px; text-align: center; }
+  .virtuoso_lab-tp-time { font-family: var(--virtuoso_lab_vir-mono); font-size: 12px; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); min-width: 84px; text-align: center; }
   .virtuoso_lab-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
   .virtuoso_lab-tp-loop, .virtuoso_lab-tp-countin { display: flex; align-items: center; gap: 5px; }
   .virtuoso_lab-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 600; }
   /* Bars|beats cycle readout (DAW-style): the loop's bar.beat bounds + span. */
   .virtuoso_lab-tp-looprange { font-family: var(--virtuoso_lab_vir-mono); font-size: 11px; color: var(--virtuoso_lab_vir-text-muted); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; }
   .virtuoso_lab-tp-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
-  .virtuoso_lab-tp-seg { min-height: 28px; min-width: 30px; padding: 0 9px; border: none; background: #141d33; color: #cbd5e1; font-weight: 600; font-size: 12px; cursor: pointer; }
+  .virtuoso_lab-tp-seg { min-height: 28px; min-width: 30px; padding: 0 9px; border: none; background: var(--virtuoso_lab_vir-secondary, #141d33); color: var(--virtuoso_lab_vir-secondary-fg, #cbd5e1); font-weight: 600; font-size: 12px; cursor: pointer; }
   .virtuoso_lab-tp-seg:first-of-type { border-radius: 7px 0 0 7px; }
   .virtuoso_lab-tp-seg:last-of-type { border-radius: 0 7px 7px 0; }
   .virtuoso_lab-tp-seg + .virtuoso_lab-tp-seg { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
-  .virtuoso_lab-tp-seg:hover:not(.active) { background: #24324a; }
+  .virtuoso_lab-tp-seg:hover:not(.active) { background: var(--virtuoso_lab_vir-btn-hover, #24324a); }
   .virtuoso_lab-tp-seg.active { background: var(--virtuoso_lab_vir-accent); color: #fff; }
   /* View switcher toolbar inside the render stage */
   .virtuoso_lab-view-switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 7px 12px; background: var(--virtuoso_lab_vir-surface-bar); border-bottom: 1px solid var(--virtuoso_lab_vir-hairline); flex-shrink: 0; }
@@ -1111,9 +682,7 @@
   .virtuoso_lab-view-select:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-accent, #4080e0); outline-offset: 1px; }
   /* Tabs read as tabs: unselected is a subtle outlined chip; selected gets
      a saturated background, a bottom highlight, and a slight lift so the
-     active view is unmistakable at a glance.
-     (RETIRED with the view dropdown — kept only for the local shot-*.mjs
-     scripts + skin overrides that still reference the class; no live markup.) */
+     active view is unmistakable at a glance. */
   .virtuoso_lab-view-btn {
     position: relative;
     display: inline-flex;
@@ -1139,26 +708,6 @@
     box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-accent-soft), 0 2px 6px var(--virtuoso_lab_vir-accent-soft);
   }
   /* (active underline removed — the lit pill inside the tab track is the indicator) */
-  /* Theme toggle — light/dark for Tab + Notation. Sits at the right edge
-     of the view-switcher row, only visible when one of the themed
-     renderers is active (see CSS rule below + the syncThemeToggleVisibility
-     JS hook). */
-  .virtuoso_lab-theme-toggle {
-    display: none; align-items: center; gap: 2px; margin-left: 8px;
-    background: #050b18; border: 1px solid #334155; border-radius: 8px; padding: 2px;
-  }
-  .virtuoso_lab-root.virtuoso_lab-theme-renderer .virtuoso_lab-theme-toggle { display: flex; }
-  /* Right-zone grouping: when the fretboard pill is absent (Tab view) the theme
-     toggle takes over the right-push itself (the pill owns it otherwise). */
-  .virtuoso_lab-root:not(.virtuoso_lab-fb-capable) .virtuoso_lab-theme-toggle { margin-left: auto; }
-  .virtuoso_lab-theme-btn {
-    min-height: 24px; border: 1px solid transparent; border-radius: 6px;
-    background: transparent; color: #94a3b8; font-size: 11px; font-weight: 700;
-    letter-spacing: 0.02em; cursor: pointer; padding: 0 10px;
-    transition: background 0.1s, color 0.1s, border-color 0.1s;
-  }
-  .virtuoso_lab-theme-btn:hover { color: #e2e8f0; border-color: #475569; }
-  .virtuoso_lab-theme-btn.active { background: #1e293b; color: #f8fafc; border-color: #475569; }
   .virtuoso_lab-notation-subtoggle { display: flex; align-items: center; gap: 4px; padding: 0 0 0 10px; border-left: 1px solid #334155; margin-left: 4px; }
   .virtuoso_lab-sub-label { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: #475569; margin-right: 2px; white-space: nowrap; }
   .virtuoso_lab-sub-btn { min-height: 22px; border: 1px solid #1e293b; border-radius: 4px; background: #0a1120; color: #475569; font-size: 10px; font-weight: 700; cursor: pointer; padding: 0 8px; transition: background 0.1s, color 0.1s, border-color 0.1s; white-space: nowrap; }
@@ -1216,8 +765,8 @@
      Piano stays hidden (its !important wins). */
   .virtuoso_lab-root.virtuoso_lab-piano-instrument .virtuoso_lab-fretboard-strip { display: none !important; }
   /* "Fretboard view" label + pill toggle — only shown for fretboard-capable
-     views; margin-left:auto pushes it (and the theme toggle after it) right,
-     grouping the view options into a right-hand zone. */
+     views; margin-left:auto pushes it right, grouping the view options into a
+     right-hand zone. */
   .virtuoso_lab-fb-toggle-wrap { display: none; align-items: center; gap: 7px; }
   .virtuoso_lab-root.virtuoso_lab-fb-capable .virtuoso_lab-fb-toggle-wrap { display: inline-flex; margin-left: auto; }
   .virtuoso_lab-fb-toggle-label { font-size: 12px; font-weight: 600; color: #94a3b8; }
@@ -1439,8 +988,7 @@
   .virtuoso_lab-results-hero-stat { font-size: 11.5px; color: var(--virtuoso_lab_vir-text-dim, #cbd5e1); margin-top: 2px; text-align: center; }
   /* Coach prescription (PR 1.3): the ONE next-drill row — accent, never red;
      forward-looking ("Practice next"), a real Ladder rung the player owns. It's a
-     button (close-and-arm into the Ladder). Themed via --virtuoso_lab_vir-accent-* so it tracks
-     the accent theme. */
+     button (close-and-arm into the Ladder), following the host accent tokens. */
   .virtuoso_lab-results-coach { display: block; width: calc(100% - 32px); margin: 9px 16px 2px; padding: 8px 12px; border-radius: 8px; border: 1px solid var(--virtuoso_lab_vir-accent-edge, #7cb0ff); background: var(--virtuoso_lab_vir-glow, rgba(124,176,255,0.10)); color: #cbd5e1; text-align: left; cursor: pointer; font: inherit; transition: background 0.12s; }
   .virtuoso_lab-results-coach:hover { background: var(--virtuoso_lab_vir-accent-soft, rgba(59,130,246,0.26)); }
   .virtuoso_lab-results-coach-lead { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--virtuoso_lab_vir-accent-edge, #7cb0ff); }
@@ -1480,11 +1028,7 @@
   .virtuoso_lab-results-rung.cleared::after { content: ' ✓'; font-size: 9px; font-weight: 900; }
   .virtuoso_lab-results-rung.rung-new { animation: virtuoso_lab-tier-glow 1.8s ease-out forwards; }
   .virtuoso_lab-results-deltas { font-size: 12px; color: #cbd5e1; }
-  /* ── Signature's Lit display-face polish (Calm keeps the system face). Display
-     font + tracking on the title/verdict/%/rungs, a tasteful headline glow; the %
-     digits stay un-glowed (note_detect's legibility lesson). NOTE: the true "esports"
-     look now lives in the ESPORTS card THEME (data-virtuoso_lab_vir-cardskin="esports" — amber,
-     Rajdhani, no-glow, square) above; this block is just the DEFAULT theme's Lit polish. ── */
+  /* ── Lit display-face polish (Calm keeps the system face). ── */
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card #virtuoso_lab-results-title { font-family: var(--virtuoso_lab_vir-font-display); text-transform: uppercase; letter-spacing: 0.24em; font-size: 12px; }
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-pct { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.03em; }
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-verdict,
@@ -1517,30 +1061,6 @@
   .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-recog { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.05em; text-transform: uppercase; font-size: 11px; text-shadow: 0 0 13px var(--virtuoso_lab_vir-accent-glow); animation: virtuoso_lab-strong-pulse 1.6s ease-out 0.2s both; }
   @keyframes virtuoso_lab-strong-pulse { 0% { text-shadow: 0 0 4px var(--virtuoso_lab_vir-accent-soft); } 40% { text-shadow: 0 0 18px var(--virtuoso_lab_vir-accent-glow); } 100% { text-shadow: 0 0 13px var(--virtuoso_lab_vir-accent-glow); } }
   @media (prefers-reduced-motion: reduce) { .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-recog { animation: none; } }
-  /* ── Card-THEME typography (placed AFTER the Lit block so a chosen skin's face/glow wins
-     the equal-specificity tie on a skin+Lit card). Display face + tracking on the short/stat
-     elements (identity, BOTH energies); long descriptive sentences stay system-face. The
-     text-shadow follows the skin's glow policy: neon glows, metal hard-shadows, esports none. ── */
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card #virtuoso_lab-results-title { font-family: var(--virtuoso_lab_vir-card-font-display); text-transform: uppercase; letter-spacing: 0.24em; font-size: 12px; }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-pct { font-family: var(--virtuoso_lab_vir-card-font-display); letter-spacing: 0.03em; }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-verdict,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-felt { font-family: var(--virtuoso_lab_vir-card-font-display); letter-spacing: 0.04em; text-shadow: var(--virtuoso_lab_vir-card-text-glow); }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card.virtuoso_lab_vir-earned .virtuoso_lab-results-verdict,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card.virtuoso_lab_vir-earned .virtuoso_lab-results-felt { text-shadow: 0 0 16px var(--virtuoso_lab_vir-meter-soft); }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-recog { font-family: var(--virtuoso_lab_vir-card-font-display); color: var(--virtuoso_lab_vir-card-accent); }
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-rung,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-head,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-deltas,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-practiced,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-virtuoso_lab_vir-copy,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-progress-toggle,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-primary,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-quiet,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-session-title,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-session-meta,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-chapter-role,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-chapter-name,
-  .virtuoso_lab-root[data-virtuoso_lab_vir-cardskin] .virtuoso_lab-results-card .virtuoso_lab-results-chapter-dur { font-family: var(--virtuoso_lab_vir-card-font-display); letter-spacing: 0.03em; }
   .virtuoso_lab-results-recog { font-size: 12px; font-weight: 600; color: var(--virtuoso_lab_vir-accent-edge, #60a5fa); }
   .virtuoso_lab-results-practiced { text-align: center; font-size: 11.5px; color: #94a3b8; padding: 7px 16px 0; }
   /* Workout RECAP (Tier 3): the per-block chapter list REPLACES the aggregate % for a
@@ -1615,7 +1135,7 @@
   .virtuoso_lab-pm-coming { font-size: 11.5px; color: #64748b; font-style: italic; }
   /* Woodshed sub-header ("Your numbers" / "Traveled") — a quiet group label. */
   .virtuoso_lab-pm-sub { font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--virtuoso_lab_vir-text-faint, #64748b); padding: 8px 0 2px; }
-  /* Competency badge rack (Tier C) — earned-only chips; themeable accent, no rank. */
+  /* Competency badge rack (Tier C) — earned-only chips; host accent, no rank. */
   .virtuoso_lab-badge-rack { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
   .virtuoso_lab-badge { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; color: var(--virtuoso_lab_vir-text, #e2e8f0); background: var(--virtuoso_lab_vir-accent-soft, rgba(96,165,250,0.18)); border: 1px solid var(--virtuoso_lab_vir-accent-edge, #60a5fa); white-space: nowrap; }
   /* "Last session" card — a calm, dismissible mirror of the run that just ended.
@@ -1812,7 +1332,8 @@
      .virtuoso_lab-controls, so it misses the form-select styling — give it the same
      readable closed-control look here (the open option list is black-on-white via
      the .virtuoso_lab-root option rule above). */
-  #virtuoso_lab-tuning-select { flex: 1; min-height: 30px; background: #111827; color: #f8fafc; border: 1px solid #475569; border-radius: 8px; padding: 0 8px; }
+  #virtuoso_lab-tuning-select { flex: 1; min-height: 30px; background: var(--virtuoso_lab_vir-input, #111827); color: var(--virtuoso_lab_vir-fg, #f8fafc); border: 1px solid var(--virtuoso_lab_vir-border, #475569); border-radius: 8px; padding: 0 8px; }
+  #virtuoso_lab-tuning-select:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring, #3b82f6); outline-offset: 2px; }
   .virtuoso_lab-custom-tuning { display: flex; flex-direction: column; gap: 4px; padding-top: 4px; border-top: 1px dashed #334155; }
   .virtuoso_lab-custom-tuning-inputs { display: flex; gap: 4px; flex-wrap: wrap; }
   /* Override the global .virtuoso_lab-controls input width:100% so the custom-
@@ -1820,8 +1341,8 @@
   .virtuoso_lab-controls .virtuoso_lab-custom-tuning-input {
     width: 56px !important; min-width: 56px !important; flex: 0 0 56px !important;
     min-height: 26px !important; padding: 0 4px !important;
-    border: 1px solid #334155 !important; border-radius: 6px !important; background: #0a1322 !important;
-    color: #f8fafc !important; font-family: ui-monospace, "Consolas", monospace !important; font-size: 12px !important;
+    border: 1px solid var(--virtuoso_lab_vir-border, #334155) !important; border-radius: 6px !important; background: var(--virtuoso_lab_vir-input, #0a1322) !important;
+    color: var(--virtuoso_lab_vir-fg, #f8fafc) !important; font-family: ui-monospace, "Consolas", monospace !important; font-size: 12px !important;
     text-align: center !important;
   }
   .virtuoso_lab-controls .virtuoso_lab-custom-tuning-input:focus { border-color: var(--virtuoso_lab_vir-accent) !important; }
@@ -1838,8 +1359,8 @@
   .virtuoso_lab-mode-btn.active { background: var(--virtuoso_lab_vir-accent-grad); color: var(--virtuoso_lab_vir-accent-fg); border-color: var(--virtuoso_lab_vir-accent-edge); box-shadow: var(--virtuoso_lab_vir-edge-top), 0 1px 4px rgba(0,0,0,0.45); }
   .virtuoso_lab-mode-btn.active:hover { border-color: var(--virtuoso_lab_vir-accent-edge); }
   /* Mode glyphs (header buttons) — currentColor so they inherit the deselected/
-     hover/active text color, i.e. they recolor with the persisted accent theme
-     exactly like the label. Slightly dimmed when deselected, full when active. */
+     hover/active text color, so they follow the host accent exactly like the
+     label. Slightly dimmed when deselected, full when active. */
   .virtuoso_lab-mode-ico { width: 19px; height: 19px; flex: 0 0 auto; pointer-events: none; opacity: 0.85; }
   .virtuoso_lab-mode-btn:hover .virtuoso_lab-mode-ico,
   .virtuoso_lab-mode-btn.active .virtuoso_lab-mode-ico { opacity: 1; }
@@ -2273,48 +1794,15 @@
       <div class="virtuoso_lab-cal-dots" id="virtuoso_lab-cal-dots"><!-- populated by syncProgressStrip() --></div>
     </div>
     <!-- Settings menu (⚙) — header-right. Skeleton items wired to what exists today;
-         theme / XP-mode default / count-in default land as those systems do. -->
+         XP-mode default / count-in default land as those systems do. -->
     <div class="virtuoso_lab-header-settings">
       <button type="button" id="virtuoso_lab-settings-btn" class="virtuoso_lab-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
       <div id="virtuoso_lab-settings-menu" class="virtuoso_lab-settings-menu" role="menu" aria-label="Settings">
-        <div class="virtuoso_lab-settings-group">
-          <span class="virtuoso_lab-settings-lbl">Accent</span>
-          <div class="virtuoso_lab-settings-row" id="virtuoso_lab-theme-pick">
-            <button type="button" class="virtuoso_lab-theme-swatch active" data-theme="" style="--sw:#2563eb" title="Blue" aria-label="Blue"></button>
-            <button type="button" class="virtuoso_lab-theme-swatch" data-theme="violet" style="--sw:#7a2bd8" title="Purple" aria-label="Purple"></button>
-            <button type="button" class="virtuoso_lab-theme-swatch" data-theme="ember" style="--sw:#c2630f" title="Ember" aria-label="Ember"></button>
-            <button type="button" class="virtuoso_lab-theme-swatch" data-theme="teal" style="--sw:#14b8a6" title="Teal" aria-label="Teal"></button>
-            <button type="button" class="virtuoso_lab-theme-swatch" data-theme="rose" style="--sw:#ec4899" title="Rose" aria-label="Rose"></button>
-            <button type="button" class="virtuoso_lab-theme-swatch" data-theme="cyan" style="--sw:#06b6d4" title="Cyan" aria-label="Cyan"></button>
-          </div>
-        </div>
         <div class="virtuoso_lab-settings-group">
           <span class="virtuoso_lab-settings-lbl">Studio energy</span>
           <div class="virtuoso_lab-settings-row" id="virtuoso_lab-energy-pick" title="Lit: host-parity glow + earned-bloom celebrations (chrome only — the playing surface stays calm). Calm: the restrained base look.">
             <button type="button" class="virtuoso_lab-mini-btn active" data-energy="lit">Lit</button>
             <button type="button" class="virtuoso_lab-mini-btn" data-energy="calm">Calm</button>
-          </div>
-        </div>
-        <div class="virtuoso_lab-settings-group">
-          <span class="virtuoso_lab-settings-lbl">Card theme</span>
-          <div class="virtuoso_lab-settings-row" id="virtuoso_lab-cardskin-pick" title="Styles results + shareable copy cards. Each theme declares its own palette, material, typography, shape, and motion recipe; Whole studio can extend that recipe into the cockpit.">
-            <button type="button" class="virtuoso_lab-mini-btn active" data-cardskin="signature">Signature</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-cardskin="neon">Neon</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-cardskin="esports">Esports</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-cardskin="metal">Metal</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-cardskin="warm">Warm</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-cardskin="focus">Focus</button>
-          </div>
-        </div>
-        <div class="virtuoso_lab-settings-group is-disabled" id="virtuoso_lab-cardtone-group">
-          <span class="virtuoso_lab-settings-lbl" id="virtuoso_lab-cardtone-label">Theme color</span>
-          <div class="virtuoso_lab-settings-row virtuoso_lab-cardtone-row" id="virtuoso_lab-cardtone-pick"></div>
-        </div>
-        <div class="virtuoso_lab-settings-group" id="virtuoso_lab-skinscope-group">
-          <span class="virtuoso_lab-settings-lbl">Apply theme</span>
-          <div class="virtuoso_lab-settings-row" id="virtuoso_lab-skinscope-pick" title="Card only: the theme styles just your results + copy card — the cockpit stays calm (default). Whole studio: the theme also skins the whole Virtuoso cockpit. Non-Signature themes extend; Signature always follows your Accent.">
-            <button type="button" class="virtuoso_lab-mini-btn active" data-skinscope="card">Card only</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-skinscope="cockpit">Whole studio</button>
           </div>
         </div>
         <div class="virtuoso_lab-settings-group">
@@ -3381,12 +2869,6 @@
           <span class="virtuoso_lab-keeploop-label" title="Off: a drill plays a right-sized run then ends. On: loop it for open practice.">Keep looping</span>
           <button type="button" id="virtuoso_lab-keeploop-toggle" class="virtuoso_lab-pill-toggle" role="switch" aria-checked="false" aria-label="Keep looping this drill"><span class="virtuoso_lab-pill-knob"></span></button>
         </span>
-        <!-- Theme toggle for Tab + Notation only. Hidden via CSS when the
-             active renderer is one of the highway views. -->
-        <div id="virtuoso_lab-theme-toggle" class="virtuoso_lab-theme-toggle" role="group" aria-label="Renderer theme">
-          <button type="button" class="virtuoso_lab-theme-btn active" data-theme="light" title="Parchment + ink">Light</button>
-          <button type="button" class="virtuoso_lab-theme-btn" data-theme="dark" title="Navy + ink">Dark</button>
-        </div>
         <!-- Practice toggles — the retired Preview-Audio mutes, reframed as
              per-bus practice scaffolds next to the Mixer (design-system §14).
              Muting Backing = self-test; muting Notes = play-by-ear / minus-one;

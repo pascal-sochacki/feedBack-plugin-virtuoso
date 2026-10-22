@@ -25,13 +25,13 @@ export type VirtuosoSelectors =
   { [Selector in '#virtuoso-controls [name="countIn"]' | '#virtuoso-controls [name="meter"]' | '#virtuoso-controls [name="subdivision"]' | '#virtuoso-controls [name="key"]' | '#virtuoso-controls [name="stringSetup"]' | '#virtuoso-controls [name="sequence"]' | '#virtuoso-controls [name="scale"]' | '[name="instrument"]' | '[name="stringSetup"]' | '[name="practiceType"]' | '[name="fretboardSystem"]' | '[name="renderer"]']: HTMLSelectElement }
   & { [Selector in '#virtuoso-controls [name="advancedMode"]' | '#virtuoso-controls [name="customOpenMidis"]' | '#virtuoso-controls [name="bpm"]']: HTMLInputElement };
 export type VirtuosoHtmlLists = '#virtuoso-jam-hl .virtuoso-jam-hl-btn' | '.virtuoso-feel-btn'
-  | '.virtuoso-band-add' | '#virtuoso-theme-pick .virtuoso-theme-swatch'
+  | '.virtuoso-band-add'
   | '#virtuoso-xp-mode .virtuoso-mini-btn' | '#virtuoso-countin-grid .virtuoso-mini-btn'
-  | '#virtuoso-energy-pick .virtuoso-mini-btn' | '#virtuoso-skinscope-pick .virtuoso-mini-btn'
+  | '#virtuoso-energy-pick .virtuoso-mini-btn'
   | '.virtuoso-tp-seg' | '#virtuoso-session-progress .virtuoso-progress-seg'
   | '#virtuoso-segment-list .virtuoso-segment-card' | '.virtuoso-instr-btn'
   | '.virtuoso-mode-bar .virtuoso-mode-btn' | '.virtuoso-chromatic-only'
-  | '.virtuoso-guide-tones-only' | '.virtuoso-bending-only' | '.virtuoso-theme-btn'
+  | '.virtuoso-guide-tones-only' | '.virtuoso-bending-only'
   | '#virtuoso-jam-feel .virtuoso-jam-feel-btn' | '#virtuoso-jam-guide .virtuoso-jam-feel-btn'
   | '#virtuoso-jam-band .virtuoso-jam-feel-btn' | '#virtuoso-jam-depth .virtuoso-jam-feel-btn'
   | '#virtuoso-jam-energy .virtuoso-jam-feel-btn' | '#virtuoso-jam-spotlight .virtuoso-jam-feel-btn';
@@ -62,12 +62,10 @@ declare global {
     querySelector(selectors: '.virtuoso-jam-inspector'): HTMLDivElement | null;
     querySelectorAll(selectors: '.virtuoso-instr-btn'): NodeListOf<HTMLButtonElement & {dataset: {instrument: string}}>;
     querySelectorAll(selectors: '.virtuoso-tp-seg'): NodeListOf<HTMLButtonElement & {dataset: {countin: string}}>;
-    querySelectorAll(selectors: '.virtuoso-theme-btn'): NodeListOf<HTMLButtonElement & {dataset: {theme: string}}>;
     querySelectorAll(selectors: '.virtuoso-feel-btn'): NodeListOf<HTMLButtonElement & {dataset: {feel: string}}>;
     querySelectorAll(selectors: '#virtuoso-xp-mode .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {xp: string}}>;
     querySelectorAll(selectors: '#virtuoso-countin-grid .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {grid: string}}>;
     querySelectorAll(selectors: '#virtuoso-energy-pick .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {energy: string}}>;
-    querySelectorAll(selectors: '#virtuoso-skinscope-pick .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {skinscope: string}}>;
     getElementById<Id extends keyof VirtuosoElements>(elementId: Id): VirtuosoElements[Id] | null;
     getElementById<Id extends keyof GeneratedElements>(elementId: Id): GeneratedElements[Id] | null;
     getElementById(elementId: string): HTMLElement | null;

@@ -1,14 +1,11 @@
 # Virtuoso (Lab) — experimental personal fork
 
-**Published vs local candidate (2026-10-21):** personal-fork `main` remains
-**0.2.13-lab.1** (runtime `6d8ede92…`, source `03a0c04…`). USERREPORTED smoke
-PASS: “all works” for Windows basic Play/audio/detection, views/Tab/Notation minor
-flats, Markdown variants, Ladder tuning and Workout navigation. Exact host and
-detector versions unknown; not independent/exhaustive or Windows DI certification.
-Local unpublished source **0.2.14** additionally has pure-core cleanup and tuning
-settings ownership; isolated **0.2.14-lab.1** packaging is not a publication or
-installed/user-tested update. If this guide accompanies that temporary artifact,
-read its manifest: it is a separate local candidate, not the public `main` below.
+**Current testing candidate (2026-10-22): 0.2.14-lab.2 — unpublished and soon to
+be pushed to the personal fork's `main` for testing.** This candidate integrates
+host themes and removes the plugin's local theme pickers/skins. It is not yet
+published or installed/user-tested; confirm the manifest reports
+**0.2.14-lab.2** after the push and update. Earlier published-candidate notes
+below are historical and are not the status of this candidate.
 
 **Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,
 published to replace 0.2.11-lab.1 on the personal fork's `main`.

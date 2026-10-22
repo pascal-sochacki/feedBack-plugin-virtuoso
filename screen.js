@@ -110,7 +110,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.14-lab.1';
+  const VIRTUOSO_VERSION = '0.2.14-lab.2';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -528,14 +528,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   }());
   // Notation renderer is notation-only — tab is its own renderer now.
 
-  // Theme palette for the Tab and Notation renderers. The light theme is the
-  // parchment-and-ink look we shipped for Tab; the dark theme mirrors it on a
-  // navy ground. The 3D Highway and 2D Highway renderers are not affected —
-  // they have their own color identities.
-  // Active theme for renderers that participate. Light is the default.
-  let currentRenderTheme = (typeof localStorage !== 'undefined' && localStorage.getItem('virtuoso_lab.renderTheme')) || 'light';
-  if (currentRenderTheme !== 'light' && currentRenderTheme !== 'dark') currentRenderTheme = 'light';
-  function getRenderTheme() { return RENDER_THEMES[currentRenderTheme] || RENDER_THEMES.light; }
+  // Tab and Notation keep their shipped parchment-and-ink presentation.
+  function getRenderTheme() { return RENDER_THEMES.light; }
   // Hand-marks display switch (hand-marks Slice 1; UX ruling): ONE toggle,
   // default ON, persisted, never auto-flipped — beginner/advanced scaling
   // happens at EMISSION (the pedagogy lane), not by flipping the player's
@@ -547,13 +541,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // picking/strum/bass-RH drills → the STROKES are the lesson. Keyed off
   // bundle.config.mode (single drills); mixed sessions keep the default simile
   // decimation. Display-only — none of this ever feeds scoring/XP.
-  /** @param {string} name */
-  function setRenderTheme(name) {
-    if (name !== 'light' && name !== 'dark') return;
-    currentRenderTheme = name;
-    try { localStorage.setItem('virtuoso_lab.renderTheme', name); } catch (_) {}
-    if (rendererLifecycle.renderer && activeBundle) drawOnce();
-  }
   // Pitch tracker state — wraps slopsmithMinigames.scoring.createContinuous (no registration required)
   let /** @type {import('./src/types/host-interfaces.js').ContinuousPitchHandle | null} */ _ptHandle = null, /** @type {import('./src/types/entry-data.js').EntryNote[]} */ _ptNotes = [], /** @type {number[]} */ _ptOpenMidis = [], /** @type {Set<string>} */ _ptScored = new Set(), /** @type {Map<string, import('./src/types/entry-data.js').EntryNote>} */ _ptByKey = new Map(), _ptHadInput = false, /** @type {{t: number, f: number, c: number} | null} */ _ptLive = null;
   /** @type {import('./src/types/results-data.js').RunInfo | null} */
@@ -7418,9 +7405,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       });
     } catch (_) {}
   }
-  // Header settings menu (⚙) + its prefs: accent theme (live), default XP mode (a
-  // stored default — ready for the unbuilt XP store), default count-in (seeds the
-  // count-in control on load). All persisted to localStorage.
+  // Header settings menu (⚙) and its non-theme preferences. All persisted to localStorage.
   /** @param {boolean} [force] */
   function toggleSettingsMenu(force) {
     const menu = $('virtuoso_lab-settings-menu'), btn = $('virtuoso_lab-settings-btn');
@@ -7431,16 +7416,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const open = force != null ? force : !menu.classList.contains('virtuoso_lab_vir-open');
     menu.classList.toggle('virtuoso_lab_vir-open', open);
     btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-  }
-  /** @param {string} name */
-  function applyTheme(name) {
-    const root = $('virtuoso_lab-root'); if (!root) return;
-    // Drop any accent-theme class generically so the picker stays data-driven —
-    // a new swatch (data-theme="…") + its .virtuoso_lab_vir-theme-… CSS works with no edit here.
-    Array.from(root.classList).forEach(c => { if (c.indexOf('virtuoso_lab_vir-theme-') === 0) root.classList.remove(c); });
-    if (name) root.classList.add('virtuoso_lab_vir-theme-' + name);
-    try { localStorage.setItem('virtuoso_lab.theme', name || ''); } catch (_) {}
-    document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.classList.toggle('active', (b.dataset.theme || '') === (name || '')));
   }
   /** @param {string} mode */
   function applyXpModeDefault(mode) {
@@ -7477,218 +7452,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     try { localStorage.setItem('virtuoso_lab.energy', lit ? 'lit' : 'calm'); } catch (_) {}
     document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.energy === (lit ? 'lit' : 'calm')));
   }
-  // Card theme (settings → Card theme): stamps data-virtuoso_lab_vir-cardskin on the root — read ONLY
-  // by the results-card CSS + the copy-card canvas (renderShareCardImage), so the cockpit
-  // stays calm. 'signature' = today's default look (no attribute; follows the Accent +
-  // Lit/Calm). neon/esports/metal/warm/focus are opt-in note_detect-parity skins.
-  // Each non-Signature skin also owns its own colorway set; colorways change palette
-  // tokens only, never the skin's typography/shape/motion identity.
-  /** @type {Record<string, import('./src/types/theme-data.js').ThemeRecipe>} */
-  const VIR_THEME_RECIPES = {
-    signature: {
-      id: 'signature', label: 'Signature', role: 'Virtuoso baseline', mode: 'dark',
-      axes: ['host-native', 'calm', 'accent-led'],
-      typography: { displayFamily: 'var(--virtuoso_lab_vir-font-display)', displayCase: 'mixed', tracking: 'normal' },
-      shape: { controlRadius: 8, panelRadius: 10, borderWeight: 1 },
-      material: { surface: 'graphite', treatment: 'quiet-raised' },
-      motion: { ring: 'lit-toggle', reducedMotion: 'static' },
-      stageFrame: { style: 'host-ring', animated: true },
-      preview: { surface:'#0d1424', frame:'#334155', text:'#f8fafc', a:'#2563eb', b:'#60a5fa', radius:'10px', shadow:'0 10px 26px rgba(0,0,0,0.34)' },
-      tones: [],
-    },
-    neon: {
-      id: 'neon', label: 'Neon', role: 'Synth arcade glass', mode: 'dark',
-      axes: ['glass', 'glow', 'animated'],
-      typography: { displayFamily: 'var(--virtuoso_lab_vir-font-display)', displayCase: 'uppercase moments', tracking: 'wide' },
-      shape: { controlRadius: 12, panelRadius: 12, borderWeight: 1 },
-      material: { surface: 'dark glass', treatment: 'luminous-border' },
-      motion: { ring: 'spin', glow: 'cyan-magenta', reducedMotion: 'static' },
-      stageFrame: { style: 'chromatic-ring', animated: true },
-      preview: { surface:'#060a18', frame:'rgba(0,240,255,0.5)', text:'#e8f6ff', a:'#00f0ff', b:'#ff2ec4', radius:'12px', shadow:'0 0 22px rgba(0,240,255,0.18)' },
-      tones: [
-        { id:'default', label:'Arcade', a:'#00f0ff', b:'#ff2ec4' },
-        { id:'violet', label:'Violet', a:'#8b5cf6', b:'#22d3ee' },
-        { id:'acid', label:'Acid', a:'#39ff14', b:'#00f0ff' },
-        { id:'sunset', label:'Sunset', a:'#fb7185', b:'#facc15' },
-      ],
-    },
-    esports: {
-      id: 'esports', label: 'Esports', role: 'Broadcast HUD', mode: 'dark',
-      axes: ['flat', 'square', 'uppercase'],
-      typography: { displayFamily: 'VirtuosoLabEsports', displayCase: 'uppercase', tracking: 'wide' },
-      shape: { controlRadius: 0, panelRadius: 0, borderWeight: 1 },
-      material: { surface: 'matte black', treatment: 'hard-edge' },
-      motion: { ring: 'none', reducedMotion: 'static' },
-      stageFrame: { style: 'solid-frame', animated: false },
-      preview: { surface:'#0a0c0e', frame:'#e8b43a', text:'#f5f5f4', a:'#e8b43a', b:'#f5f5f4', radius:'0px', shadow:'none' },
-      tones: [
-        { id:'default', label:'Amber', a:'#e8b43a', b:'#f5f5f4' },
-        { id:'cobalt', label:'Cobalt', a:'#38bdf8', b:'#f5f5f4' },
-        { id:'crimson', label:'Crimson', a:'#f43f5e', b:'#f5f5f4' },
-        { id:'lime', label:'Lime', a:'#a3e635', b:'#f5f5f4' },
-      ],
-    },
-    metal: {
-      id: 'metal', label: 'Metal', role: 'Industrial plate', mode: 'dark',
-      axes: ['bevel', 'steel', 'ember'],
-      typography: { displayFamily: 'VirtuosoLabMetal', displayCase: 'uppercase', tracking: 'wide' },
-      shape: { controlRadius: 6, panelRadius: 6, borderWeight: 1 },
-      material: { surface: 'brushed steel', treatment: 'hard-bevel' },
-      motion: { ring: 'pulse', glow: 'ember', reducedMotion: 'static' },
-      stageFrame: { style: 'inset-ring', animated: true },
-      preview: { surface:'#24272c', frame:'rgba(255,179,71,0.42)', text:'#f3efe7', a:'#ffb347', b:'#ff6b35', radius:'6px', shadow:'inset 0 1px 0 rgba(255,255,255,0.16), 0 10px 24px rgba(0,0,0,0.42)' },
-      tones: [
-        { id:'default', label:'Ember', a:'#ffb347', b:'#ff6b35' },
-        { id:'blood', label:'Blood', a:'#ef4444', b:'#f97316' },
-        { id:'steel', label:'Steel', a:'#93c5fd', b:'#cbd5e1' },
-        { id:'toxic', label:'Toxic', a:'#bef264', b:'#84cc16' },
-      ],
-    },
-    warm: {
-      id: 'warm', label: 'Warm', role: 'Analog studio', mode: 'dark',
-      axes: ['analog', 'soft-hardware', 'lamp'],
-      typography: { displayFamily: 'Rockwell/serif', displayCase: 'mixed', tracking: 'slight' },
-      shape: { controlRadius: 10, panelRadius: 10, borderWeight: 1 },
-      material: { surface: 'tolex/tweed', treatment: 'warm-matte' },
-      motion: { ring: 'slow-pulse', glow: 'pilot-lamp', reducedMotion: 'static' },
-      stageFrame: { style: 'warm-edge-light', animated: true },
-      preview: { surface:'#2a1d16', frame:'rgba(232,161,60,0.45)', text:'#f5ecd8', a:'#e8a13c', b:'#8a3324', radius:'10px', shadow:'inset 0 1px 0 rgba(245,236,216,0.10), 0 10px 24px rgba(0,0,0,0.38)' },
-      tones: [
-        { id:'default', label:'Amp', a:'#e8a13c', b:'#8a3324' },
-        { id:'ruby', label:'Ruby', a:'#d86b4f', b:'#8f2f2f' },
-        { id:'honey', label:'Honey', a:'#f2c56b', b:'#b7791f' },
-        { id:'olive', label:'Olive', a:'#a3a85c', b:'#6f6f38' },
-      ],
-    },
-    focus: {
-      id: 'focus', label: 'Focus', role: 'Low-stim clarity', mode: 'dark',
-      axes: ['flat', 'quiet', 'high-contrast'],
-      typography: { displayFamily: 'system-ui', displayCase: 'normal', tracking: 'normal' },
-      shape: { controlRadius: 8, panelRadius: 8, borderWeight: 1 },
-      material: { surface: 'matte slate', treatment: 'no-decoration' },
-      motion: { ring: 'none', reducedMotion: 'none' },
-      stageFrame: { style: 'quiet-solid', animated: false },
-      preview: { surface:'#0d1013', frame:'#4a555f', text:'#f4f7fa', a:'#93b7de', b:'#e8edf2', radius:'8px', shadow:'none' },
-      tones: [
-        { id:'default', label:'Slate', a:'#93b7de', b:'#e8edf2' },
-        { id:'blue', label:'Blue', a:'#7fb3d5', b:'#d6e7f2' },
-        { id:'sage', label:'Sage', a:'#9ab7a0', b:'#e0eadf' },
-        { id:'amber', label:'Amber', a:'#d6b66d', b:'#efe4c8' },
-      ],
-    },
-  };
-  const VIR_CARD_SKINS = ['signature', 'neon', 'esports', 'metal', 'warm', 'focus'];
-  const VIR_CARD_TONES = VIR_CARD_SKINS.reduce((/** @type {Record<string, import('./src/types/theme-data.js').CardTone[]>} */ acc, id) => {
-    const recipe = VIR_THEME_RECIPES[id];
-    if (recipe && recipe.tones && recipe.tones.length) acc[id] = recipe.tones;
-    return acc;
-  }, {});
-  /** @param {string} skin */
-  function themeRecipeForSkin(skin) { return VIR_THEME_RECIPES[skin] || VIR_THEME_RECIPES.signature; }
-  /** @param {string} activeSkin */
-  function renderCardSkinPicker(activeSkin) {
-    const host = $('virtuoso_lab-cardskin-pick'); if (!host) return;
-    const active = VIR_CARD_SKINS.indexOf(activeSkin) !== -1 ? activeSkin : 'signature';
-    host.innerHTML = '';
-    VIR_CARD_SKINS.forEach(id => {
-      const r = themeRecipeForSkin(id), p = r.preview || {};
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'virtuoso_lab-skin-card' + (id === active ? ' active' : '');
-      b.dataset.cardskin = id;
-      b.title = r.role || r.label;
-      b.setAttribute('aria-label', r.label + ' theme');
-      b.style.setProperty('--skin-surface', p.surface || '#0d1424');
-      b.style.setProperty('--skin-frame', p.frame || '#334155');
-      b.style.setProperty('--skin-text', p.text || '#f8fafc');
-      b.style.setProperty('--skin-a', p.a || '#2563eb');
-      b.style.setProperty('--skin-b', p.b || '#60a5fa');
-      b.style.setProperty('--skin-radius', p.radius || '8px');
-      b.style.setProperty('--skin-shadow', p.shadow || 'none');
-      b.innerHTML = '<span class="virtuoso_lab-skin-card-visual" aria-hidden="true"><span></span><i></i><b></b></span>' +
-        '<span class="virtuoso_lab-skin-card-copy"><strong>' + r.label + '</strong><em>' + (r.role || '') + '</em></span>' +
-        '<span class="virtuoso_lab-skin-card-axes" aria-hidden="true">' + (r.axes || []).slice(0, 3).map(x => '<i>' + x + '</i>').join('') + '</span>';
-      b.addEventListener('click', () => applyCardSkin(id));
-      host.appendChild(b);
-    });
-  }
-  /** @param {string} skin */
-  function cardToneForSkin(skin) {
-    if (!VIR_CARD_TONES[skin]) return 'default';
-    try {
-      const t = localStorage.getItem('virtuoso_lab.cardTone.' + skin) || 'default';
-      return VIR_CARD_TONES[skin].some(x => x.id === t) ? t : 'default';
-    } catch (_) { return 'default'; }
-  }
-  /** @param {string} skin @param {string} tone */
-  function renderCardTonePicker(skin, tone) {
-    const group = $('virtuoso_lab-cardtone-group'), host = $('virtuoso_lab-cardtone-pick'), label = $('virtuoso_lab-cardtone-label');
-    if (!group || !host) return;
-    const tones = VIR_CARD_TONES[skin] || [];
-    group.hidden = !tones.length;
-    group.classList.toggle('is-disabled', !tones.length);
-    if (label) label.textContent = tones.length ? `${skin[0].toUpperCase() + skin.slice(1)} color` : 'Theme color';
-    host.innerHTML = '';
-    tones.forEach(t => {
-      const b = document.createElement('button');
-      b.type = 'button';
-      b.className = 'virtuoso_lab-cardtone-swatch' + (t.id === tone ? ' active' : '');
-      b.dataset.cardtone = t.id;
-      b.style.setProperty('--sw-a', t.a);
-      b.style.setProperty('--sw-b', t.b);
-      b.title = t.label;
-      b.setAttribute('aria-label', t.label);
-      b.addEventListener('click', () => applyCardTone(skin, t.id));
-      host.appendChild(b);
-    });
-  }
-  /** @param {string} skin @param {string} tone */
-  function applyCardTone(skin, tone) {
-    const root = $('virtuoso_lab-root'); if (!root) return;
-    const tones = VIR_CARD_TONES[skin] || [];
-    const id = tones.some(t => t.id === tone) ? tone : 'default';
-    if (tones.length && id !== 'default') root.setAttribute('data-virtuoso_lab_vir-cardtone', id);
-    else root.removeAttribute('data-virtuoso_lab_vir-cardtone');
-    if (tones.length) { try { localStorage.setItem('virtuoso_lab.cardTone.' + skin, id); } catch (_) {} }
-    renderCardTonePicker(skin, id);
-  }
-  /** @param {string} name */
-  function applyCardSkin(name) {
-    const root = $('virtuoso_lab-root'); if (!root) return;
-    const skin = VIR_CARD_SKINS.indexOf(name) !== -1 ? name : 'signature';
-    const recipe = themeRecipeForSkin(skin);
-    if (skin === 'signature') {
-      root.removeAttribute('data-virtuoso_lab_vir-cardskin'); root.removeAttribute('data-virtuoso_lab_vir-cardtone'); root.removeAttribute('data-virtuoso_lab_vir-stageframe');
-    } else {
-      root.setAttribute('data-virtuoso_lab_vir-cardskin', skin);
-      root.setAttribute('data-virtuoso_lab_vir-stageframe', recipe.stageFrame?.style || skin);
-    }
-    try { localStorage.setItem('virtuoso_lab.cardSkin', skin); } catch (_) {}
-    renderCardSkinPicker(skin);
-    if (skin === 'signature') renderCardTonePicker(skin, 'default');
-    else applyCardTone(skin, cardToneForSkin(skin));
-    try { syncSkinScopeAvail(); } catch (_) {}
-  }
-  // Card-theme REACH (settings → Apply theme): whether the chosen skin also skins the whole
-  // cockpit. Stamps data-virtuoso_lab_vir-skincockpit on the root — read by the cockpit-extension CSS,
-  // which remaps the shell's --virtuoso_lab_vir-accent* to the skin's --virtuoso_lab_vir-card-* when ON. Default 'card'
-  // = calm cockpit (byte-identical). A no-op for Signature (no data-virtuoso_lab_vir-cardskin → no bleed).
-  /** @param {string} scope */
-  function applySkinScope(scope) {
-    const root = $('virtuoso_lab-root'); if (!root) return;
-    const on = scope === 'cockpit';
-    if (on) root.setAttribute('data-virtuoso_lab_vir-skincockpit', 'on');
-    else root.removeAttribute('data-virtuoso_lab_vir-skincockpit');
-    try { localStorage.setItem('virtuoso_lab.skinCockpit', on ? 'cockpit' : 'card'); } catch (_) {}
-    document.querySelectorAll('#virtuoso_lab-skinscope-pick .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', (b.dataset.skinscope || '') === (on ? 'cockpit' : 'card')));
-  }
-  // Grey the "Apply theme" toggle when the active Card theme is Signature — nothing to extend
-  // (Signature already follows the Accent picker; the cockpit bleed only applies to a real skin).
-  function syncSkinScopeAvail() {
-    let skin = 'signature'; try { skin = localStorage.getItem('virtuoso_lab.cardSkin') || 'signature'; } catch (_) {}
-    const grp = $('virtuoso_lab-skinscope-group');
-    if (grp) grp.classList.toggle('is-disabled', skin === 'signature');
-  }
   /** @param {string} val */
   function applyCountInDefault(val) {
     const bars = Math.max(1, Math.min(8, parseInt(val, 10) || 1));
@@ -7696,11 +7459,9 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     syncTransport();
   }
   function loadSettingsPrefs() {
-    let theme = '', xp = 'casual', ci = null;
-    try { theme = localStorage.getItem('virtuoso_lab.theme') || ''; } catch (_) {}
+    let xp = 'casual', ci = null;
     try { xp = localStorage.getItem('virtuoso_lab.xpMode') || 'casual'; } catch (_) {}
     try { ci = localStorage.getItem('virtuoso_lab.countInDefault'); } catch (_) {}
-    applyTheme(theme);
     applyXpModeDefault(xp);
     // A count-in is ALWAYS on (≥1 bar) — the 0-bar "drop-in" is a DAW recording
     // convenience, not a practice need (removed 2026-06-09). A stored value sets
@@ -7712,10 +7473,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     applyCountInGrid(countInGridOn() ? 'on' : 'off');
     let energy = 'lit'; try { energy = localStorage.getItem('virtuoso_lab.energy') || 'lit'; } catch (_) {}
     applyEnergy(energy);
-    let cardSkin = 'signature'; try { cardSkin = localStorage.getItem('virtuoso_lab.cardSkin') || 'signature'; } catch (_) {}
-    applyCardSkin(cardSkin);
-    let skinScope = 'card'; try { skinScope = localStorage.getItem('virtuoso_lab.skinCockpit') || 'card'; } catch (_) {}
-    applySkinScope(skinScope);
   }
 
   /** @param {AudioContext} ctx @param {number} when @param {number} freq @param {number} dur @param {string} instrument @param {number} gainScale @param {number} bendSemis */
@@ -12324,108 +12081,58 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     let t = text; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
     return t + '…';
   }
-  // Ensure the ACTIVE card theme's display face is resident before the canvas rasterizes
-  // (the DOM card gets it via CSS font-display; the canvas needs it loaded, or it falls
-  // back to a system font). Signature/Neon use VirtuosoLabDisplay (Orbitron); Esports adds
-  // Rajdhani; Metal adds Russo One (both lazy-served from /font — first render fetches them).
+  // Ensure the shared display face is resident before the canvas rasterizes.
   async function loadCardFonts() {
     if (!(document.fonts && document.fonts.load)) return;
-    let skin = 'signature'; try { skin = $('virtuoso_lab-root')?.getAttribute('data-virtuoso_lab_vir-cardskin') || 'signature'; } catch (_) {}
     const faces = ["700 64px 'VirtuosoLabDisplay'", "700 18px 'VirtuosoLabDisplay'"];
-    // Load the exact weights the canvas draws (800 wordmark, 700 hero/labels) so the strict
-    // canvas font-match resolves to the skin face instead of dropping to VirtuosoLabDisplay.
-    if (skin === 'esports') faces.push("800 64px 'VirtuosoLabEsports'", "700 64px 'VirtuosoLabEsports'", "700 18px 'VirtuosoLabEsports'");
-    else if (skin === 'metal') faces.push("800 64px 'VirtuosoLabMetal'", "700 64px 'VirtuosoLabMetal'", "700 18px 'VirtuosoLabMetal'");
     try { await Promise.all(faces.map(f => document.fonts.load(f))); } catch (_) {}
-    // Await full readiness — canvas font-matching drops a not-yet-ready face to the next
-    // family in the stack, so the skin font can otherwise lose the first paint after load.
     try { if (document.fonts.ready) await document.fonts.ready; } catch (_) {}
-    // Warm the canvas font cache: the FIRST canvas draw with a just-readied face can still
-    // miss it (Chromium caches per 2d context), so prime a throwaway context with each face
-    // before renderShareCardImage draws for real. Cheap; makes the skin font deterministic.
     try {
       const wc = document.createElement('canvas').getContext('2d');
       if (wc) faces.forEach(f => { wc.font = f; wc.fillText('Mg', -50, -50); });
     } catch (_) {}
   }
-  // The card IMAGE — a canvas render of the SAME model (ux spec: 1200×630, verdict-led,
-  // green ✓ only on a true clear, theme palette/font read live off --virtuoso_lab_vir-card-*; same-origin
-  // → toBlob won't taint). Returns the canvas, or null.
+  // The card image is rendered from the same verdict-led model as the on-screen card.
   /** @param {import('./src/types/results-data.js').RunSummary | null} s */
   function renderShareCardImage(s) {
     const m = shareCardModel(s); if (!m) return null;
     const W = 1200, H = 630, P = 64;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const ctx = cv.getContext('2d'); if (!ctx) return null;
-    // Card THEME (settings → Card theme). Signature = today's look (the original path,
-    // reading --virtuoso_lab_vir-accent-*); neon/esports/metal read the SAME --virtuoso_lab_vir-card-* contract the
-    // DOM card uses, so the copy card matches the on-screen card. Green stays cleared-only.
+    // The exported card follows the same host-mapped palette as the screen.
     const GREEN = '#22c55e';
-    let accent = '#60a5fa', accentSoft = 'rgba(96,165,250,0.18)', cardBg = null;
-    let skin = 'signature', glow = true, radius = 18;
+    let accent = '#3b82f6', accentSoft = 'rgba(59,130,246,0.26)';
     let TXT = '#f8fafc', DIM = '#cbd5e1', MUT = '#94a3b8';
+    let cardBg = '#111827';
     const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
     const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-    let DISP = `'VirtuosoLabDisplay', 'Orbitron', ${SANS}`;
+    const DISP = `'VirtuosoLabDisplay', 'Orbitron', ${SANS}`;
     try {
       const root = $('virtuoso_lab-root');
       if (root) {
         const cs = getComputedStyle(root);
-        skin = root.getAttribute('data-virtuoso_lab_vir-cardskin') || 'signature';
-        /** @template {string | null} Fallback @param {string} n @param {Fallback} f @returns {string | Fallback} */
-        const gv = (n, f) => { const v = cs.getPropertyValue(n).trim(); return v || f; };
-        if (skin === 'signature') {
-          accent = gv('--virtuoso_lab_vir-accent-edge', accent);
-          accentSoft = gv('--virtuoso_lab_vir-accent-soft', accentSoft);
-        } else {
-          accent = gv('--virtuoso_lab_vir-card-accent', accent);
-          accentSoft = gv('--virtuoso_lab_vir-card-accent-soft', accentSoft);
-          cardBg = gv('--virtuoso_lab_vir-card-bg', null);
-          TXT = gv('--virtuoso_lab_vir-card-text', TXT);
-          DIM = gv('--virtuoso_lab_vir-card-dim', DIM);
-          MUT = gv('--virtuoso_lab_vir-card-faint', MUT);
-          glow = gv('--virtuoso_lab_vir-card-glow', '1') !== '0';
-          radius = parseInt(gv('--virtuoso_lab_vir-card-radius', '18'), 10); if (!isFinite(radius)) radius = 18;
-          // Plain, NAMESPACED family names — the DOM font token nests a var() the canvas
-          // can't parse, and the namespaced names avoid colliding with note_detect's faces.
-          // NB: do NOT list VirtuosoLabDisplay as the fallback — canvas prefers the always-ready
-          // base64-inline face over a URL-loaded first font, so the skin face would lose.
-          // A plain sans fallback lets the (warmed) skin face win; it only shows if the
-          // skin font genuinely failed to load.
-          /** @type {Record<string, string>} */
-          const CF = { neon: "'VirtuosoLabDisplay'", esports: "'VirtuosoLabEsports'", metal: "'VirtuosoLabMetal'", warm: "'Rockwell','Roboto Slab','Zilla Slab',Georgia,serif" };
-          DISP = CF[skin] ? `${CF[skin]}, ${SANS}` : SANS;   // focus has no display face → base sans
-        }
+        /** @param {string} n @param {string} fallback */
+        const gv = (n, fallback) => cs.getPropertyValue(n).trim() || fallback;
+        accent = gv('--virtuoso_lab_vir-accent-edge', accent);
+        accentSoft = gv('--virtuoso_lab_vir-accent-soft', accentSoft);
+        TXT = gv('--virtuoso_lab_vir-fg', TXT);
+        DIM = gv('--virtuoso_lab_vir-text-dim', DIM);
+        MUT = gv('--virtuoso_lab_vir-text-muted', MUT);
+        cardBg = gv('--virtuoso_lab_vir-card', cardBg);
       }
     } catch (_) {}
-    // A skin forces its display face on the whole card (identity); Signature keeps the
-    // toggle-back rule (display face in Lit only, system face in Calm).
     let lit = false; try { lit = !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-lit'); } catch (_) {}
-    const HEAD = (skin !== 'signature' || lit) ? 'disp' : false;
+    const HEAD = lit ? 'disp' : false;
+    const radius = 18;
+    const glow = true;
     /** @param {number} px @param {number} w @param {string | boolean} [m] */
     const font = (px, w, m) => ctx.font = `${w} ${px}px ${m === 'disp' ? DISP : m ? MONO : SANS}`;
     /** @param {number} x @param {number} y @param {number} w @param {number} h @param {number} r */
     const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
-    // Background: Signature keeps its subtle gradient; Metal paints a brushed-steel
-    // gradient (the feTurbulence grunge is DOM-only); other skins paint an opaque base
-    // then their panel color (the skin bg tokens are translucent → no see-through PNG).
-    if (skin === 'metal') {
-      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#3a3f46'); g.addColorStop(0.55, '#24272c'); g.addColorStop(1, '#1a1c20');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    } else if (skin === 'warm') {
-      const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, '#34241a'); g.addColorStop(0.55, '#2a1d16'); g.addColorStop(1, '#201510');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    } else if (skin !== 'signature') {
-      ctx.fillStyle = '#0a0e1a'; ctx.fillRect(0, 0, W, H);
-      if (cardBg) { ctx.fillStyle = cardBg; ctx.fillRect(0, 0, W, H); }
-    } else {
-      const bg = ctx.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#080812'); bg.addColorStop(1, '#0d0d18');
-      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    }
-    // Frame — the live card's glow-ring recipe MIRRORed onto the canvas: an earned card
-    // frames in meter-green (the cleared-only color), otherwise the theme accent. A soft
-    // corner bloom adds depth (skipped for the glow-less esports skin); big readouts stay
-    // crisp (no glow on the text itself — legibility over spectacle).
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, cardBg); bg.addColorStop(1, cardBg);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    // Earned cards use the locked meter green; other cards follow the host accent.
     const frameC = m.heroGreen ? GREEN : accent;
     if (glow) {
       const cg = ctx.createRadialGradient(150, 130, 0, 150, 130, 560);
@@ -12435,7 +12142,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     ctx.fillStyle = frameC; ctx.fillRect(0, 0, W, 5);                                   // accent spine (earned → green)
     ctx.save();
     ctx.shadowColor = frameC; ctx.shadowBlur = glow ? 26 : 0; ctx.lineWidth = 2; ctx.strokeStyle = frameC;
-    pill(26, 26, W - 52, H - 52, radius); ctx.stroke();                                 // frame (glowing unless the skin is glow-less; square when radius 0)
+    pill(26, 26, W - 52, H - 52, radius); ctx.stroke();                                 // accent frame
     ctx.shadowBlur = 0; ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.05)';
     pill(29, 29, W - 58, H - 58, Math.max(0, radius - 2)); ctx.stroke();                // inner bevel hairline
     ctx.restore();
@@ -12510,19 +12217,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // Returns 'copied' | 'saved' | 'copied-text' | 'failed'.
   /** @param {import('./src/types/results-data.js').RunSummary | null} s @param {string} action */
   async function shareCardAction(s, action) {
-    // Virtuoso renders its OWN verdict-led, skinned card — the ratified v0.1.4
-    // decision (memory project_card_theme_skins): "KEEP our renderer, don't
-    // consume note_detect's." The card is north-star IP and carries our skins
-    // (Neon/Esports/Metal/Warm/Focus) + the mastery crest. The old delegation to
-    // window.noteDetect.renderResultsCard is RETIRED here: whenever note_detect
-    // was present it PREFERRED note_detect's renderer, which (a) drew its hero
-    // accuracy from note_detect's own last-session counters — 0/0 under our
-    // contained verifier, the "ACCURACY 0% · 0/0 notes hit" bug (same mechanism
-    // as the v0.1.8 leak) — while our real numbers only reached the stats[] row,
-    // and (b) suppressed every skin + the crest on desktop (the headless smoke
-    // host lacks note_detect's card API, so the skin probes never exercised this
-    // path). The unused private delegation adapters have been retired.
-    // Ensure the active theme's display face is loaded before the canvas rasterizes
+    // The share card uses Virtuoso's own session model and shared display face.
     // (the DOM card gets it via CSS font-display; the canvas needs it resident).
     await loadCardFonts();
     const cv = renderShareCardImage(s);
@@ -13544,12 +13239,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function syncViewSwitcher(kind) {
     rendererLifecycle.syncView(kind);
   }
-  function syncThemeButtons() {
-    document.querySelectorAll('.virtuoso_lab-theme-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.theme === currentRenderTheme);
-    });
-  }
-
   /** @param {string} kind */
   async function onViewSwitch(kind) {
     rendererLifecycle.selectView(kind);
@@ -14136,11 +13825,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       sw.value = b.dataset.feel; syncFeelControl();
       sw.dispatchEvent(new Event('change', { bubbles: true }));
     }));
-    // Theme toggle (Light / Dark) for Tab + Notation.
-    document.querySelectorAll('.virtuoso_lab-theme-btn').forEach(btn => {
-      btn.addEventListener('click', () => { setRenderTheme(btn.dataset.theme); syncThemeButtons(); });
-    });
-    syncThemeButtons();
     // One-time migration: an earlier bug let the bass auto-switch persist
     // 'builtin_2d' as the renderer preference, stranding 6-string guitar users
     // on the 2D highway every startup. Clear that stale value once so the 3D
@@ -14529,14 +14213,11 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       toggleSettingsMenu(false);
     try { const bus = hostBus(); if (bus && typeof bus.navigate === 'function') bus.navigate('settings'); } catch (_) {}
     });
-    // Settings prefs: accent theme · default XP mode · default count-in.
-    document.querySelectorAll('#virtuoso_lab-theme-pick .virtuoso_lab-theme-swatch').forEach(b => b.addEventListener('click', () => applyTheme(b.dataset.theme || '')));
+    // Settings prefs: default XP mode, count-in and Studio energy.
     document.querySelectorAll('#virtuoso_lab-xp-mode .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
     $('virtuoso_lab-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso_lab.countInDefault', (/** @type {HTMLSelectElement} */ (e.target)).value); } catch (_) {} applyCountInDefault((/** @type {HTMLSelectElement} */ (e.target)).value); });
     document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso_lab.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
     document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
-    renderCardSkinPicker('signature');
-    document.querySelectorAll('#virtuoso_lab-skinscope-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applySkinScope(b.dataset.skinscope)));
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
       const menu = $('virtuoso_lab-settings-menu'); if (!menu || !menu.classList.contains('virtuoso_lab_vir-open')) return;

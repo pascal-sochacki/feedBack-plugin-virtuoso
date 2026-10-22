@@ -9,7 +9,7 @@ export function makeBuiltin2DTabRenderer({ getRenderTheme, handMarksOn }) {
   // Standard guitar-tab look: paper background, string lines, fret numbers
   // sitting on the strings with the line broken behind each number, plain
   // bar lines, chord names above the staff, HOPO arcs, slides and bends as
-  // inline glyphs. Light/dark theme via getRenderTheme().
+  // inline glyphs. The display palette stays fixed to the light presentation.
   /** @type {HTMLCanvasElement | null} */
   let canvas = null;
   /** @type {CanvasRenderingContext2D | null} */

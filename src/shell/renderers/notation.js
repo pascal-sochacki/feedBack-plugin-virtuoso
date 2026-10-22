@@ -8,10 +8,8 @@ import { resolveNotationKey, STAFF_NATURALS } from './notation-pitch.js';
  * @returns {import('./renderer-types.js').NotationRenderer} */
 export function makeBuiltin2DNotationRenderer({ getRenderTheme, handMarksOn }) {
   // Standard staff notation: treble clef for guitar (8va transposing) or
-  // bass clef for bass. Key signature, note heads, stems, beams (8th/16th
-  // groups), ledger lines, accidentals. Light/dark theme via
-  // getRenderTheme() — light is the parchment-and-ink look that matches
-  // the Tab renderer; dark is a navy ground with white ink.
+  // bass clef. Key signature, note heads, stems, beams (8th/16th groups),
+  // ledger lines, and accidentals use the fixed palette shared with Tab.
   /** @type {HTMLCanvasElement | null} */
   let canvas = null;
   /** @type {CanvasRenderingContext2D | null} */

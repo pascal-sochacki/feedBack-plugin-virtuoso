@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { NOTE_NAMES } from '../../core/pitch.js';
 
-// Ordinary mutable palettes stay shared with entry; only its active theme binding
-// and persisted hand-mark preference are read through the live factory contract.
+// The render palette remains fixed to the shipped light presentation; hand-mark
+// preference is read through the live factory contract.
 /** @type {Record<string, import('./renderer-types.js').RenderTheme>} */
 export const RENDER_THEMES = {
   light: {
@@ -24,26 +24,6 @@ export const RENDER_THEMES = {
     bend: '#1a1a1a',
     playhead: '#b91c1c',     // red playhead
     faintLine: 'rgba(0,0,0,0.25)',
-  },
-  dark: {
-    bg: '#0a1322',           // navy ground
-    bgAlt: '#070c18',
-    ink: '#e2e8f0',
-    inkSoft: '#cbd5e1',
-    dim: '#94a3b8',
-    ledger: '#cbd5e1',
-    noteFill: '#e2e8f0',
-    noteOutline: '#e2e8f0',
-    stem: '#e2e8f0',
-    beam: '#e2e8f0',
-    keysig: '#e2e8f0',
-    accidental: '#e2e8f0',
-    chordName: '#bfdbfe',
-    sectionLabel: '#fbcfe8',
-    hopo: '#cbd5e1',
-    bend: '#cbd5e1',
-    playhead: '#f87171',
-    faintLine: 'rgba(226,232,240,0.18)',
   },
 };
 export const HANDMARK_FINGERS_LESSON = new Set(['chromatic', 'spider', 'sweep_arpeggios', 'fingerstyle_arp']);

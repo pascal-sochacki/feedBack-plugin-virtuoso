@@ -75,7 +75,6 @@ export function createRendererLifecycle(dependencies) {
     if (select && select.value !== kind) select.value = kind;
     const root = element('virtuoso_lab-root');
     if (root) {
-      root.classList.toggle('virtuoso_lab-theme-renderer', kind === 'tab_2d' || kind === 'notation_2d');
       root.classList.toggle('virtuoso_lab-fb-capable', ['highway_3d', 'highway_2d', 'builtin_2d', 'tab_2d', 'notation_2d'].includes(kind));
       root.classList.toggle('virtuoso_lab-hud-title-on', kind === 'highway_3d');
     }

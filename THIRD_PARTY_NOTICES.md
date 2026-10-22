@@ -90,6 +90,6 @@ remain ignored and must never enter the publication allowlist.
 
 ## Fonts — SIL Open Font License 1.1
 
-Black Ops One, Orbitron, Rajdhani and Russo One WOFF2 assets retain the full
-original copyright and OFL texts in `assets/fonts/OFL-*.txt`. No font/license
-bytes or reserved font names are changed by Lab packaging.
+Orbitron WOFF2 assets retain the full original copyright and OFL text in
+`assets/fonts/OFL-orbitron.txt`. No font/license bytes or reserved font names
+are changed by Lab packaging.

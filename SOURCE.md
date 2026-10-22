@@ -22,6 +22,10 @@ AGPL Markdown Ladder pilot, modular core/content/renderer/Workout foundations
 and reviewed staff/beam/page-lifecycle fixes. Authorized Lab candidate 0.2.13-lab.1;
 no stable or installed-host certification. No new third-party assets; vendor texts unchanged.
 
+Experimental source 0.2.14 modification notice (2026-10-22): integrates host
+themes and removes the plugin's local theme skins and pickers. Lab candidate
+0.2.14-lab.2; unpublished and not installed-host certified.
+
 The installation consists of editable native JS, HTML, Python and assets.
 No plugin source transpilation or runtime build is required. Source for each
 published install is the Git revision containing that install's `plugin.json`:
