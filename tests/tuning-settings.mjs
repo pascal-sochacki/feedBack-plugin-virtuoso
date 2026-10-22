@@ -96,7 +96,7 @@ test('practice preset loads are latest-request and visit owned; stale handlers a
 function dom() {
   class Element {
     constructor() {this.handlers=new Map();this.dataset={};this.style={};this.children=[];this.value='';this.classList={add(){},remove(){}};}
-    set innerHTML(_) {this.children=[];}
+    replaceChildren(...children) {this.children=[...children];}
     get options() {return this.children.flatMap(el=>el.children.length ? el.children : [el]);}
     get selectedIndex() {return this.options.findIndex(el=>el.value===this.value);}
     appendChild(el) {this.children.push(el);}
@@ -107,7 +107,7 @@ function dom() {
   }
   const nodes = new Map(['tuning-select','save-tuning','custom-open-midis','custom-tuning','custom-tuning-inputs'].map(id=>['virtuoso_lab-'+id,new Element()]));
   const setup=new Element(),instrument=new Element(); setup.value='guitar_6_standard'; instrument.value='guitar';
-  globalThis.document={getElementById:id=>nodes.get(id)||null,querySelector:selector=>selector.includes('stringSetup')?setup:instrument,querySelectorAll:()=>nodes.get('virtuoso_lab-custom-tuning-inputs').children,createElement:()=>new Element()};
+  globalThis.document={getElementById:id=>nodes.get(id)||null,querySelector:selector=>selector.includes('stringSetup')?setup:instrument,querySelectorAll:()=>nodes.get('virtuoso_lab-custom-tuning-inputs').children,createElement:()=>new Element(),createTextNode:text=>({textContent:String(text)})};
   globalThis.window={prompt:()=>null};
   return {nodes,setup,instrument};
 }

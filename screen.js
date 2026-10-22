@@ -60,9 +60,12 @@ import {} from './src/core/practice-files.js';
 import { PATHWAYS } from './src/content/pathways.js';
 import { BUILT_IN_SESSIONS } from './src/content/workouts.js';
 import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } from './src/content/pathway-bands.js';
+import { el as domEl } from './src/shell/dom.js';
 
 (function () {
   'use strict';
+
+  const ui = (tag, className, ...children) => domEl(tag, {className}, ...children);
 
   // ===========================================================================
   // TABLE OF CONTENTS
@@ -3575,7 +3578,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         } catch (_) {}
       }
       if (doneEl) doneEl.textContent = doneTxt;
-      if (nextEl) nextEl.innerHTML = `Next ▸ ${v.next.name || 'next'} <span class="virtuoso_lab-seam-pos">· block ${v.idx + 1} of ${v.total}</span>`;
+      if (nextEl) nextEl.replaceChildren('Next ▸ ', v.next.name || 'next', domEl('span', {className:'virtuoso_lab-seam-pos'}, `· block ${v.idx + 1} of ${v.total}`));
       el.classList.add('is-on');
       _seamCapKey = key;
     }
@@ -4815,40 +4818,27 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     band.forEach(c => { curSig[c.key] = meta[c.key].headline; });
     if (_mxVisible && _mixerRevealSig) band.forEach(c => { if ((/** @type {Record<string, string | null>} */ (_mixerRevealSig))[c.key] !== curSig[c.key]) reveal[c.key] = true; });
     if (_mxVisible) _mixerRevealSig = curSig;
+    const meter = (key, wide = false) => domEl('div', {className:`virtuoso_lab-mixer-meter${wide ? ' wide' : ''}`, 'aria-hidden':'true'}, domEl('div', {className:'virtuoso_lab-mixer-meter-fill', dataset:{k:key}}));
     /** @param {import('./src/types/audio-graph.js').MixerChannel} c */
-    const stripHtml = (c) => {
+    const stripNode = (c) => {
       const st = mixerState[c.key];
       const m = meta[c.key], headline = m ? m.headline : c.label, chip = m ? m.chip : '';
-      const selHtml = c.instr
-        ? `<select class="virtuoso_lab-mixer-instr" data-k="${c.key}" title="${headline} instrument" aria-label="${headline} instrument">` +
-            MIXER_INSTRUMENTS[c.instr].map(([v, l]) => `<option value="${v}"${(st.instrument || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
-          `</select>`
-        : c.kit
-        ? `<select class="virtuoso_lab-mixer-kit" data-k="${c.key}" title="${headline} kit" aria-label="${headline} kit">` +
-            MIXER_KITS.map(([v, l]) => `<option value="${v}"${(st.kit || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
-          `</select>`
-        : `<span class="virtuoso_lab-mixer-instr-none" aria-hidden="true"></span>`;
+      const selectNode = (cls, values, selected, title) => domEl('select', {className:cls, dataset:{k:c.key}, title, 'aria-label':title}, values.map(([v, l]) => domEl('option', {value:v, selected:selected === v}, l)));
+      const selNode = c.instr ? selectNode('virtuoso_lab-mixer-instr', MIXER_INSTRUMENTS[c.instr], st.instrument || '', `${headline} instrument`)
+        : c.kit ? selectNode('virtuoso_lab-mixer-kit', MIXER_KITS, st.kit || '', `${headline} kit`)
+          : domEl('span', {className:'virtuoso_lab-mixer-instr-none', 'aria-hidden':'true'});
       // Amp insert row (Guide + Rhythm); other strips get a spacer so the
       // console rows stay aligned (design-in-context: one grid, no ragged strips).
-      const ampHtml = c.amp
-        ? `<select class="virtuoso_lab-mixer-amp" data-k="${c.key}" title="${headline} amp (Clean / Overdrive / Metal)" aria-label="${headline} amp">` +
-            AMP_OPTIONS.map(([v, l]) => `<option value="${v}"${(st.amp || '') === v ? ' selected' : ''}>${l}</option>`).join('') +
-          `</select>`
-        : `<span class="virtuoso_lab-mixer-instr-none" aria-hidden="true"></span>`;
-      return `<div class="virtuoso_lab-mixer-strip${c.dynamic ? ' dynamic' : ''}${reveal[c.key] ? ' reveal' : ''}" data-strip="${c.key}">` +
-        selHtml + ampHtml +
-        `<input type="range" class="virtuoso_lab-mixer-pan" data-k="${c.key}" min="-1" max="1" step="0.01" value="${mixerPanFor(c.key)}" aria-label="${headline} pan" title="Pan — double-click to reset">` +
-        `<div class="virtuoso_lab-mixer-msrow">` +
-          `<button type="button" class="virtuoso_lab-mixer-tog mute${st.mute ? ' active' : ''}" data-k="${c.key}" data-act="mute" title="Mute" aria-pressed="${st.mute}">M</button>` +
-          `<button type="button" class="virtuoso_lab-mixer-tog solo${st.solo ? ' active' : ''}" data-k="${c.key}" data-act="solo" title="Solo" aria-pressed="${st.solo}">S</button>` +
-        `</div>` +
-        `<div class="virtuoso_lab-mixer-fadercol">` +
-          `<input type="range" class="virtuoso_lab-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(st.level)}" data-k="${c.key}" aria-label="${headline} level" aria-orientation="vertical">` +
-          `<div class="virtuoso_lab-mixer-meter" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="${c.key}"></div></div>` +
-        `</div>` +
-        `<span class="virtuoso_lab-mixer-val" data-k="${c.key}">${faderDb(st.level)}</span>` +
-        `<span class="virtuoso_lab-mixer-ch-label">${headline}${chip ? `<span class="virtuoso_lab-mixer-rolechip">${chip}</span>` : ''}</span>` +
-      `</div>`;
+      const ampNode = c.amp ? selectNode('virtuoso_lab-mixer-amp', AMP_OPTIONS, st.amp || '', `${headline} amp (Clean / Overdrive / Metal)`)
+        : domEl('span', {className:'virtuoso_lab-mixer-instr-none', 'aria-hidden':'true'});
+      const toggle = (mode, active, label, title) => domEl('button', {type:'button', className:`virtuoso_lab-mixer-tog ${mode}${active ? ' active' : ''}`, dataset:{k:c.key, act:mode}, title, 'aria-pressed':active}, label);
+      return domEl('div', {className:`virtuoso_lab-mixer-strip${c.dynamic ? ' dynamic' : ''}${reveal[c.key] ? ' reveal' : ''}`, dataset:{strip:c.key}},
+        selNode, ampNode,
+        domEl('input', {type:'range', className:'virtuoso_lab-mixer-pan', dataset:{k:c.key}, min:-1, max:1, step:.01, value:mixerPanFor(c.key), 'aria-label':`${headline} pan`, title:'Pan — double-click to reset'}),
+        domEl('div', {className:'virtuoso_lab-mixer-msrow'}, toggle('mute', st.mute, 'M', 'Mute'), toggle('solo', st.solo, 'S', 'Solo')),
+        domEl('div', {className:'virtuoso_lab-mixer-fadercol'}, domEl('input', {type:'range', className:'virtuoso_lab-mixer-fader', min:0, max:1, step:.005, value:faderPosFromGain(st.level), dataset:{k:c.key}, 'aria-label':`${headline} level`, 'aria-orientation':'vertical'}), meter(c.key)),
+        domEl('span', {className:'virtuoso_lab-mixer-val', dataset:{k:c.key}}, faderDb(st.level)),
+        domEl('span', {className:'virtuoso_lab-mixer-ch-label'}, headline, chip ? domEl('span', {className:'virtuoso_lab-mixer-rolechip'}, chip) : null));
     };
     // INPUT strip (far left, console convention): the player's LIVE guitar/bass
     // input. Virtuoso never processes that signal — the host owns monitoring —
@@ -4856,46 +4846,27 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // level tap) + shortcuts to the host's audio settings and, when the
     // nam_tone plugin is installed, its amp-tone screen (feature-detected).
     const hasNamTone = !!document.getElementById('plugin-nam_tone');
-    const inputHtml =
-      `<div class="virtuoso_lab-mixer-strip input" data-strip="input">` +
-        `<div class="virtuoso_lab-mixer-lim" title="Your live input — the signal the judge hears">YOU</div>` +
-        `<div class="virtuoso_lab-mixer-inbtns">` +
-          `<button type="button" class="virtuoso_lab-mixer-inbtn" data-go="settings" title="Audio interface & host settings">Audio…</button>` +
-          (hasNamTone ? `<button type="button" class="virtuoso_lab-mixer-inbtn" data-go="plugin-nam_tone" title="Amp tone setup (NAM)">Tone…</button>` : '') +
-        `</div>` +
-        `<div class="virtuoso_lab-mixer-fadercol input">` +
-          `<div class="virtuoso_lab-mixer-meter wide" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="input"></div></div>` +
-        `</div>` +
-        `<span class="virtuoso_lab-mixer-val" data-k="input">in</span>` +
-        `<span class="virtuoso_lab-mixer-ch-label">Input</span>` +
-      `</div>`;
-    const masterHtml =
-      `<div class="virtuoso_lab-mixer-strip master" data-strip="master">` +
-        `<div class="virtuoso_lab-mixer-lim" id="virtuoso_lab-mixer-lim" title="Master limiter activity"><span class="virtuoso_lab-mixer-led"></span>LIM</div>` +
-        `<div class="virtuoso_lab-mixer-msrow">` +
-          `<button type="button" class="virtuoso_lab-mixer-tog dim${mixerBackingDim ? ' active' : ''}" data-act="dim" title="Duck the backing band (practice focus)" aria-pressed="${mixerBackingDim}">Dim</button>` +
-        `</div>` +
-        `<div class="virtuoso_lab-mixer-fadercol">` +
-          `<input type="range" class="virtuoso_lab-mixer-fader" min="0" max="1" step="0.005" value="${faderPosFromGain(mixerMasterLevel)}" data-k="master" aria-label="Master level" aria-orientation="vertical">` +
-          `<div class="virtuoso_lab-mixer-meter" aria-hidden="true"><div class="virtuoso_lab-mixer-meter-fill" data-k="master"></div></div>` +
-        `</div>` +
-        `<span class="virtuoso_lab-mixer-val" data-k="master">${faderDb(mixerMasterLevel)}</span>` +
-        `<span class="virtuoso_lab-mixer-ch-label">Master</span>` +
-      `</div>`;
+    const inputNode = domEl('div', {className:'virtuoso_lab-mixer-strip input', dataset:{strip:'input'}},
+      domEl('div', {className:'virtuoso_lab-mixer-lim', title:'Your live input — the signal the judge hears'}, 'YOU'),
+      domEl('div', {className:'virtuoso_lab-mixer-inbtns'}, domEl('button', {type:'button', className:'virtuoso_lab-mixer-inbtn', dataset:{go:'settings'}, title:'Audio interface & host settings'}, 'Audio…'), hasNamTone ? domEl('button', {type:'button', className:'virtuoso_lab-mixer-inbtn', dataset:{go:'plugin-nam_tone'}, title:'Amp tone setup (NAM)'}, 'Tone…') : null),
+      domEl('div', {className:'virtuoso_lab-mixer-fadercol input'}, meter('input', true)), domEl('span', {className:'virtuoso_lab-mixer-val', dataset:{k:'input'}}, 'in'), domEl('span', {className:'virtuoso_lab-mixer-ch-label'}, 'Input'));
+    const masterNode = domEl('div', {className:'virtuoso_lab-mixer-strip master', dataset:{strip:'master'}},
+      domEl('div', {className:'virtuoso_lab-mixer-lim', id:'virtuoso_lab-mixer-lim', title:'Master limiter activity'}, domEl('span', {className:'virtuoso_lab-mixer-led'}), 'LIM'),
+      domEl('div', {className:'virtuoso_lab-mixer-msrow'}, domEl('button', {type:'button', className:`virtuoso_lab-mixer-tog dim${mixerBackingDim ? ' active' : ''}`, dataset:{act:'dim'}, title:'Duck the backing band (practice focus)', 'aria-pressed':mixerBackingDim}, 'Dim')),
+      domEl('div', {className:'virtuoso_lab-mixer-fadercol'}, domEl('input', {type:'range', className:'virtuoso_lab-mixer-fader', min:0, max:1, step:.005, value:faderPosFromGain(mixerMasterLevel), dataset:{k:'master'}, 'aria-label':'Master level', 'aria-orientation':'vertical'}), meter('master')),
+      domEl('span', {className:'virtuoso_lab-mixer-val', dataset:{k:'master'}}, faderDb(mixerMasterLevel)), domEl('span', {className:'virtuoso_lab-mixer-ch-label'}, 'Master'));
     // One-line band caption (the band-reveal's verbal cue) + the PERSONAL│BAND│SUM deck.
     let styleName = '';
     try { const id = cfgAudioProfile((activeBundle && activeBundle.config) || readConfig()); styleName = (id && STYLE_PALETTES[id] && STYLE_PALETTES[id].label) || ''; } catch (_) {}
     const bandNames = band.map(c => meta[c.key].headline + (meta[c.key].chip ? ' ' + meta[c.key].chip : ''));
     const caption = band.length
-      ? `<div class="virtuoso_lab-mixer-caption">${styleName ? `<b>${styleName}</b> band — ` : 'Your band — '}${bandNames.join(' · ')}</div>`
-      : `<div class="virtuoso_lab-mixer-caption">Just you and the click — this drill has no backing band.</div>`;
-    /** @param {string} cls @param {string} label @param {string} strips */
-    const grp = (cls, label, strips) => `<div class="virtuoso_lab-mixer-group ${cls}"><span class="virtuoso_lab-mixer-grouplabel">${label}</span><div class="virtuoso_lab-mixer-groupstrips">${strips}</div></div>`;
-    host.innerHTML = caption + `<div class="virtuoso_lab-mixer-deck">` +
-      grp('personal', 'Personal', inputHtml + personal.map(stripHtml).join('')) +
-      grp('band', 'Band', band.length ? band.map(stripHtml).join('') : `<div class="virtuoso_lab-mixer-bandempty">No backing band for this drill.</div>`) +
-      grp('sum', 'Sum', masterHtml) +
-    `</div>`;
+      ? domEl('div', {className:'virtuoso_lab-mixer-caption'}, styleName ? domEl('b', null, styleName) : 'Your band', ' — ', bandNames.join(' · '))
+      : domEl('div', {className:'virtuoso_lab-mixer-caption'}, 'Just you and the click — this drill has no backing band.');
+    const grp = (cls, label, strips) => domEl('div', {className:`virtuoso_lab-mixer-group ${cls}`}, domEl('span', {className:'virtuoso_lab-mixer-grouplabel'}, label), domEl('div', {className:'virtuoso_lab-mixer-groupstrips'}, strips));
+    host.replaceChildren(caption, domEl('div', {className:'virtuoso_lab-mixer-deck'},
+      grp('personal', 'Personal', [inputNode, personal.map(stripNode)]),
+      grp('band', 'Band', band.length ? band.map(stripNode) : domEl('div', {className:'virtuoso_lab-mixer-bandempty'}, 'No backing band for this drill.')),
+      grp('sum', 'Sum', masterNode)));
   }
   // The Rig view (Mixer's second tab) — per-amp cab IR + output trim for the
   // BACKING band. The cab is per-AMP (one Metal cab serves every metal-amped strip),
@@ -4919,27 +4890,16 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       const custom = !!ov.irName;
       const cabName = custom ? ov.irName.replace(/\.wav$/i, '') : (RIG_DEFAULT_CAB[id] || 'Default');
       const outV = (ov.output != null ? ov.output : (p.makeup || 0.5));
-      return `<div class="virtuoso_lab-rig-card" data-amp="${id}">` +
-        `<div class="virtuoso_lab-rig-cardhead">${RIG_AMP_LABELS[id] || id}</div>` +
-        `<div class="virtuoso_lab-rig-row">` +
-          `<span class="virtuoso_lab-rig-rowlbl">Cab</span>` +
-          `<span class="virtuoso_lab-rig-cabname${custom ? ' custom' : ''}" title="${custom ? 'Your cab IR' : 'Built-in cab'}">${cabName}</span>` +
-          `<button type="button" class="virtuoso_lab-rig-load" data-amp="${id}">Load…</button>` +
-          (custom ? `<button type="button" class="virtuoso_lab-rig-reset" data-amp="${id}" data-what="ir" title="Reset to the built-in cab" aria-label="Reset cab">↺</button>` : '') +
-        `</div>` +
-        `<div class="virtuoso_lab-rig-row">` +
-          `<span class="virtuoso_lab-rig-rowlbl">Output</span>` +
-          `<input type="range" class="virtuoso_lab-rig-out" data-amp="${id}" min="0" max="1.2" step="0.01" value="${outV}" aria-label="${RIG_AMP_LABELS[id]} amp output">` +
-          `<span class="virtuoso_lab-rig-outdb" data-amp="${id}">${rigOutputDb(id)} dB</span>` +
-          (ov.output != null ? `<button type="button" class="virtuoso_lab-rig-reset" data-amp="${id}" data-what="out" title="Reset output" aria-label="Reset output">↺</button>` : '') +
-        `</div>` +
-      `</div>`;
+      return domEl('div', {className:'virtuoso_lab-rig-card', dataset:{amp:id}},
+        domEl('div', {className:'virtuoso_lab-rig-cardhead'}, RIG_AMP_LABELS[id] || id),
+        domEl('div', {className:'virtuoso_lab-rig-row'}, domEl('span', {className:'virtuoso_lab-rig-rowlbl'}, 'Cab'), domEl('span', {className:`virtuoso_lab-rig-cabname${custom ? ' custom' : ''}`, title:custom ? 'Your cab IR' : 'Built-in cab'}, cabName), domEl('button', {type:'button', className:'virtuoso_lab-rig-load', dataset:{amp:id}}, 'Load…'), custom ? domEl('button', {type:'button', className:'virtuoso_lab-rig-reset', dataset:{amp:id, what:'ir'}, title:'Reset to the built-in cab', 'aria-label':'Reset cab'}, '↺') : null),
+        domEl('div', {className:'virtuoso_lab-rig-row'}, domEl('span', {className:'virtuoso_lab-rig-rowlbl'}, 'Output'), domEl('input', {type:'range', className:'virtuoso_lab-rig-out', dataset:{amp:id}, min:0, max:1.2, step:.01, value:outV, 'aria-label':`${RIG_AMP_LABELS[id]} amp output`}), domEl('span', {className:'virtuoso_lab-rig-outdb', dataset:{amp:id}}, `${rigOutputDb(id)} dB`), ov.output != null ? domEl('button', {type:'button', className:'virtuoso_lab-rig-reset', dataset:{amp:id, what:'out'}, title:'Reset output', 'aria-label':'Reset output'}, '↺') : null));
     };
-    host.innerHTML =
-      `<p class="virtuoso_lab-rig-intro">Your <b>backing band's</b> amp cabs — load your own cab IR (<code>.wav</code>) per amp. <span class="virtuoso_lab-rig-dim">For your own live tone, use the <b>YOU</b> strip → Tone…</span></p>` +
-      (flag === 'bad' ? `<p class="virtuoso_lab-rig-bad">That file couldn't be read as audio — kept the current cab.</p>` : '') +
-      `<div class="virtuoso_lab-rig-cards">${RIG_AMPS.map(card).join('')}</div>` +
-      `<input type="file" id="virtuoso_lab-rig-file" accept=".wav,audio/wav,audio/*" hidden>`;
+    host.replaceChildren(
+      domEl('p', {className:'virtuoso_lab-rig-intro'}, 'Your ', domEl('b', null, "backing band's"), ' amp cabs — load your own cab IR (', domEl('code', null, '.wav'), ') per amp. ', domEl('span', {className:'virtuoso_lab-rig-dim'}, 'For your own live tone, use the ', domEl('b', null, 'YOU'), ' strip → Tone…')),
+      flag === 'bad' ? domEl('p', {className:'virtuoso_lab-rig-bad'}, "That file couldn't be read as audio — kept the current cab.") : null,
+      domEl('div', {className:'virtuoso_lab-rig-cards'}, RIG_AMPS.map(card)),
+      domEl('input', {type:'file', id:'virtuoso_lab-rig-file', accept:'.wav,audio/wav,audio/*', hidden:true}));
   }
   // Live console meters — drawn only while the Mixer is open (its own rAF loop;
   // the playback tick is untouched, and there is zero cost while closed). Reads
@@ -5066,34 +5026,30 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function _libChipRow(dim, label, values) {
     const cur = _libFilters[dim];
     /** @param {string} val @param {string} txt */
-    const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-filter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => domEl('button', {type:'button', className:`virtuoso_lab-lib-chip${cur === val ? ' active' : ''}`, dataset:{filter:dim, value:val}}, txt);
+    return domEl('div', {className:'virtuoso_lab-lib-chiprow'}, domEl('span', {className:'virtuoso_lab-lib-chiplbl'}, label), chip('all', 'All'), values.map(v => chip(v[0], v[1])));
   }
   function renderLibraryFilters() {
     const el = $('virtuoso_lab-library-filters'); if (!el) return;
     const genres = _libGenres().map(g => [g, LIB_GENRE_LABELS[g] || g]);
     const skills = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
-    el.innerHTML = _libChipRow('genre', 'Genre', genres) + _libChipRow('skill', 'Skill', skills) + _libChipRow('instrument', 'Instrument', insts);
+    el.replaceChildren(_libChipRow('genre', 'Genre', genres), _libChipRow('skill', 'Skill', skills), _libChipRow('instrument', 'Instrument', insts));
   }
   /** @param {string} id */
-  function _libCardHtml(id) {
+  function _libCardNode(id) {
     const t = SEGMENT_TEMPLATES[id];
-    /** @param {unknown} s */
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const color = KIND_COLORS[t.kind] || '#94a3b8';
     const klabel = KIND_LABELS[t.kind] || t.kind;
     let dose = '';
     try { const seg = rollSegment(t, { variantIdx: 0 }); const d = segmentEstDuration(seg); dose = d < 60 ? `~${Math.round(d)}s` : `~${Math.floor(d / 60)}m${Math.round(d % 60)}s`; } catch (_) {}
     const meta = [t.competency, t.style ? (LIB_GENRE_LABELS[t.style] || t.style) : 'all-purpose', t.instrument, dose].filter(Boolean).join(' · ');
-    return `<div class="virtuoso_lab-lib-card">
-      <div class="virtuoso_lab-segment-header">
-        <span class="virtuoso_lab-segment-badge" style="color:${color}">${esc(klabel)}</span>
-        <span class="virtuoso_lab-segment-name">${esc(t.label || id)}</span>
-        <button type="button" class="virtuoso_lab-lib-add" data-template-id="${esc(id)}" title="Add this block to your workout">+ Add</button>
-      </div>
-      <div class="virtuoso_lab-segment-meta">${esc(meta)}</div>
-    </div>`;
+    return domEl('div', {className:'virtuoso_lab-lib-card'},
+      domEl('div', {className:'virtuoso_lab-segment-header'},
+        domEl('span', {className:'virtuoso_lab-segment-badge', style:{color}}, klabel),
+        domEl('span', {className:'virtuoso_lab-segment-name'}, t.label || id),
+        domEl('button', {type:'button', className:'virtuoso_lab-lib-add', dataset:{templateId:id}, title:'Add this block to your workout'}, '+ Add')),
+      domEl('div', {className:'virtuoso_lab-segment-meta'}, meta));
   }
   function renderLibrary() {
     renderLibraryFilters();
@@ -5108,14 +5064,14 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
     const roleOrder = Object.keys(SEGMENT_ROLES).sort((a, b) => SEGMENT_ROLES[a].order - SEGMENT_ROLES[b].order);
-    let html = '';
+    const children = [];
     for (const role of roleOrder) {
       const inRole = shown.filter(id => SEGMENT_TEMPLATES[id].role === role);
       if (!inRole.length) continue;
-      html += `<div class="virtuoso_lab-lib-rolehead">${SEGMENT_ROLES[role].label} <span class="virtuoso_lab-lib-rolecount">${inRole.length}</span></div>`;
-      html += `<div class="virtuoso_lab-lib-grid">${inRole.map(_libCardHtml).join('')}</div>`;
+      children.push(domEl('div', {className:'virtuoso_lab-lib-rolehead'}, SEGMENT_ROLES[role].label, ' ', domEl('span', {className:'virtuoso_lab-lib-rolecount'}, inRole.length)));
+      children.push(domEl('div', {className:'virtuoso_lab-lib-grid'}, inRole.map(_libCardNode)));
     }
-    body.innerHTML = html || `<div class="virtuoso_lab-lib-empty">No blocks match these filters — clear one to see more.</div>`;
+    body.replaceChildren(...(children.length ? children : [domEl('div', {className:'virtuoso_lab-lib-empty'}, 'No blocks match these filters — clear one to see more.')]));
   }
 
   // ── Starter-workout browse drawer (Phase 9 Slice 4) ─────────────────────────
@@ -5157,8 +5113,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function _starterChipRow(dim, label, values) {
     const cur = _starterFilters[dim];
     /** @param {string} val @param {string} txt */
-    const chip = (val, txt) => `<button type="button" class="virtuoso_lab-lib-chip${cur === val ? ' active' : ''}" data-sfilter="${dim}" data-value="${val}">${txt}</button>`;
-    return `<div class="virtuoso_lab-lib-chiprow"><span class="virtuoso_lab-lib-chiplbl">${label}</span>${chip('all', 'All')}${values.map(v => chip(v[0], v[1])).join('')}</div>`;
+    const chip = (val, txt) => domEl('button', {type:'button', className:`virtuoso_lab-lib-chip${cur === val ? ' active' : ''}`, dataset:{sfilter:dim, value:val}}, txt);
+    return domEl('div', {className:'virtuoso_lab-lib-chiprow'}, domEl('span', {className:'virtuoso_lab-lib-chiplbl'}, label), chip('all', 'All'), values.map(v => chip(v[0], v[1])));
   }
   function renderStarterFilters() {
     const el = $('virtuoso_lab-starters-filters'); if (!el) return;
@@ -5167,35 +5123,30 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       .map(g => [g, g === 'general' ? 'General' : (LIB_GENRE_LABELS[g] || g)]);
     const levels = [['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']];
     const insts  = [['guitar', 'Guitar'], ['bass', 'Bass']];
-    el.innerHTML = _starterChipRow('genre', 'Genre', genres) + _starterChipRow('level', 'Level', levels) + _starterChipRow('instrument', 'Instrument', insts);
+    el.replaceChildren(_starterChipRow('genre', 'Genre', genres), _starterChipRow('level', 'Level', levels), _starterChipRow('instrument', 'Instrument', insts));
   }
   /** @param {string} id */
-  function _starterDotsHtml(id) {
+  function _starterDotsNode(id) {
     const segs = /** @type {import('./src/core/session-types.js').Segment[]} */ ((BUILT_IN_SESSIONS[id].segments || []).map(materializeSegment).filter(Boolean));
-    return `<span class="virtuoso_lab-starter-dots">` + segs.map(s => {
+    return domEl('span', {className:'virtuoso_lab-starter-dots'}, segs.map(s => {
       const c = ROLE_COLORS[String(s.role)] || KIND_COLORS[String(s.kind)] || '#64748b';
       const lbl = (SEGMENT_ROLES[String(s.role)] || {}).label || KIND_LABELS[String(s.kind)] || s.kind;
-      return `<span class="virtuoso_lab-starter-dot" style="background:${c}" title="${lbl}"></span>`;
-    }).join('') + `</span>`;
+      return domEl('span', {className:'virtuoso_lab-starter-dot', style:{background:c}, title:lbl});
+    }));
   }
   /** @param {string} id */
-  function _starterCardHtml(id) {
+  function _starterCardNode(id) {
     const sess = BUILT_IN_SESSIONS[id];
-    /** @param {unknown} s */
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     const f = _sessionFacets(id);
     const segs = /** @type {import('./src/core/session-types.js').Segment[]} */ ((sess.segments || []).map(materializeSegment).filter(Boolean));
     const dur = segs.reduce((a, s) => a + segmentEstDuration(s), 0);
     const durStr = dur < 60 ? `~${Math.round(dur)}s` : `~${Math.floor(dur / 60)}m`;
     const meta = [`${segs.length} blocks`, f.genre === 'general' ? null : (LIB_GENRE_LABELS[f.genre] || f.genre), f.level === 'any' ? null : f.level, f.instrument, durStr].filter(Boolean).join(' · ');
-    return `<div class="virtuoso_lab-lib-card virtuoso_lab-starter-card">
-      <div class="virtuoso_lab-segment-header">
-        <span class="virtuoso_lab-segment-name">${esc(sess.name || id)}</span>
-        <button type="button" class="virtuoso_lab-lib-add virtuoso_lab-starter-load" data-starter-id="${esc(id)}" title="Load this starter into the timeline">Load</button>
-      </div>
-      ${_starterDotsHtml(id)}
-      <div class="virtuoso_lab-segment-meta">${esc(meta)}</div>
-    </div>`;
+    return domEl('div', {className:'virtuoso_lab-lib-card virtuoso_lab-starter-card'},
+      domEl('div', {className:'virtuoso_lab-segment-header'},
+        domEl('span', {className:'virtuoso_lab-segment-name'}, sess.name || id),
+        domEl('button', {type:'button', className:'virtuoso_lab-lib-add virtuoso_lab-starter-load', dataset:{starterId:id}, title:'Load this starter into the timeline'}, 'Load')),
+      _starterDotsNode(id), domEl('div', {className:'virtuoso_lab-segment-meta'}, meta));
   }
   function renderStarters() {
     renderStarterFilters();
@@ -5205,11 +5156,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (confirm) {
       if (_pendingStarter && BUILT_IN_SESSIONS[_pendingStarter]) {
         const n = (workoutEditor.draft?.segments || []).length;
-        confirm.innerHTML = `<span>Replace your ${n} edited block${n === 1 ? '' : 's'} with “${BUILT_IN_SESSIONS[_pendingStarter].name}”?</span>`
-          + `<button type="button" class="virtuoso_lab-starter-confirm-yes" data-starter-id="${_pendingStarter}">Load</button>`
-          + `<button type="button" class="virtuoso_lab-starter-confirm-no">Cancel</button>`;
+        confirm.replaceChildren(
+          domEl('span', null, `Replace your ${n} edited block${n === 1 ? '' : 's'} with “${BUILT_IN_SESSIONS[_pendingStarter].name}”?`),
+          domEl('button', {type:'button', className:'virtuoso_lab-starter-confirm-yes', dataset:{starterId:_pendingStarter}}, 'Load'),
+          domEl('button', {type:'button', className:'virtuoso_lab-starter-confirm-no'}, 'Cancel'));
         confirm.hidden = false;
-      } else { confirm.hidden = true; confirm.innerHTML = ''; }
+      } else { confirm.hidden = true; confirm.replaceChildren(); }
     }
     const f = _starterFilters;
     const ids = Object.keys(BUILT_IN_SESSIONS);
@@ -5220,11 +5172,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           && (f.instrument === 'all' || x.instrument === f.instrument); };
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
-    const routinesHtml = routinesSectionHtml();   // the user's saved routines, above the built-in starters
-    const startersHtml = shown.length
-      ? `${routinesHtml ? '<div class="virtuoso_lab-lib-group-title">Starters</div>' : ''}<div class="virtuoso_lab-lib-grid">${shown.map(_starterCardHtml).join('')}</div>`
-      : `<div class="virtuoso_lab-lib-empty">No starters match these filters — clear one to see more.</div>`;
-    body.innerHTML = routinesHtml + startersHtml;
+    const routines = routinesSectionNode();   // the user's saved routines, above the built-in starters
+    body.replaceChildren(routines, ...(shown.length
+      ? [routines ? domEl('div', {className:'virtuoso_lab-lib-group-title'}, 'Starters') : null, domEl('div', {className:'virtuoso_lab-lib-grid'}, shown.map(_starterCardNode))]
+      : [domEl('div', {className:'virtuoso_lab-lib-empty'}, 'No starters match these filters — clear one to see more.')]));
   }
   // Fork a starter into the editable timeline. Replace-guard: if the current draft
   // has edits, stage a confirm strip instead of clobbering (force=true confirms).
@@ -5284,25 +5235,20 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (_savedRoutines) _savedRoutines = _savedRoutines.filter(p => p.id !== id);
     renderStarters();
   }
-  function routinesSectionHtml() {
+  function routinesSectionNode() {
     const rts = _savedRoutines || [];
-    if (!rts.length) return '';
-    /** @param {unknown} s */
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    if (!rts.length) return null;
     const cards = rts.map(rt => {
       const n = (rt.config.segments || []).length;
-      return `<div class="virtuoso_lab-lib-card virtuoso_lab-routine-card">
-        <div class="virtuoso_lab-segment-header">
-          <span class="virtuoso_lab-segment-name">${esc(rt.name || rt.id)}</span>
-          <span class="virtuoso_lab-routine-card-actions">
-            <button type="button" class="virtuoso_lab-lib-add virtuoso_lab-routine-load" data-routine-id="${esc(rt.id)}" title="Load this routine into the timeline">Load</button>
-            <button type="button" class="virtuoso_lab-routine-del" data-routine-id="${esc(rt.id)}" title="Delete this routine" aria-label="Delete routine">✕</button>
-          </span>
-        </div>
-        <div class="virtuoso_lab-segment-meta">${n} block${n === 1 ? '' : 's'} · your routine</div>
-      </div>`;
-    }).join('');
-    return `<div class="virtuoso_lab-lib-group-title">Your routines</div><div class="virtuoso_lab-lib-grid virtuoso_lab-routines-grid">${cards}</div>`;
+      return domEl('div', {className:'virtuoso_lab-lib-card virtuoso_lab-routine-card'},
+        domEl('div', {className:'virtuoso_lab-segment-header'},
+          domEl('span', {className:'virtuoso_lab-segment-name'}, rt.name || rt.id),
+          domEl('span', {className:'virtuoso_lab-routine-card-actions'},
+            domEl('button', {type:'button', className:'virtuoso_lab-lib-add virtuoso_lab-routine-load', dataset:{routineId:rt.id}, title:'Load this routine into the timeline'}, 'Load'),
+            domEl('button', {type:'button', className:'virtuoso_lab-routine-del', dataset:{routineId:rt.id}, title:'Delete this routine', 'aria-label':'Delete routine'}, '✕'))),
+        domEl('div', {className:'virtuoso_lab-segment-meta'}, `${n} block${n === 1 ? '' : 's'} · your routine`));
+    });
+    return domEl('div', null, domEl('div', {className:'virtuoso_lab-lib-group-title'}, 'Your routines'), domEl('div', {className:'virtuoso_lab-lib-grid virtuoso_lab-routines-grid'}, cards));
   }
 
   // ── Pack manager (the band-bar "+") ─────────────────────────────────────────
@@ -5364,7 +5310,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const availableStyles = _stylePackIds().filter(id => !installedStyles.includes(id));
 
     // Installed column: Core (pinned, locked) → hairline → Style (draggable, ordered)
-    inst.innerHTML = '';
+    inst.replaceChildren();
     _corePackIds().forEach(id => inst.appendChild(_packRow(id, 'installed', { core: true })));
     const hr = document.createElement('div'); hr.className = 'virtuoso_lab-pack-hairline'; inst.appendChild(hr);
     if (!installedStyles.length) {
@@ -5374,7 +5320,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
 
     // Available column: grouped by family in curriculum-map order
-    avail.innerHTML = '';
+    avail.replaceChildren();
     if (!availableStyles.length) {
       avail.appendChild(_packEmpty('All style packs installed — drag one here to hide it.'));
     } else {
@@ -5404,10 +5350,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     row.dataset.packId = id;
     row.dataset.col = col;
     row.setAttribute('role', 'option');
-    const lead = opts.core ? '<span class="virtuoso_lab-pack-lock" title="Core — always included" aria-hidden="true">🔒</span>'
-      : (col === 'installed' ? '<span class="virtuoso_lab-pack-grip" aria-hidden="true">⋮⋮</span>' : '');
-    const sub = (b.kind === 'style' && b.buildsOn) ? `<div class="virtuoso_lab-pw-sub">${b.buildsOn}</div>` : '';
-    row.innerHTML = `<div class="virtuoso_lab-pw-rowtop">${lead}<span class="virtuoso_lab-pw-label">${b.label}${opts.core ? ' · Core' : ''}</span></div>${sub}`;
+    const lead = opts.core ? domEl('span', {className:'virtuoso_lab-pack-lock', title:'Core — always included', 'aria-hidden':'true'}, '🔒')
+      : (col === 'installed' ? domEl('span', {className:'virtuoso_lab-pack-grip', 'aria-hidden':'true'}, '⋮⋮') : null);
+    const sub = (b.kind === 'style' && b.buildsOn) ? domEl('div', {className:'virtuoso_lab-pw-sub'}, b.buildsOn) : null;
+    row.replaceChildren(domEl('div', {className:'virtuoso_lab-pw-rowtop'}, lead, domEl('span', {className:'virtuoso_lab-pw-label'}, b.label, opts.core ? ' · Core' : '')), sub);
     if (!opts.core) {
       row.tabIndex = 0;
       const select = () => { _packsSel = { col, id }; renderPackManager(); };
@@ -5456,57 +5402,29 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // time on the instrument, tempo-tier reached, streak. Descriptive + gained-only
   // (no score/accuracy/rank); meter-green only for a freshly-cleared tier. See
   // docs/plugin/design-system.md §13/§14. Inputs are controlled internal strings.
-  function sessionSummaryCardHtml() {
-    const s = _lastEndedSession; if (!s) return '';
+  function sessionSummaryCardNode() {
+    const s = _lastEndedSession; if (!s) return null;
     const mins = Math.floor(s.duration_ms / 60000), secs = Math.round((s.duration_ms % 60000) / 1000);
     const dur = `${mins}:${String(secs).padStart(2, '0')}`;
     const sk = s.scale ? `${s.key || ''} ${String(s.scale).replace(/_/g, ' ')}`.trim() : '';
-    let tierLine = '';
-    if (s.tierCleared && s.clearedTier != null) {
-      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}</div>`;
-    } else if (s.mode === 'pathway' && s.bpm_tier != null && s.bpm_tier >= 0) {
-      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
-    } else if (s.bpm) {
-      tierLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">${s.bpm} BPM</div>`;
-    }
-    const streakLine = s.streak > 0
-      ? `<div class="virtuoso_lab-virtuoso_lab_vir-line">${s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`}</div>`
-      : '';
-    // Depth-ladder credit (Phase 9 Slice 5) — gained-only, surfaced from
-    // _lastEndedSession.depth = { xpGained, travelKey, travelRung } | null. The
-    // Travel-rung flip is a genuine clear (meter-green); a first clean run in a new
-    // key is neutral progress; XP is a calm readout. Null in Off mode → nothing.
+    let tierLine = null;
+    if (s.tierCleared && s.clearedTier != null) tierLine = ui('div', 'virtuoso_lab-virtuoso_lab_vir-cleared', `▲ New tier cleared — ${TIER_LABELS[s.clearedTier] || ('Tier ' + (s.clearedTier + 1))}`);
+    else if (s.mode === 'pathway' && s.bpm_tier != null && s.bpm_tier >= 0) tierLine = ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', `Reached ${TIER_LABELS[s.bpm_tier] || ('Tier ' + (s.bpm_tier + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}`);
+    else if (s.bpm) tierLine = ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', `${s.bpm} BPM`);
+    const streakLine = s.streak > 0 ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', s.streak === 1 ? 'Streak started — day 1' : `Day ${s.streak} streak`) : null;
     const d = s.depth;
-    let depthLine = '';
-    if (d && d.travelRung) depthLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">▲ Travel rung cleared — it travels now</div>`;
-    else if (d && d.travelKey) depthLine = `<div class="virtuoso_lab-virtuoso_lab_vir-line">New ground — first clean run in ${d.travelKey}</div>`;
-    const xpLine = (d && d.xpGained > 0) ? `<div class="virtuoso_lab-virtuoso_lab_vir-line">+${d.xpGained} XP</div>` : '';
-    // Proof-loop (flagged, pilot): a competency CLAIM replaces the generic tier line —
-    // ONLY when something was actually proven — plus a Copy-the-card affordance.
-    let proofLine = '', copyBtn = '';
+    const depthLine = d?.travelRung ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-cleared', '▲ Travel rung cleared — it travels now') : d?.travelKey ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', `New ground — first clean run in ${d.travelKey}`) : null;
+    const xpLine = d?.xpGained > 0 ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', `+${d.xpGained} XP`) : null;
+    let proof = null;
     if (s.proof) {
-      // Kind-aware claim: 'guide_tones' leads with the MUSICAL win (you connected the
-      // changes), then the transfer names the device; 'tempo' is the completion claim.
-      const claim = s.proof.kind === 'guide_tones'
-        ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
-        : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
-      const sub = s.proof.kind === 'guide_tones'
-        ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
-        : (s.proof.transfer || '');
-      proofLine = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared">${claim}</div>` +
-        (sub ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">${sub}</div>` : '');
+      const claim = s.proof.kind === 'guide_tones' ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo` : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
+      const sub = s.proof.kind === 'guide_tones' ? `Your line voice-led to the guide tones (3rd & 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim() : (s.proof.transfer || '');
+      proof = [ui('div', 'virtuoso_lab-virtuoso_lab_vir-cleared', claim), sub ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-vir-transfer', sub) : null];
     }
-    // Tier C: the cooperative share card is offered for ANY shareworthy run (a tier/
-    // depth flip, a completed Workout, a new badge — not only the proof pilot).
-    copyBtn = shareRowHtml();   // Copy card + Save — every run (incl. Jam's descriptive card)
-    return `<div class="virtuoso_lab-progress-sheet-section virtuoso_lab-virtuoso_lab_vir-card">` +
-      `<div class="virtuoso_lab-virtuoso_lab_vir-head"><h4>Last session</h4>` +
-      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-dismiss" data-act="dismiss-summary" title="Dismiss" aria-label="Dismiss last-session card">✕</button></div>` +
-      `<div class="virtuoso_lab-virtuoso_lab_vir-what">${s.displayName}</div>` +
-      (sk ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub">${sk}</div>` : '') +
-      `<div class="virtuoso_lab-virtuoso_lab_vir-line">Practiced ${dur}</div>` +
-      (s.proof ? proofLine : tierLine) + depthLine + xpLine + streakLine + copyBtn +
-      `</div>`;
+    return domEl('div', {className:'virtuoso_lab-progress-sheet-section virtuoso_lab-vir-card'},
+      domEl('div', {className:'virtuoso_lab-virtuoso_lab_vir-head'}, domEl('h4', null, 'Last session'), domEl('button', {type:'button', className:'virtuoso_lab-virtuoso_lab_vir-dismiss', dataset:{act:'dismiss-summary'}, title:'Dismiss', 'aria-label':'Dismiss last-session card'}, '✕')),
+      ui('div', 'virtuoso_lab-virtuoso_lab_vir-what', s.displayName), sk ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-sub', sk) : null,
+      ui('div', 'virtuoso_lab-virtuoso_lab_vir-line', `Practiced ${dur}`), s.proof ? proof : tierLine, depthLine, xpLine, streakLine, shareRowNode());
   }
   // Auto-present the card on a notable end (a tier cleared, or a real ≥20s run) by
   // opening P; for short blips just refresh so the card is ready when P next opens.
@@ -5665,14 +5583,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const step = n > 16 ? 4 : n > 8 ? 2 : 1;
     for (let k = 0; k < n; k += step) ctx.fillText(String(bars[k].i + 1), padL + k * bw + bw / 2, cssH - padB + 3);
   }
-  // The hero chooser + its caption/stat copy. Returns { html, draw } or null.
+  // The hero chooser + its caption/stat copy. Returns { node, draw } or null.
   /** @param {Partial<import('./src/types/results-data.js').ScoreSummary>} r @param {Partial<import('./src/types/results-data.js').RunInfo> | null} info @param {{isWorkout: boolean, isFelt: boolean, rough: boolean, judged: boolean}} flags */
   function buildResultsHero(r, info, flags) {
     if (flags.isWorkout || flags.isFelt || flags.rough || !flags.judged) return null;
     if ((r.judgedPassed || 0) < 8) return null;
     if (_downshiftChipShown) return null;    // one nudge per run — the chip already spoke
-    /** @param {unknown} t */
-    const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const heat = info && info.heat, lean = info && info.leanBars;
     const active = heat ? heat.cells.filter(c => c.hit + c.miss > 0) : [];
     if (heat && active.length >= 5) {
@@ -5695,9 +5611,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         stat = `Most missed crossing: ${nm(a)}→${nm(b)} string`;
       }
       return {
-        html: `<div class="virtuoso_lab-results-hero"><canvas id="virtuoso_lab-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
-              `<div class="virtuoso_lab-results-hero-cap">${esc(cap)}</div>` +
-              (stat ? `<div class="virtuoso_lab-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        node: domEl('div', {className:'virtuoso_lab-results-hero'}, domEl('canvas', {id:'virtuoso_lab-results-hero-cv', role:'img', 'aria-label':cap}), ui('div', 'virtuoso_lab-results-hero-cap', cap), stat ? ui('div', 'virtuoso_lab-results-hero-stat', stat) : null),
         draw: () => drawHeatmapHero($('virtuoso_lab-results-hero-cv'), heat),
       };
     }
@@ -5710,9 +5624,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         stat = `You ${lean.chg.med < 0 ? 'rush' : 'sit late on'} the first beat after a change by ~${Math.abs(lean.chg.med)}ms`;
       }
       return {
-        html: `<div class="virtuoso_lab-results-hero"><canvas id="virtuoso_lab-results-hero-cv" role="img" aria-label="${esc(cap)}"></canvas>` +
-              `<div class="virtuoso_lab-results-hero-cap">${esc(cap)}</div>` +
-              (stat ? `<div class="virtuoso_lab-results-hero-stat">${esc(stat)}</div>` : '') + `</div>`,
+        node: domEl('div', {className:'virtuoso_lab-results-hero'}, domEl('canvas', {id:'virtuoso_lab-results-hero-cv', role:'img', 'aria-label':cap}), ui('div', 'virtuoso_lab-results-hero-cap', cap), stat ? ui('div', 'virtuoso_lab-results-hero-stat', stat) : null),
         draw: () => drawLeanStripHero($('virtuoso_lab-results-hero-cv'), lean),
       };
     }
@@ -5873,15 +5785,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     return { chosen: top, focus: { cat: top.fault, streak } };
   }
   /** @param {import('./src/types/results-data.js').CoachCandidate | null} rx */
-  function coachRxHtml(rx) {
-    if (!rx || !PATHWAYS[rx.pathwayId]) return '';
-    /** @param {unknown} t */
-    const esc = t => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-    return `<button type="button" class="virtuoso_lab-results-coach" id="virtuoso_lab-results-coach-go" data-pw="${rx.pathwayId}">`
-      + `<span class="virtuoso_lab-results-coach-lead">Practice next</span>`
-      + `<span class="virtuoso_lab-results-coach-why">${esc(rx.why)}</span>`
-      + `<span class="virtuoso_lab-results-coach-cta">${esc(PATHWAYS[rx.pathwayId].label)} →</span>`
-      + `</button>`;
+  function coachRxNode(rx) {
+    if (!rx || !PATHWAYS[rx.pathwayId]) return null;
+    return domEl('button', {type:'button', className:'virtuoso_lab-results-coach', id:'virtuoso_lab-results-coach-go', dataset:{pw:rx.pathwayId}},
+      ui('span', 'virtuoso_lab-results-coach-lead', 'Practice next'), ui('span', 'virtuoso_lab-results-coach-why', rx.why), ui('span', 'virtuoso_lab-results-coach-cta', `${PATHWAYS[rx.pathwayId].label} →`));
   }
   // ── PR 1.5 · Bass Pocket-Diagnosis ──────────────────────────────────────────
   // A bass feltGate run shows only the verdict WORD (Dragging/Settling/Locked) —
@@ -5922,7 +5829,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // "smoke mocks the verifier" blind spot — they take fixtures directly). `buildCoachRx`
   // + `lastEndedSession` additionally let the suite drive a REAL run and assert the
   // _lastEndedSession → curPw snapshot seam (the field-drop the pure hooks couldn't catch).
-  if (typeof window !== 'undefined') window.__virtuoso_labCoach = { coachRxFor, coachRxCandidates, applyCoachHysteresis, coachRxHtml, buildPocketDiagnosis, buildCoachRx, lastEndedSession: () => _lastEndedSession };
+  if (typeof window !== 'undefined') window.__virtuoso_labCoach = { coachRxFor, coachRxCandidates, applyCoachHysteresis, coachRxNode, buildPocketDiagnosis, buildCoachRx, lastEndedSession: () => _lastEndedSession };
   // ── J-3 end-of-jam reflection (warm, NO score — mirror not judge) ───────────
   // A deliberate Jam stop opens the SAME modal shell as the results card, but
   // with descriptive content only: time jammed, how many notes, the tones you
@@ -5933,8 +5840,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const root = $('virtuoso_lab-root'), body = $('virtuoso_lab-results-body'), title = $('virtuoso_lab-results-title');
     if (!root || !body) return;
     const m = _jamMirror;
-    /** @param {unknown} x */
-    const esc = (x) => String(x).replace(/[&<>"]/g, c => (/** @type {Record<string, string>} */ ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]));
     const ms = (s && s.duration_ms) || 0;
     const mins = Math.floor(ms / 60000), secs = Math.round((ms % 60000) / 1000);
     const dur = ms >= 1000 ? `${mins}:${String(secs).padStart(2, '0')}` : 'a moment';
@@ -5945,19 +5850,19 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const pcs = m ? [...m.pcs].sort((a, b) => a - b).map(pcName) : [];
     const toneList = pcs.length ? pcs.join(' · ') : 'No pitch was detected.';
     const analysis = noteCount > 0 ? jamRecapAnalysisLines() : [];
-    const analysisHtml = analysis.map(line => `<div class="virtuoso_lab-jam-recap-line">${esc(line)}</div>`).join('');
+    const analysisNodes = analysis.map(line => ui('div', 'virtuoso_lab-jam-recap-line', line));
     // Gold rung (career passports): the comb-verified conformity readout,
     // always shown when notes were confirmed — observability before gating —
     // and the mint moment when the whole bar clears (gained-only).
     const gold = goldEvaluate(s);
-    let goldHtml = '';
+    let goldNode = null;
     if (gold) {
       const ear = gold.verifier === 'comb'
         ? 'verified by the harmonic-comb ear'
         : 'heard by the browser ear — Gold listens through the desktop verifier';
       // Descriptive N-of-M counts, the recap's own convention — a mirror line,
       // not a score-to-beat (percent-vs-threshold framing stays out of the jam).
-      goldHtml = `<div class="virtuoso_lab-jam-recap-line">Verified notes: <b>${gold.inKey} of ${gold.confirmed}</b> sat in the key, <b>${gold.inChord}</b> on chord tones, played over <b>${gold.chordHops}</b> chord change${gold.chordHops === 1 ? '' : 's'} <span class="virtuoso_lab-jam-recap-sub">(${esc(ear)})</span></div>`;
+      goldNode = ui('div', 'virtuoso_lab-jam-recap-line', 'Verified notes: ', domEl('b', null, `${gold.inKey} of ${gold.confirmed}`), ' sat in the key, ', domEl('b', null, gold.inChord), ' on chord tones, played over ', domEl('b', null, gold.chordHops), ` chord change${gold.chordHops === 1 ? '' : 's'} `, ui('span', 'virtuoso_lab-jam-recap-sub', `(${ear})`));
       if (gold.met) {
         const styleId = currentJamStyleId();
         const minted = goldStore(styleId, gold);
@@ -5968,26 +5873,19 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           inKeyPct: Math.round(gold.inKeyPct * 100) / 100,
           chords: gold.chordHops, pcCount: gold.pcCount, verifier: gold.verifier,
         });
-        goldHtml += `<div class="virtuoso_lab-jam-recap-line virtuoso_lab-jam-recap-gold">🏅 <b>GOLD</b> — ${minted ? 'a verified improv: this style\'s gold rung is yours.' : 'another gold-bar jam (already minted).'}</div>`;
+        goldNode = [goldNode, ui('div', 'virtuoso_lab-jam-recap-line virtuoso_lab-jam-recap-gold', '🏅 ', domEl('b', null, 'GOLD'), ` — ${minted ? "a verified improv: this style's gold rung is yours." : 'another gold-bar jam (already minted).'}`)];
       }
     }
-    const intentLine = jamIntent ? `<div class="virtuoso_lab-jam-recap-line">Intent: <b>${esc(jamIntent)}</b></div>` : '';
+    const intentLine = jamIntent ? ui('div', 'virtuoso_lab-jam-recap-line', 'Intent: ', domEl('b', null, jamIntent)) : null;
     if (title) title.textContent = 'Jam mirror';
-    body.innerHTML =
-      `<div class="virtuoso_lab-jam-recap">` +
-        `<div class="virtuoso_lab-jam-recap-line">You jammed <b>${esc(dur)}</b> over <b>${esc(style)}</b> in <b>${esc(key)}</b>${prog ? ` · <b>${esc(prog)}</b>` : ''}.</div>` +
-        intentLine +
-        (noteCount > 0
-          ? `<div class="virtuoso_lab-jam-recap-line">${noteCount} notes — you moved through <b>${pcs.length}</b> tone${pcs.length === 1 ? '' : 's'}:</div>`
-          : `<div class="virtuoso_lab-jam-recap-line">No pitch was detected, so this stays a form-and-intent recap.</div>`) +
-        `<div class="virtuoso_lab-jam-recap-tones">${esc(toneList)}</div>` +
-        analysisHtml + goldHtml +
-        `<div class="virtuoso_lab-jam-recap-sub">A mirror, never a score. Use the form, intent, tones, and targets as prompts for the next pass.</div>` +
-        `<div class="virtuoso_lab-jam-recap-cta">` +
-          `<button type="button" class="virtuoso_lab-results-primary" data-act="jam-again">Jam again</button>` +
-          `<button type="button" class="virtuoso_lab-results-quiet" data-act="jam-done">Done</button>` +
-        `</div>` +
-      `</div>`;
+    const again = domEl('button', {type:'button', className:'virtuoso_lab-results-primary', dataset:{act:'jam-again'}}, 'Jam again');
+    const done = domEl('button', {type:'button', className:'virtuoso_lab-results-quiet', dataset:{act:'jam-done'}}, 'Done');
+    body.replaceChildren(ui('div', 'virtuoso_lab-jam-recap',
+      ui('div', 'virtuoso_lab-jam-recap-line', 'You jammed ', domEl('b', null, dur), ' over ', domEl('b', null, style), ' in ', domEl('b', null, key), prog ? [' · ', domEl('b', null, prog)] : null, '.'),
+      intentLine, noteCount > 0 ? ui('div', 'virtuoso_lab-jam-recap-line', `${noteCount} notes — you moved through `, domEl('b', null, pcs.length), ` tone${pcs.length === 1 ? '' : 's'}:`) : ui('div', 'virtuoso_lab-jam-recap-line', 'No pitch was detected, so this stays a form-and-intent recap.'),
+      ui('div', 'virtuoso_lab-jam-recap-tones', toneList), analysisNodes, goldNode,
+      ui('div', 'virtuoso_lab-jam-recap-sub', 'A mirror, never a score. Use the form, intent, tones, and targets as prompts for the next pass.'),
+      ui('div', 'virtuoso_lab-jam-recap-cta', again, done)));
     body.querySelector('[data-act="jam-again"]')?.addEventListener('click', () => { closeResultsModal(); jamPlay(); });
     body.querySelector('[data-act="jam-done"]')?.addEventListener('click', closeResultsModal);
     root.classList.add('virtuoso_lab_vir-results-open');
@@ -6022,8 +5920,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const _crestEl = $('virtuoso_lab-results-crest');
     if (_crestEl) {
       const _cst = crestState();
-      if (_cst.rank) { _crestEl.innerHTML = crestSvg(_cst.rank); _crestEl.title = _cst.label + ' — ' + _cst.desc; _crestEl.hidden = false; }
-      else { _crestEl.hidden = true; _crestEl.innerHTML = ''; }
+      if (_cst.rank) { _crestEl.replaceChildren(crestSvgNode(_cst.rank)); _crestEl.title = _cst.label + ' — ' + _cst.desc; _crestEl.hidden = false; }
+      else { _crestEl.hidden = true; _crestEl.replaceChildren(); }
     }
     // Workout RECAP branch (Tier 3): a multi-block Workout has no single grade — the
     // chapter list REPLACES the aggregate % and the verdict slot becomes a
@@ -6040,31 +5938,29 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // a clear is the win moment; a "here's what's still wrong, go drill it" button
     // undercuts it and competes with the climb CTA (learning-design 2026-07-14:
     // the climb IS the prescription). Null too when nothing crosses threshold.
-    const coachHtml = (isWorkout || earned) ? '' : coachRxHtml(buildCoachRx(s, r, info));
+    const coachNode = (isWorkout || earned) ? null : coachRxNode(buildCoachRx(s, r, info));
 
     // 1 · VERDICT slot — earned outcomes only; ONE hero (felt > proof > tier > travel).
     // Bass felt FLIP: the verdict WORD is the hero, tempo demoted (Option A — the
     // marketing + 3-lane call). Settling-or-better cleared the rung; Locked also owns
     // the groove at this tempo. The copy card rides shareBtn (one button).
-    let verdict = '';
+    let verdict = null;
     if (feltFlip) {
       const word = (s.felt && s.felt.verdict === 'locked') ? 'Locked the pocket' : 'Settled into the pocket';
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">✓ ${word} — cleared ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).tierName}</div>` +
-        (/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltPB ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">Grooves owned — held Locked to ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltBpm} BPM</div>` : '');
+      verdict = [ui('div', 'virtuoso_lab-results-verdict virtuoso_lab-virtuoso_lab_vir-cleared', `✓ ${word} — cleared ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).tierName}`), (/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltPB ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer', `Grooves owned — held Locked to ${/** @type {import('./src/types/results-data.js').FeltCredit} */ (s.feltResult).feltBpm} BPM`) : null)];
     } else if (s.proof) {
       const claim = s.proof.kind === 'guide_tones'
         ? `✓ You proved: ${s.proof.label} — you connected the changes at ${s.proof.tierName} tempo`
         : `✓ You proved: ${s.proof.label} holds at ${s.proof.tierName} tempo`;
       const psub = s.proof.kind === 'guide_tones'
-        ? `Your line voice-led to the guide tones (3rd &amp; 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
+        ? `Your line voice-led to the guide tones (3rd & 7th)${s.proof.progression ? ` through the ${s.proof.progression}` : ''}. ${s.proof.transfer || ''}`.trim()
         : (s.proof.transfer || '');
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">${claim}</div>` +
-        (psub ? `<div class="virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer">${psub}</div>` : '');
+      verdict = [ui('div', 'virtuoso_lab-results-verdict virtuoso_lab-virtuoso_lab_vir-cleared', claim), psub ? ui('div', 'virtuoso_lab-virtuoso_lab_vir-sub virtuoso_lab-virtuoso_lab_vir-transfer', psub) : null];
         // (the share card now rides the unified shareRow below — every run)
     } else if (ownTierFlip && !isFelt) {
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Rung cleared — ${TIER_LABELS[/** @type {number} */ (s.clearedTier)] || ('Tier ' + (/** @type {number} */ (s.clearedTier) + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}</div>`;
+      verdict = ui('div', 'virtuoso_lab-results-verdict virtuoso_lab-virtuoso_lab_vir-cleared', `▲ Rung cleared — ${TIER_LABELS[/** @type {number} */ (s.clearedTier)] || ('Tier ' + (/** @type {number} */ (s.clearedTier) + 1))}${s.bpm ? ` · ${s.bpm} BPM` : ''}`);
     } else if (s.depth && s.depth.travelRung) {
-      verdict = `<div class="virtuoso_lab-virtuoso_lab_vir-cleared virtuoso_lab-results-verdict">▲ Travel rung cleared — it travels now</div>`;
+      verdict = ui('div', 'virtuoso_lab-results-verdict virtuoso_lab-virtuoso_lab_vir-cleared', '▲ Travel rung cleared — it travels now');
     }
 
     // 2 · the % readout — ALWAYS neutral color; the sub-line keeps the
@@ -6073,7 +5969,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (judged) {
       headline = `${pct}%`;
       const shownNot = (info && info.total > info.judged) ? ` · ${info.total - info.judged} shown, not judged` : '';
-      sub = `<strong>${r.hits}</strong> hit of <strong>${r.judgedPassed}</strong> judged notes${shownNot}`;
+      sub = `${r.hits} hit of ${r.judgedPassed} judged notes${shownNot}`;
     } else if (!r.hadInput) {
       headline = 'Not judged';
       sub = 'No mic input reached the scorer this run — the click was the judge.';
@@ -6089,9 +5985,9 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       const rungs = s.ladder.tiers.map((_tier, i) => {
         const clr = i <= /** @type {NonNullable<import('./src/types/results-data.js').RunSummary['ladder']>} */ (s.ladder).highestCleared;
         const isNew = !xpOff && s.tierCleared && i === s.clearedTier;
-        return `<span class="virtuoso_lab-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}">${TIER_LABELS[i] || ('T' + (i + 1))}</span>`;
-      }).join('');
-      stripBits.push(`<div class="virtuoso_lab-results-ladder">${rungs}</div>`);
+        return domEl('span', {className:`virtuoso_lab-results-rung${clr ? ' cleared' : ''}${isNew ? ' rung-new' : ''}`}, TIER_LABELS[i] || ('T' + (i + 1)));
+      });
+      stripBits.push(ui('div', 'virtuoso_lab-results-ladder', rungs));
     }
     if (!xpOff) {
       const d = s.depth, deltas = [];
@@ -6104,30 +6000,30 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           deltas.push(`${s.ladder.tiers[nIdx] - s.bpm} BPM to ${TIER_LABELS[nIdx] || ('T' + (nIdx + 1))}`);
         }
       }
-      if (deltas.length) stripBits.push(`<div class="virtuoso_lab-results-deltas">${deltas.join(' · ')}</div>`);
+      if (deltas.length) stripBits.push(ui('div', 'virtuoso_lab-results-deltas', deltas.join(' · ')));
       // "Best here" — a STANDING TARGET FACT (L&D ruling 2026-06-06): no "today",
       // no "was", no gap — the UI never performs the comparison for the player.
       // Suppressed on rough runs, before 3 same-spec runs, and when today IS the
       // best (the recognizer below carries that, upward).
       if (s.specBest && !rough && !isFelt && s.specBest.runs >= 3 && !s.specBest.isNew) {
-        stripBits.push(`<div class="virtuoso_lab-results-deltas">Best here: ${s.specBest.best}%</div>`);
+        stripBits.push(ui('div', 'virtuoso_lab-results-deltas', `Best here: ${s.specBest.best}%`));
       }
       // ONE recognizer line, accent-colored (a new-best is new ground, not a clear).
       if (s.recognizer && s.recognizer.kind === 'first_clear') {
-        stripBits.push(`<div class="virtuoso_lab-results-recog">First clear on ${s.displayName}</div>`);
+        stripBits.push(ui('div', 'virtuoso_lab-results-recog', `First clear on ${s.displayName}`));
       } else if (s.recognizer && s.recognizer.kind === 'fastest') {
-        stripBits.push(`<div class="virtuoso_lab-results-recog">Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})</div>`);
+        stripBits.push(ui('div', 'virtuoso_lab-results-recog', `Fastest clean run — ${s.recognizer.bpm} BPM (was ${s.recognizer.prev})`));
       } else if (s.recognizer && s.recognizer.kind === 'best_pct') {
-        stripBits.push(`<div class="virtuoso_lab-results-recog">New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)</div>`);
+        stripBits.push(ui('div', 'virtuoso_lab-results-recog', `New best here — ${s.recognizer.pct}% (was ${s.recognizer.prev}%)`));
       } else if (d && d.travelKey) {
-        stripBits.push(`<div class="virtuoso_lab-results-recog">New ground — first clean run in ${d.travelKey}</div>`);
+        stripBits.push(ui('div', 'virtuoso_lab-results-recog', `New ground — first clean run in ${d.travelKey}`));
       }
       // Tier C — quiet AMBIENT deltas (never the accent recognizer slot, never the
       // hero, never green): a woodshed level-up + any new competency badge(s).
-      if (s.levelUp) stripBits.push(`<div class="virtuoso_lab-results-deltas">${s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`}</div>`);
-      if (s.badgesNew && s.badgesNew.length) stripBits.push(`<div class="virtuoso_lab-results-deltas">${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}</div>`);
+      if (s.levelUp) stripBits.push(ui('div', 'virtuoso_lab-results-deltas', s.levelUp.summit ? `${s.levelUp.name} — top of the ladder. The hours keep counting.` : `Reached Level ${s.levelUp.level} — ${s.levelUp.name}`));
+      if (s.badgesNew && s.badgesNew.length) stripBits.push(ui('div', 'virtuoso_lab-results-deltas', `${s.badgesNew.length === 1 ? 'New badge' : 'New badges'}: ${s.badgesNew.map(b => b.name).join(' · ')}`));
     }
-    const strip = stripBits.length ? `<div class="virtuoso_lab-results-strip">${stripBits.join('')}</div>` : '';
+    const strip = stripBits.length ? ui('div', 'virtuoso_lab-results-strip', stripBits) : null;
 
     // 6 · ▸ How this run was judged — player language ("name the capability,
     // never the implementation", 2026-06-06 copy round): the rows answer "did
@@ -6137,41 +6033,40 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // dim mono tails behind the `virtuoso_lab.resultsVerbose` flag, with a Copy
     // diagnostics button — the field-debugging instrument.
     let verbose = false; try { verbose = localStorage.getItem('virtuoso_lab.resultsVerbose') === 'on'; } catch (_) {}
-    /** @param {string} t */
-    const devTail = (t) => verbose ? ` <span class="virtuoso_lab-results-dev">${t}</span>` : '';
+    const devTail = t => verbose ? ui('span', 'virtuoso_lab-results-dev', t) : null;
     const rows = [];
-    if (judged && r.missed > 0) rows.push(`Missed: <strong>${r.missed}</strong> judged notes`);
+    if (judged && r.missed > 0) rows.push(`Missed: ${r.missed} judged notes`);
     if (info) {
       const exempt = info.total - info.judged;
       if (exempt > 0) {
-        rows.push(`Judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong> — the other ${exempt} were shown, not judged:${devTail(`(judged ${info.judged}/${info.total})`)}`);
-        if (info.exemptChords) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptChords}</strong> chord notes — this ear hears one note at a time${devTail('(mono detector)')}</span>`);
-        if (info.exemptSubFloor) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptSubFloor}</strong> notes too low for the mic to hear — play them with the click; they never count against you${devTail(`(&lt; ${DETECTOR_MIN_HZ} Hz floor)`)}</span>`);
-        if (info.exemptMuted) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptMuted}</strong> muted ghost notes — a good mute has no pitch to judge${devTail('(mt, pitch-exempt)')}</span>`);
-        if (info.exemptFast) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptFast}</strong> notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof${devTail(`(ring &lt; ${info.floorMs}ms floor)`)}</span>`);
-        if (info.exemptLegato) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.exemptLegato}</strong> slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time${devTail('(ho/po, pick-frame judged)')}</span>`);
+        rows.push(['Judged: ', domEl('strong', null, info.judged), ' of ', domEl('strong', null, info.total), ` — the other ${exempt} were shown, not judged: `, devTail(`(judged ${info.judged}/${info.total})`)]);
+        if (info.exemptChords) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.exemptChords), ' chord notes — this ear hears one note at a time', devTail('(mono detector)')));
+        if (info.exemptSubFloor) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.exemptSubFloor), ` notes too low for the mic to hear — play them with the click; they never count against you (< ${DETECTOR_MIN_HZ} Hz floor)`, devTail(`(< ${DETECTOR_MIN_HZ} Hz floor)`)));
+        if (info.exemptMuted) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.exemptMuted), ' muted ghost notes — a good mute has no pitch to judge', devTail('(mt, pitch-exempt)')));
+        if (info.exemptFast) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.exemptFast), ' notes too fast for this ear to certify one-by-one — play them; the judged notes around them carry the proof', devTail(`(ring < ${info.floorMs}ms floor)`)));
+        if (info.exemptLegato) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.exemptLegato), ' slurred notes — the pick that starts each slur is judged; the slur itself has no attack to time', devTail('(ho/po, pick-frame judged)')));
       } else {
-        rows.push(`Every note judged: <strong>${info.judged}</strong> of <strong>${info.total}</strong>`);
+        rows.push(['Every note judged: ', domEl('strong', null, info.judged), ' of ', domEl('strong', null, info.total)]);
       }
-      if (info.tremoloSpans) rows.push(`<span class="virtuoso_lab-results-exrow">· <strong>${info.tremoloSpans}</strong> tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill${devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)}</span>`);
+      if (info.tremoloSpans) rows.push(ui('span', 'virtuoso_lab-results-exrow', '· ', domEl('strong', null, info.tremoloSpans), ` tremolo run${info.tremoloSpans === 1 ? '' : 's'} (${info.tremoloNotes} notes) judged as whole runs — in tune over the run is the skill`, devTail(`(tr spans, ≥${Math.round(PT_SPAN_RATIO * 100)}% presence)`)));
       const earPlayer = String(info.ear || '').indexOf('verifier') === 0
         ? 'chord-aware verifier · single-note for the display meter'
         : 'single-note (the mic hears one pitch at a time)';
-      rows.push(`Ear: <strong>${earPlayer}</strong>${devTail(`(${info.ear} · latency anchor ${info.latencyMs != null ? info.latencyMs : Math.round(PT_DETECT_LATENCY * 1000)}ms${info.calMs != null ? `, this run measured ${info.calMs}ms over ${info.calMatched} notes` : ''} · window ±${info.winSingleMs != null ? info.winSingleMs : Math.round(PT_WIN_EARLY * 1000)}ms / chords ±${info.winChordMs != null ? info.winChordMs : 150}ms${info.winInherited ? ' — host tuner' : ''})`)}`);
+      rows.push(['Ear: ', domEl('strong', null, earPlayer), devTail(`(${info.ear} · latency anchor ${info.latencyMs != null ? info.latencyMs : Math.round(PT_DETECT_LATENCY * 1000)}ms${info.calMs != null ? `, this run measured ${info.calMs}ms over ${info.calMatched} notes` : ''} · window ±${info.winSingleMs != null ? info.winSingleMs : Math.round(PT_WIN_EARLY * 1000)}ms / chords ±${info.winChordMs != null ? info.winChordMs : 150}ms${info.winInherited ? ' — host tuner' : ''})`)]);
       // Timing tendency + near-miss (Slice 2, the feel→data converter) —
       // threshold-gated so a centered run says nothing: ≥8 samples and a lean
       // of ≥30ms, or ≥4 near-misses. Descriptive, never scored.
       if ((/** @type {number} */ (info.leanN)) >= 8 && Math.abs((/** @type {number} */ (info.leanMs))) >= 30) {
-        rows.push(`Timing leaned <strong>${(/** @type {number} */ (info.leanMs)) > 0 ? 'late' : 'early'}</strong> — about ${Math.abs((/** @type {number} */ (info.leanMs)))}ms ${(/** @type {number} */ (info.leanMs)) > 0 ? 'behind' : 'ahead of'} the click${devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)}`);
+        rows.push(['Timing leaned ', domEl('strong', null, (/** @type {number} */ (info.leanMs)) > 0 ? 'late' : 'early'), ` — about ${Math.abs((/** @type {number} */ (info.leanMs)))}ms ${(/** @type {number} */ (info.leanMs)) > 0 ? 'behind' : 'ahead of'} the click`, devTail(`(median dev ${info.leanMs}ms, n=${info.leanN})`)]);
       }
       if ((/** @type {number} */ (info.nearMiss)) >= 4) {
-        rows.push(`<strong>${info.nearMiss}</strong> right-pitch moments landed just outside their timing window — closer than the score shows${devTail('(in-pitch ≤250ms off-window frames)')}`);
+        rows.push([domEl('strong', null, info.nearMiss), ' right-pitch moments landed just outside their timing window — closer than the score shows', devTail('(in-pitch ≤250ms off-window frames)')]);
       }
       // Sparse-evidence disclosure (L&D ruling): below the grading floor the
       // run advances on completion, and we say so — sparse evidence is no
       // evidence, never a verdict either way.
       if (judged && r.judgedPassed < 8) {
-        rows.push(`Only <strong>${r.judgedPassed}</strong> notes were mic-judged this run — too few to grade; cleared on completion${devTail('(< PT_MIN_JUDGED=8 → lenient path)')}`);
+        rows.push(['Only ', domEl('strong', null, r.judgedPassed), ' notes were mic-judged this run — too few to grade; cleared on completion', devTail('(< PT_MIN_JUDGED=8 → lenient path)')]);
       }
     }
     let detailsOpen = false; try { detailsOpen = localStorage.getItem('virtuoso_lab.resultsDetails') === 'open'; } catch (_) {}
@@ -6224,22 +6119,20 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       }
     }
     /** @param {{act?: string, idx?: number, label: string, sub?: string}} p */
-    const btnHtml = (p) => `<span class="cta-dare">${p.label}</span>` + (p.sub ? `<span class="cta-sub">${p.sub}</span>` : '');
-    const ctaHtml =
-      `<div class="virtuoso_lab-results-cta">` +
-      (primary ? `<button type="button" id="virtuoso_lab-results-primary" class="virtuoso_lab-results-primary">${btnHtml(primary)}</button>` : '') +
-      (secondaryAgain ? `<button type="button" id="virtuoso_lab-results-again" class="virtuoso_lab-results-quiet">Run it back</button>` : '') +
-      (stepdown ? `<button type="button" id="virtuoso_lab-results-stepdown" class="virtuoso_lab-results-quiet">${stepdown.label}</button>` : '') +
-      (jamStyle && !rough && !(primary && primary.act === 'jam') ? `<button type="button" id="virtuoso_lab-results-jam" class="virtuoso_lab-results-quiet">Jam this skill</button>` : '') +
-      (isWorkout ? `<button type="button" id="virtuoso_lab-results-build" class="virtuoso_lab-results-quiet">Build another</button>` : '') +
-      `<button type="button" id="virtuoso_lab-results-done" class="virtuoso_lab-results-quiet">Done</button>` +
-      `</div>`;
+    const btnNode = p => domEl('button', {type:'button', id:'virtuoso_lab-results-primary', className:'virtuoso_lab-results-primary'}, ui('span', 'cta-dare', p.label), p.sub ? ui('span', 'cta-sub', p.sub) : null);
+    const ctaNode = ui('div', 'virtuoso_lab-results-cta',
+      primary ? btnNode(primary) : null,
+      secondaryAgain ? domEl('button', {type:'button', id:'virtuoso_lab-results-again', className:'virtuoso_lab-results-quiet'}, 'Run it back') : null,
+      stepdown ? domEl('button', {type:'button', id:'virtuoso_lab-results-stepdown', className:'virtuoso_lab-results-quiet'}, stepdown.label) : null,
+      jamStyle && !rough && !(primary && primary.act === 'jam') ? domEl('button', {type:'button', id:'virtuoso_lab-results-jam', className:'virtuoso_lab-results-quiet'}, 'Jam this skill') : null,
+      isWorkout ? domEl('button', {type:'button', id:'virtuoso_lab-results-build', className:'virtuoso_lab-results-quiet'}, 'Build another') : null,
+      domEl('button', {type:'button', id:'virtuoso_lab-results-done', className:'virtuoso_lab-results-quiet'}, 'Done'));
 
     // ── Workout recap session HTML (Tier 3) — header + chapter list ─────────────
     // Descriptive: a session header (no earned green) + a per-block chapter list
     // grouped by role so the player sees the arc they traveled. No aggregate %,
     // no per-block %/score — the chapter list IS the readout.
-    let sessionHeadHtml = '', chaptersHtml = '';
+    let sessionHeadNode = null, chaptersNode = null;
     if (isWorkout) {
       /** @param {number} sec */
       const fmtMS = (sec) => { const m = Math.floor(sec / 60), x = Math.round(sec % 60); return `${m}:${String(x).padStart(2, '0')}`; };
@@ -6251,19 +6144,14 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       (/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).forEach(c => { if (c.role && !seenRoles.includes(c.role)) seenRoles.push(c.role); });
       seenRoles.sort((a, b) => ((SEGMENT_ROLES[a]?.order ?? 9) - (SEGMENT_ROLES[b]?.order ?? 9)));
       const arc = seenRoles.map(roleLabel).filter(Boolean).join(' → ');
-      sessionHeadHtml =
-        `<div class="virtuoso_lab-results-session-head">` +
-        `<div class="virtuoso_lab-results-session-title">Workout complete</div>` +
-        `<div class="virtuoso_lab-results-session-meta">${(/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).length} blocks · ${dur} practiced</div>` +
-        (arc ? `<div class="virtuoso_lab-results-session-arc">You traveled the arc: ${arc}</div>` : '') +
-        `</div>`;
+      sessionHeadNode = ui('div', 'virtuoso_lab-results-session-head', ui('div', 'virtuoso_lab-results-session-title', 'Workout complete'), ui('div', 'virtuoso_lab-results-session-meta', `${(/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).length} blocks · ${dur} practiced`), arc ? ui('div', 'virtuoso_lab-results-session-arc', `You traveled the arc: ${arc}`) : null);
       // Chapter rows, role-divider grouped (a divider when the role changes from the
       // prior row — shows the real sequence). dot/✓ NEVER --virtuoso_lab_vir-meter green.
       /** @type {string | null} */
       let lastRole = null;
       const rows2 = (/** @type {import('./src/types/results-data.js').Chapter[]} */ (s.chapters)).map(c => {
         const out = [];
-        if (c.role !== lastRole) { out.push(`<div class="virtuoso_lab-results-chapter-role">${roleLabel(c.role)}</div>`); lastRole = c.role; }
+        if (c.role !== lastRole) { out.push(ui('div', 'virtuoso_lab-results-chapter-role', roleLabel(c.role))); lastRole = c.role; }
         const color = ROLE_COLORS[String(c.role)] || KIND_COLORS[String(c.kind)] || '#64748b';
         // Added review/2nd-app rows carry their context in the NAME ("Revisited —
         // …") — so suppress the competency sub-line for them (no double-naming).
@@ -6286,69 +6174,50 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         const touched = c.reached && r.hadInput && !c.hadInput;
         const glyph = earned ? '✓' : (!c.reached ? '—' : (touched ? '○' : '●'));
         const stateCls = earned ? ' is-earned' : (!c.reached ? ' is-unreached' : (touched ? ' is-touched' : ' is-played'));
-        out.push(
-          `<div class="virtuoso_lab-results-chapter${stateCls}">` +
-          `<span class="virtuoso_lab-results-chapter-dot" style="background:${color}"></span>` +
-          `<span class="virtuoso_lab-results-chapter-main">` +
-          `<span class="virtuoso_lab-results-chapter-name">${c.name || roleLabel(c.role)}</span>` +
-          (comp ? `<span class="virtuoso_lab-results-chapter-comp">${comp}</span>` : '') +
-          `</span>` +
-          `<span class="virtuoso_lab-results-chapter-dur">${fmtMS(c.durSec)}</span>` +
-          `<span class="virtuoso_lab-results-chapter-done">${glyph}</span>` +
-          `</div>`);
-        return out.join('');
-      }).join('');
-      chaptersHtml = `<div class="virtuoso_lab-results-chapters">${rows2}</div>`;
+        out.push(domEl('div', {className:`virtuoso_lab-results-chapter${stateCls}`}, domEl('span', {className:'virtuoso_lab-results-chapter-dot', style:{background:color}}), domEl('span', {className:'virtuoso_lab-results-chapter-main'}, ui('span', 'virtuoso_lab-results-chapter-name', c.name || roleLabel(c.role)), comp ? ui('span', 'virtuoso_lab-results-chapter-comp', comp) : null), ui('span', 'virtuoso_lab-results-chapter-dur', fmtMS(c.durSec)), ui('span', 'virtuoso_lab-results-chapter-done', glyph)));
+        return out;
+      });
+      chaptersNode = ui('div', 'virtuoso_lab-results-chapters', rows2);
     }
 
     // Cooperative share card (Copy card + Save): on EVERY results page, every run —
     // the card is an honest mirror (earned → green ✓; ordinary → descriptive log), so
     // it can't inflate (gamification: the gate moved from the button to the content).
-    const shareBtn = shareRowHtml();
+    const shareBtn = shareRowNode();
 
     // Bass FELT body (Option A): the verdict WORD replaces the % entirely. A flip
     // reuses the green hero `verdict`; otherwise a calm descriptive word (no green,
     // no shame, no number). Tempo is demoted to the practiced line.
-    let feltBodyHtml = '';
+    let feltBodyNodes = [];
     if (isFelt) {
       const v = s.felt && s.felt.verdict;
       if (feltFlip) {
-        feltBodyHtml = verdict;
+        feltBodyNodes = [verdict];
       } else {
         const MAP = { dragging: 'Dragging — behind the beat', rushing: 'Rushing — ahead of the kick', settling: 'Settling — finding the pocket', locked: 'Locked the pocket' };
         const word = v ? (MAP[v] || 'Settling — finding the pocket')
           : (s.felt && s.felt.untight ? 'Keep working the pocket' : 'Couldn’t catch the low strings — go by feel');
-        feltBodyHtml = `<div class="virtuoso_lab-results-verdict virtuoso_lab-results-felt">${word}</div>`;
+        feltBodyNodes = [ui('div', 'virtuoso_lab-results-verdict virtuoso_lab-results-felt', word)];
         // PR 1.5: the specific pocket read under the verdict word (which one of
         // lean / drift / jitter it actually is — they have different fixes).
         const pd = buildPocketDiagnosis(s.felt);
-        if (pd) feltBodyHtml += `<div class="virtuoso_lab-results-pocket virtuoso_lab-pocket-${pd.tone}">${pd.text}</div>`;
+        if (pd) feltBodyNodes.push(domEl('div', {className:`virtuoso_lab-results-pocket virtuoso_lab-pocket-${pd.tone}`}, pd.text));
       }
-      feltBodyHtml += `<div class="virtuoso_lab-results-practiced">${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}</div>`;
+      feltBodyNodes.push(ui('div', 'virtuoso_lab-results-practiced', `${s.displayName || 'Practice'}${s.bpm ? ` · ${s.bpm} BPM` : ''}${(s.felt && s.felt.spanBars) ? ` · held ${s.felt.spanBars} bars` : ''}`));
     }
 
     if (title) title.textContent = `Results — ${s.displayName || 'Practice'}`;
     // The judged-detail rows still carry honest counts/ear, but a Workout shows NO
     // % anywhere (incl. here) — reframe the toggle label and drop the "Practiced @
     // BPM" line (a session spans many tempos).
-    body.innerHTML =
-      (isWorkout
-        ? sessionHeadHtml + chaptersHtml + strip + shareBtn
-        : isFelt
-        ? feltBodyHtml + coachHtml + strip + shareBtn
-        : verdict +
-          `<div class="virtuoso_lab-results-pct">${(judged && !reduceMotion) ? '0%' : headline}</div>` +
-          `<div class="virtuoso_lab-results-head">${sub}</div>` +
-          (hero ? hero.html : '') +
-          coachHtml +
-          strip +
-          `<div class="virtuoso_lab-results-practiced">Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}</div>` +
-          shareBtn) +
-      `<button type="button" id="virtuoso_lab-results-details-toggle" class="virtuoso_lab-results-progress-toggle" aria-expanded="${detailsOpen}">${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged</button>` +
-      `<div id="virtuoso_lab-results-details" class="virtuoso_lab-results-rows"${detailsOpen ? '' : ' hidden'}>${rows.map(t => `<div>${t}</div>`).join('')}` +
-      (verbose && info ? `<button type="button" id="virtuoso_lab-results-copydiag" class="virtuoso_lab-results-quiet">Copy diagnostics</button>` : '') +
-      `</div>` +
-      ctaHtml;
+    const mainNodes = isWorkout ? [sessionHeadNode, chaptersNode, strip, shareBtn]
+      : isFelt ? [...feltBodyNodes, coachNode, strip, shareBtn]
+        : [verdict, ui('div', 'virtuoso_lab-results-pct', (judged && !reduceMotion) ? '0%' : headline), ui('div', 'virtuoso_lab-results-head', sub), hero ? hero.node : null, coachNode, strip,
+          ui('div', 'virtuoso_lab-results-practiced', `Practiced ${dur}${s.bpm ? ` @ ${s.bpm} BPM` : ''}`), shareBtn];
+    body.replaceChildren(...mainNodes,
+      domEl('button', {type:'button', id:'virtuoso_lab-results-details-toggle', className:'virtuoso_lab-results-progress-toggle', 'aria-expanded':detailsOpen}, `${detailsOpen ? '▾' : '▸'} How this ${isWorkout ? 'Workout' : 'run'} was judged`),
+      domEl('div', {id:'virtuoso_lab-results-details', className:'virtuoso_lab-results-rows', hidden:!detailsOpen}, rows.map(row => domEl('div', null, row)), verbose && info ? domEl('button', {type:'button', id:'virtuoso_lab-results-copydiag', className:'virtuoso_lab-results-quiet'}, 'Copy diagnostics') : null),
+      ctaNode);
 
     // Earned-outcome chrome (the meter-green top edge) + the entry animation.
     const card = root.querySelector('.virtuoso_lab-results-card');
@@ -6544,19 +6413,19 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   }
   /** @param {number} min */
   function fmtMins(min) { return min >= 60 ? `${Math.floor(min / 60)}h ${min % 60}m` : `${min}m`; }
-  function woodshedSectionHtml() {
+  function woodshedSectionNode() {
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
-    if (xpOff) return '';   // Off collapses the whole layer
+    if (xpOff) return null;   // Off collapses the whole layer
     const w = woodshedLog();
-    if (w.sessions === 0) return `<div class="virtuoso_lab-progress-sheet-section"><h4>Woodshed</h4><div class="virtuoso_lab-pm-coming">Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled.</div></div>`;
-    const rows = [`<div class="virtuoso_lab-pm-row"><span>On the instrument</span><strong>${fmtMins(w.totalMin)}</strong></div>`];
-    if (w.weekMin > 0) rows.push(`<div class="virtuoso_lab-pm-row"><span>This week</span><strong>${fmtMins(w.weekMin)}</strong></div>`);
-    rows.push(`<div class="virtuoso_lab-pm-row"><span>Practice days</span><strong>${w.days}</strong></div>`);
+    if (w.sessions === 0) return ui('div', 'virtuoso_lab-progress-sheet-section', domEl('h4', null, 'Woodshed'), ui('div', 'virtuoso_lab-pm-coming', "Your practice will accumulate here — time on the instrument, your tempo PBs, and the keys you've traveled."));
+    const rows = [ui('div', 'virtuoso_lab-pm-row', domEl('span', null, 'On the instrument'), domEl('strong', null, fmtMins(w.totalMin)))];
+    if (w.weekMin > 0) rows.push(ui('div', 'virtuoso_lab-pm-row', domEl('span', null, 'This week'), domEl('strong', null, fmtMins(w.weekMin))));
+    rows.push(ui('div', 'virtuoso_lab-pm-row', domEl('span', null, 'Practice days'), domEl('strong', null, w.days)));
     // Tier C — the visible woodshed LEVEL (a legible readout of the accrued time×
     // difficulty XP, never a featured headline; the forward hint is opportunity, not
     // a grind bar). Behind XP-Off with the rest of this section.
     const lv = xpLevelInfo(w.xp);
-    rows.push(`<div class="virtuoso_lab-pm-row"><span>Woodshed level</span><strong>Lv ${lv.level} · ${lv.name}</strong></div>`);
+    rows.push(ui('div', 'virtuoso_lab-pm-row', domEl('span', null, 'Woodshed level'), domEl('strong', null, `Lv ${lv.level} · ${lv.name}`)));
     // Forward line. Below the cap it names the next identity (opportunity, not a grind
     // bar). AT the cap (Lifer, no nextName) the old code went SILENT — the "Lifer cliff"
     // at our most-committed player. Reframe the summit as a graduation that points at the
@@ -6564,40 +6433,36 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // gamification+market verdict: keep finite levels, make the terminal state a graduation,
     // never an infinite treadmill. project_xp_leveling_cap_prestige_verdict.
     const nextAt = lv.nextAt;
-    if (lv.nextName && nextAt != null) rows.push(`<div class="virtuoso_lab-pm-coming">${(nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.</div>`);
-    else rows.push(`<div class="virtuoso_lab-pm-coming">Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.</div>`);
+    if (lv.nextName && nextAt != null) rows.push(ui('div', 'virtuoso_lab-pm-coming', `${(nextAt - lv.xp).toLocaleString()} XP of practice to ${lv.nextName}.`));
+    else rows.push(ui('div', 'virtuoso_lab-pm-coming', 'Lifer — top of the ladder. The hours keep counting; from here your tempo PBs, keys and badges are the climb.'));
     // "Your numbers" — the clean-tempo PBs to beat (gained-only; the come-back hook).
-    let numbersHtml = '';
+    let numbersNode = null;
     if (w.numbers.length) {
-      numbersHtml = `<div class="virtuoso_lab-pm-sub">Your numbers — clean tempo to beat</div>` +
-        w.numbers.slice(0, 5).map(n => `<div class="virtuoso_lab-pm-row"><span>${n.label}</span><strong>${n.bpm} BPM</strong></div>`).join('');
+      numbersNode = domEl('div', null, ui('div', 'virtuoso_lab-pm-sub', 'Your numbers — clean tempo to beat'), w.numbers.slice(0, 5).map(n => ui('div', 'virtuoso_lab-pm-row', domEl('span', null, n.label), domEl('strong', null, `${n.bpm} BPM`))));
     }
     // Traveled — keys cleared (portability; the depth axis made visible).
-    let travelHtml = '';
+    let travelNode = null;
     if (w.travels.length) {
-      travelHtml = `<div class="virtuoso_lab-pm-sub">Traveled — held in new keys</div>` +
-        w.travels.slice(0, 5).map(t => `<div class="virtuoso_lab-pm-row"><span>${t.label}${t.mastered ? ' ★' : ''}</span><strong>${t.keys} ${t.keys === 1 ? 'key' : 'keys'}</strong></div>`).join('');
+      travelNode = domEl('div', null, ui('div', 'virtuoso_lab-pm-sub', 'Traveled — held in new keys'), w.travels.slice(0, 5).map(t => ui('div', 'virtuoso_lab-pm-row', domEl('span', null, `${t.label}${t.mastered ? ' ★' : ''}`), domEl('strong', null, `${t.keys} ${t.keys === 1 ? 'key' : 'keys'}`))));
     }
     // Grooves owned — the bass felt-hold PBs (held in the pocket; tempo a fact, not a rank).
-    let groovesHtml = '';
+    let groovesNode = null;
     if (w.grooves && w.grooves.length) {
-      groovesHtml = `<div class="virtuoso_lab-pm-sub">Grooves owned — held in the pocket</div>` +
-        w.grooves.slice(0, 5).map(g => `<div class="virtuoso_lab-pm-row"><span>${g.label}</span><strong>to ${g.bpm} BPM</strong></div>`).join('');
+      groovesNode = domEl('div', null, ui('div', 'virtuoso_lab-pm-sub', 'Grooves owned — held in the pocket'), w.grooves.slice(0, 5).map(g => ui('div', 'virtuoso_lab-pm-row', domEl('span', null, g.label), domEl('strong', null, `to ${g.bpm} BPM`))));
     }
-    return `<div class="virtuoso_lab-progress-sheet-section"><h4>Woodshed</h4>${rows.join('')}${numbersHtml}${travelHtml}${groovesHtml}</div>`;
+    return ui('div', 'virtuoso_lab-progress-sheet-section', domEl('h4', null, 'Woodshed'), rows, numbersNode, travelNode, groovesNode);
   }
   // Competency BADGE rack (Tier C) — earned-only, gained-only (a badge is a one-time
   // false→true on a real competency artifact; nothing is ever shown locked-with-a-bar
   // or lost). Collapses entirely in XP-Off; no empty rack to nag a new player.
-  function badgesSectionHtml() {
+  function badgesSectionNode() {
     let xpOff = false; try { xpOff = progressLoad().mode === 'off'; } catch (_) {}
-    if (xpOff) return '';
+    if (xpOff) return null;
     const store = progressLoad();
     const earned = Object.keys(store.badges || {});
-    if (!earned.length) return '';
-    const chips = BADGES.filter(b => earned.includes(b.id))
-      .map(b => `<span class="virtuoso_lab-badge" title="${b.desc}">${b.name}</span>`).join('');
-    return `<div class="virtuoso_lab-progress-sheet-section"><h4>Badges</h4><div class="virtuoso_lab-badge-rack">${chips}</div></div>`;
+    if (!earned.length) return null;
+    const chips = BADGES.filter(b => earned.includes(b.id)).map(b => domEl('span', {className:'virtuoso_lab-badge', title:b.desc}, b.name));
+    return ui('div', 'virtuoso_lab-progress-sheet-section', domEl('h4', null, 'Badges'), domEl('div', {className:'virtuoso_lab-badge-rack'}, chips));
   }
   function renderProgressSheet() {
     const body = $('virtuoso_lab-progress-sheet-body'); if (!body) return;
@@ -6607,28 +6472,25 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const streakN = streakCount(_sessions);
     const todayDone = new Set(_sessions.map((/** @type {{date: string}} */ s) => s.date)).has(localDateStr());
     const streakLine = streakN > 0
-      ? `<div class="virtuoso_lab-pm-row"><span>${todayDone ? 'Current streak' : 'Streak — alive today'}</span><strong>${streakN} ${streakN === 1 ? 'day' : 'days'}</strong></div>${todayDone ? '' : '<div class="virtuoso_lab-pm-coming">Practice today to extend it.</div>'}`
-      : `<div class="virtuoso_lab-pm-coming">Practice today to start a streak — and a single rest day won’t break it.</div>`;
+      ? [ui('div', 'virtuoso_lab-pm-row', domEl('span', null, todayDone ? 'Current streak' : 'Streak — alive today'), domEl('strong', null, `${streakN} ${streakN === 1 ? 'day' : 'days'}`)), todayDone ? null : ui('div', 'virtuoso_lab-pm-coming', 'Practice today to extend it.')]
+      : ui('div', 'virtuoso_lab-pm-coming', 'Practice today to start a streak — and a single rest day won’t break it.');
     const touched = Object.keys(pt)
       .filter(id => PATHWAYS[id] && (pt[id].highest_tier ?? -1) >= 0)
       .sort((a, b) => (pt[b].highest_tier ?? -1) - (pt[a].highest_tier ?? -1));
     /** @param {string} id */
     const dotRow = (id) => {
       const pw = PATHWAYS[id], hi = (pt[id].highest_tier ?? -1);
-      const dots = (pw.tempoTiers || []).map((_, i) => `<span class="tree-tier-dot${i <= hi ? ' cleared' : ''}"></span>`).join('');
-      return `<div class="virtuoso_lab-pm-row"><span>${pw.label}</span><span class="virtuoso_lab-pm-dots">${dots}</span></div>`;
+      const dots = (pw.tempoTiers || []).map((_, i) => domEl('span', {className:`tree-tier-dot${i <= hi ? ' cleared' : ''}`}));
+      return ui('div', 'virtuoso_lab-pm-row', domEl('span', null, pw.label), domEl('span', {className:'virtuoso_lab-pm-dots'}, dots));
     };
     const _crest = crestState();
-    const crestHtml = _crest.rank
-      ? `<div class="virtuoso_lab-pm-crest"><span class="virtuoso_lab-crest cr-rank-${_crest.rank}">${crestSvg(_crest.rank)}</span><div><div class="virtuoso_lab-pm-crest-label">${_crest.label}</div><div class="virtuoso_lab-pm-crest-desc">${_crest.desc}</div></div></div>`
-      : '';
-    body.innerHTML =
-      crestHtml +
-      sessionSummaryCardHtml() +
-      `<div class="virtuoso_lab-progress-sheet-section"><h4>Streak</h4>${streakLine}</div>` +
-      woodshedSectionHtml() +
-      badgesSectionHtml() +
-      `<div class="virtuoso_lab-progress-sheet-section"><h4>Tempo-tier progress</h4>${touched.length ? touched.slice(0, 8).map(dotRow).join('') : '<div class="virtuoso_lab-pm-coming">Clear a tempo tier to see progress here.</div>'}</div>`;
+    const crest = _crest.rank ? domEl('div', {className:'virtuoso_lab-pm-crest'},
+      domEl('span', {className:`virtuoso_lab-crest cr-rank-${_crest.rank}`}, crestSvgNode(_crest.rank)),
+      domEl('div', null, domEl('div', {className:'virtuoso_lab-pm-crest-label'}, _crest.label), domEl('div', {className:'virtuoso_lab-pm-crest-desc'}, _crest.desc))) : null;
+    body.replaceChildren(crest, sessionSummaryCardNode(),
+      domEl('div', {className:'virtuoso_lab-progress-sheet-section'}, domEl('h4', null, 'Streak'), streakLine),
+      woodshedSectionNode(), badgesSectionNode(),
+      domEl('div', {className:'virtuoso_lab-progress-sheet-section'}, domEl('h4', null, 'Tempo-tier progress'), touched.length ? touched.slice(0, 8).map(dotRow) : domEl('div', {className:'virtuoso_lab-pm-coming'}, 'Clear a tempo tier to see progress here.')));
   }
   // Header Setup popover (instrument + strings + tuning). The button shows the live
   // instrument + tuning; the popover toggles open. Closing on outside-click is bound
@@ -8278,7 +8140,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const b = $('virtuoso_lab-listen');
     if (!b) return;
     b.classList.toggle('active', _demoActive);
-    b.innerHTML = _demoActive ? '◼ Stop' : '🔊 Hear it';
+    b.textContent = _demoActive ? '◼ Stop' : '🔊 Hear it';
     b.setAttribute('aria-pressed', _demoActive ? 'true' : 'false');
     b.title = _demoActive ? 'Stop the preview' : 'Hear it — play the target phrase, no scoring';
   }
@@ -8494,12 +8356,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function renderSessionProgress() {
     const host = $('virtuoso_lab-session-progress'); if (!host) return;
     const b = sessionBounds(), dur = activeBundle?.songInfo?.duration || 0;
-    if (!b || !b.length || dur <= 0) { host.innerHTML = ''; return; }
-    host.innerHTML = b.map((seg, i) => {
+    if (!b || !b.length || dur <= 0) { host.replaceChildren(); return; }
+    host.replaceChildren(...b.map((seg, i) => {
       const grow = Math.max(0.0001, (seg.end - seg.start) / dur);
-      const label = String(seg.name || `Seg ${i + 1}`).replace(/"/g, '&quot;').replace(/</g, '&lt;');
-      return `<button type="button" class="virtuoso_lab-progress-seg" data-seg-index="${i}" style="flex-grow:${grow.toFixed(4)}" title="${label}">${label}</button>`;
-    }).join('');
+      const label = String(seg.name || `Seg ${i + 1}`);
+      return domEl('button', {type:'button', className:'virtuoso_lab-progress-seg', dataset:{segIndex:i}, style:{flexGrow:grow.toFixed(4)}, title:label}, label);
+    }));
   }
 
   // Cheap per-frame check: only touch the DOM when the active segment changes.
@@ -8602,15 +8464,13 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // Compact, glanceable generated-facts strip for #virtuoso_lab-summary. Shows only the
   // GENERATED facts the left-panel controls don't already state — the readout
   // used to restate every menu selection (debug-log style); now it confirms
-  // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
+  // what actually got built.
   // Errors/fallback messages do NOT go here — they're routed to #virtuoso_lab-status.
   /** @param {import('./src/types/entry-data.js').EntryExercise} exercise */
   function summarize(exercise) {
     const cfg = exercise.session, c = exercise.chart;
-    /** @param {unknown} s */
-    const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     /** @param {string} label @param {string | number | undefined} value */
-    const cell = (label, value) => `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val">${esc(value)}</span></div>`;
+    const cell = (label, value) => domEl('div', {className:'virtuoso_lab-lcd-cell'}, domEl('span', {className:'virtuoso_lab-lcd-lbl'}, label), domEl('span', {className:'virtuoso_lab-lcd-val'}, value));
     const len = fmtTime(c.duration);
     // Sessions mix tempo/key/meter across segments, so show session-level facts
     // (name · segments · length · notes) rather than a single key/tempo/meter.
@@ -8621,7 +8481,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         ...(segCount ? [cell('Segments', segCount)] : []),
         cell('Length', len),
         cell('Notes', c.notes.length)
-      ].join('');
+      ];
     }
     const bars = measureSeconds(cfg) > 0 ? Math.round(c.duration / measureSeconds(cfg)) : 0;
     // ── Editable summary cells (DAW transport convention) ──────────────────────
@@ -8630,10 +8490,9 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // (writes the Inspector field → regenerate). Works as a live OVERRIDE in any
     // mode, exactly like the editable Tempo cell.
     /** @param {string | number} value @param {string} label @param {string | number} cur */
-    const opt = (value, label, cur) => `<option value="${esc(value)}"${String(value) === String(cur) ? ' selected' : ''}>${esc(label)}</option>`;
-    /** @param {string} id @param {string} label @param {string} inner @param {string} title */
-    const lcdSel = (id, label, inner, title) =>
-      `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">${esc(label)}</span><span class="virtuoso_lab-lcd-val"><select id="${id}" class="virtuoso_lab-lcd-select" aria-label="${esc(title)}" title="${esc(title)}">${inner}</select></span></div>`;
+    const opt = (value, label, cur) => domEl('option', {value, selected:String(value) === String(cur)}, label);
+    /** @param {string} id @param {string} label @param {Node[]} options @param {string} title */
+    const lcdSel = (id, label, options, title) => domEl('div', {className:'virtuoso_lab-lcd-cell'}, domEl('span', {className:'virtuoso_lab-lcd-lbl'}, label), domEl('span', {className:'virtuoso_lab-lcd-val'}, domEl('select', {id, className:'virtuoso_lab-lcd-select', 'aria-label':title, title}, options)));
     // Key — root note editable; the scale name stays a static suffix. chromatic has
     // no key/scale, so it keeps a static Pattern identity cell.
     let keyCell;
@@ -8644,7 +8503,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     } else {
       const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
       const scaleName = String(cfg.scale || '').replace(/_/g, ' ');
-      keyCell = `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">Key</span><span class="virtuoso_lab-lcd-val"><select id="virtuoso_lab-lcd-key" class="virtuoso_lab-lcd-select" aria-label="Key — root note" title="Key — root note">${NOTES.map(n => opt(n, n, cfg.key)).join('')}</select> ${esc(scaleName)}</span></div>`;
+      keyCell = domEl('div', {className:'virtuoso_lab-lcd-cell'}, domEl('span', {className:'virtuoso_lab-lcd-lbl'}, 'Key'), domEl('span', {className:'virtuoso_lab-lcd-val'}, domEl('select', {id:'virtuoso_lab-lcd-key', className:'virtuoso_lab-lcd-select', 'aria-label':'Key — root note', title:'Key — root note'}, NOTES.map(n => opt(n, n, cfg.key))), ` ${scaleName}`));
     }
     // Meter — mirror the Inspector meter <select> options (zero drift) with compact
     // n/d labels; editable here even when that Inspector field is Custom-only-hidden.
@@ -8657,24 +8516,24 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           const m = parseMeter(o.value);
           const short = m.grouping.length > 1 ? `${m.numerator}/${m.denominator} ${m.grouping.join('+')}` : `${m.numerator}/${m.denominator}`;
           return opt(o.value, short, curMeterVal);
-        }).join(''), 'Meter')
+        }), 'Meter')
       : cell('Meter', `${cfg.meter.numerator}/${cfg.meter.denominator}`);
     // Count-in — bars of lead-in (mirrors the Inspector Count-in select).
     const ciCur = cfg.countInBars != null ? cfg.countInBars : 1;
     const countInCell = lcdSel('virtuoso_lab-lcd-countin', 'Count-in',
-      [1, 2, 4].map(n => opt(n, n === 1 ? '1 bar' : n + ' bars', ciCur)).join(''), 'Count-in bars');
+      [1, 2, 4].map(n => opt(n, n === 1 ? '1 bar' : n + ' bars', ciCur)), 'Count-in bars');
     return [
       keyCell,
       // Tempo is an editable LCD cell (DAW transport convention): same glyphs as
       // a readout, commits via the delegated handler in bind() (two-way with the
       // Inspector BPM field). Sessions (above) keep no tempo cell — mixed tempos.
-      `<div class="virtuoso_lab-lcd-cell"><span class="virtuoso_lab-lcd-lbl">Tempo</span><span class="virtuoso_lab-lcd-val"><input id="virtuoso_lab-lcd-bpm" class="virtuoso_lab-lcd-input" type="number" min="30" max="260" step="1" value="${esc(cfg.bpm)}" aria-label="Tempo (BPM)" title="Click to edit the tempo — applies on Enter"> BPM</span></div>`,
+      domEl('div', {className:'virtuoso_lab-lcd-cell'}, domEl('span', {className:'virtuoso_lab-lcd-lbl'}, 'Tempo'), domEl('span', {className:'virtuoso_lab-lcd-val'}, domEl('input', {id:'virtuoso_lab-lcd-bpm', className:'virtuoso_lab-lcd-input', type:'number', min:30, max:260, step:1, value:cfg.bpm, 'aria-label':'Tempo (BPM)', title:'Click to edit the tempo — applies on Enter'}), ' BPM')),
       meterCell,
       countInCell,
       cell('Bars', bars),
       cell('Length', len),
       cell('Notes', c.notes.length)
-    ].join('');
+    ];
   }
   /** @param {string} text */
   function showStatus(text) { const el = $('virtuoso_lab-status'); if (el) el.textContent = text; }
@@ -8703,7 +8562,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       const exercise = generateExercise(withRunTarget(cfg));
       if (cfg.practicePathwayId) practicePresentation.renderGoal(cfg.practicePathwayId, false);
       lastExercise = exercise;
-      summary.innerHTML = summarize(exercise);
+      summary.replaceChildren(...summarize(exercise));
       const pending = attachRenderer(exercise);
       request = rendererLifecycle.currentRequest();
       if (!await pending || !ownsGeneration()) return;
@@ -8892,7 +8751,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const family = currentFamily();
     const counts = family === 'bass' ? [4,5,6] : [6,7,8];
     const cur = currentStringCount();
-    row.innerHTML = '';
+    row.replaceChildren();
     for (const n of counts) {
       const b = document.createElement('button');
       b.type = 'button';
@@ -9101,7 +8960,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function renderBandStrip(styleId) {
     const host = $('virtuoso_lab-jam-bandstrip'); if (!host) return;
     const pal = STYLE_PALETTES[styleId];
-    if (!pal) { host.innerHTML = ''; return; }
+    if (!pal) { host.replaceChildren(); return; }
     const base = readConfig();
     const cfg = Object.assign({}, base, { jamStyle: styleId, audio: Object.assign({}, base.audio, { profile: pal.audioProfile || '', brightness: undefined }) });
     const prof = resolveAudioProfile(cfg), ens = resolveArrangement(cfg).ensemble, groove = resolveGroove(cfg);
@@ -9119,10 +8978,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     if (ens.bass !== 'off') rows.push(['🎵', 'Bass', 'bass', bandVoiceLabel(prof.bass, 'bass'), 'bass']);
     const drumsOn = ens.drums !== 'off' && groove;
     rows.push(['🥁', 'Drums', 'drums', drumsOn ? (BAND_KIT_LABEL[prof.drums && prof.drums.kit] || 'Kit') : '— drumless', drumsOn ? 'drums' : 'none']);
-    host.innerHTML = '';
+    host.replaceChildren();
     for (const [ic, role, mkey, autoLabel, kind] of rows) {
       const row = document.createElement('div'); row.className = 'virtuoso_lab-band-row';
-      row.innerHTML = `<span class="virtuoso_lab-band-ic">${ic}</span><span class="virtuoso_lab-band-role">${role}</span>`;
+      row.replaceChildren(domEl('span', {className:'virtuoso_lab-band-ic'}, ic), domEl('span', {className:'virtuoso_lab-band-role'}, role));
       if (kind === 'none') {
         const n = document.createElement('span'); n.className = 'virtuoso_lab-band-name virtuoso_lab-band-name-mute'; n.textContent = autoLabel; row.appendChild(n);
       } else {
@@ -9173,7 +9032,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function renderJamStyles() {
     const host = $('virtuoso_lab-jam-styles');
     if (!host) return;
-    host.innerHTML = '';
+    host.replaceChildren();
     const activeId = currentJamStyleId();
     const q = _jamPickerQuery.trim().toLowerCase();
     /** @param {string} id */
@@ -9220,8 +9079,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       head.type = 'button';
       head.className = 'virtuoso_lab-jam-fam-head' + (isOpen ? ' open' : '');
       head.setAttribute('aria-expanded', String(isOpen));
-      const cur = (present.includes(activeId) && !isOpen) ? `<span class="virtuoso_lab-jam-fam-cur">${STYLE_PALETTES[activeId].label}</span>` : '';
-      head.innerHTML = `<span class="virtuoso_lab-jam-fam-chev">${isOpen ? '▾' : '▸'}</span><span class="virtuoso_lab-jam-fam-lab">${label}</span>${cur}`;
+      const cur = present.includes(activeId) && !isOpen ? domEl('span', {className:'virtuoso_lab-jam-fam-cur'}, STYLE_PALETTES[activeId].label) : null;
+      head.replaceChildren(domEl('span', {className:'virtuoso_lab-jam-fam-chev'}, isOpen ? '▾' : '▸'), domEl('span', {className:'virtuoso_lab-jam-fam-lab'}, label), cur);
       head.addEventListener('click', () => { _jamPickerOpenFam = isOpen ? '__none__' : label; renderJamStyles(); });
       host.appendChild(head);
       if (isOpen) chipRow(present);
@@ -9236,7 +9095,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const pal = STYLE_PALETTES[styleId];
     const sel = $('virtuoso_lab-jam-prog');
     if (sel && pal) {
-      sel.innerHTML = '';
+      sel.replaceChildren();
       if (pal.progressions.length > 1) {
         const mix = document.createElement('option');
         mix.value = '__mix'; mix.textContent = `Mix — cycle all ${pal.progressions.length}`;
@@ -9266,7 +9125,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const list = isBassCfg(readConfig()) ? jamBassIntents(styleId) : (JAM_INTENTS[styleId] || []);
     const items = (_jamDeviceIntent ? [_jamDeviceIntent] : []).concat(list);
     if (jamIntent && !items.includes(jamIntent)) jamIntent = '';   // stale pick (style/instrument switch)
-    host.innerHTML = '';
+    host.replaceChildren();
     items.forEach(txt => {
       const b = document.createElement('button');
       b.type = 'button';
@@ -10147,7 +10006,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function syncTempoTierButtons() {
     const container = $('virtuoso_lab-tier-buttons');
     if (!container) return;
-    container.innerHTML = '';
+    container.replaceChildren();
     const signpost = $('virtuoso_lab-climb-next');
     if (signpost) { signpost.textContent = ''; signpost.classList.remove('summit'); }
     const pw = practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' ? PATHWAYS[practiceSelection.pathwayId] : null;
@@ -10166,9 +10025,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       btn.className = cls;
       // The rung ordinal makes the ladder read as a climb (Rung 1 → 4), not four
       // equal boxes. Label is the speed name; BPM is the readout below it.
-      btn.innerHTML = `<span class="tier-step">Rung ${i + 1}</span>` +
-        `<span class="tier-name">${TIER_LABELS[i] || `T${i+1}`}</span>` +
-        `<span class="tier-bpm">${tierChipLabel(activePathway, i)}</span>`;
+      btn.replaceChildren(domEl('span', {className:'tier-step'}, `Rung ${i + 1}`), domEl('span', {className:'tier-name'}, TIER_LABELS[i] || `T${i+1}`), domEl('span', {className:'tier-bpm'}, tierChipLabel(activePathway, i)));
       btn.addEventListener('click', () => {
         practiceSelection.setTier(i);
         practiceSelection.applyTier(activePathway, i);   // bpm + the tier's subdivision/bars step (density ladder)
@@ -10186,18 +10043,17 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         const offer = depthPatternOffer(pw);
         if (offer) {
           // The live invite: the dead-end becomes the next depth step, armed on click.
-          signpost.innerHTML = `<span class="climb-arrow">✓</span>All speeds cleared. ` +
-            `<button type="button" class="virtuoso_lab-climb-cta" data-act="depth-pattern" data-seq="${offer.seq}">Now play it ${offer.label} ▸</button>`;
+          signpost.replaceChildren(domEl('span', {className:'climb-arrow'}, '✓'), 'All speeds cleared. ', domEl('button', {type:'button', className:'virtuoso_lab-climb-cta', dataset:{act:'depth-pattern', seq:offer.seq}}, `Now play it ${offer.label} ▸`));
         } else if (SEQ_SUPPORTING.has(pw && pw.base && pw.base.practiceType) && depthIsPatterned()) {
           // Already on a pattern — forward hook (the always-visible roadmap signal),
           // naming the next axis without yet shipping its control.
-          signpost.innerHTML = `<span class="climb-arrow">✓</span>Speeds + pattern cleared — new keys &amp; positions are next.`;
+          signpost.replaceChildren(domEl('span', {className:'climb-arrow'}, '✓'), 'Speeds + pattern cleared — new keys & positions are next.');
         } else {
-          signpost.innerHTML = `<span class="climb-arrow">✓</span>Summit reached — every speed cleared.`;
+          signpost.replaceChildren(domEl('span', {className:'climb-arrow'}, '✓'), 'Summit reached — every speed cleared.');
         }
       } else {
         const name = TIER_LABELS[nextIdx] || `Rung ${nextIdx + 1}`;
-        signpost.innerHTML = `<span class="climb-arrow">→</span>Next rung: <span class="climb-target">${name}</span> · ${tierChipLabel(activePathway, nextIdx)}`;
+        signpost.replaceChildren(domEl('span', {className:'climb-arrow'}, '→'), 'Next rung: ', domEl('span', {className:'climb-target'}, name), ` · ${tierChipLabel(activePathway, nextIdx)}`);
       }
     }
   }
@@ -10255,8 +10111,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       // rather than a blank pane (belt-and-suspenders: the instrument-aware Core
       // should always have content, but a future instrument without a Core spine
       // would otherwise blank here). Points the player at the Pack manager.
-      bandBar.innerHTML = '';
-      list.innerHTML = '<div class="virtuoso_lab-lib-empty">No pathways for this instrument yet — tap <strong>+</strong> to browse packs.</div>';
+      bandBar.replaceChildren();
+      list.replaceChildren(domEl('div', {className:'virtuoso_lab-lib-empty'}, 'No pathways for this instrument yet — tap ', domEl('strong', null, '+'), ' to browse packs.'));
       return;
     }
     // Which band to show = the user's selected band (_activeBandId), defaulting to the
@@ -10268,7 +10124,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
     const activeBand = bands.find(b => b.id === practiceSelection.bandId) || bands[0];
     // L1 — band bar
-    bandBar.innerHTML = '';
+    bandBar.replaceChildren();
     // Two axes (§12): the Core bands (Beginner→Advanced) are an ordered CLIMB;
     // the Style bands are LATERAL branches. Render them as two groups separated
     // by a hairline, so the bar doesn't read as one undifferentiated row.
@@ -10297,7 +10153,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     addBtn.type = 'button';
     addBtn.className = 'virtuoso_lab-band-btn virtuoso_lab-band-add'
       + ($('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-packs-open') ? ' active' : '');
-    addBtn.innerHTML = '<span class="virtuoso_lab-band-add-plus" aria-hidden="true">+</span><span class="virtuoso_lab-band-add-label">Add</span>';
+    addBtn.replaceChildren(domEl('span', {className:'virtuoso_lab-band-add-plus', 'aria-hidden':'true'}, '+'), domEl('span', {className:'virtuoso_lab-band-add-label'}, 'Add'));
     addBtn.title = 'Add pathway packs';
     addBtn.setAttribute('aria-label', 'Add pathway packs');
     addBtn.addEventListener('click', () => togglePackManager(true));
@@ -10305,7 +10161,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // L2 — ordered pathway list for the active band
     const states = activeBand.ids.map(id => ({ id, st: nodeProgressState(id, ptData) }));
     const nextId = (states.find(s => !s.st.cleared && s.id !== practiceSelection.pathwayId) || {}).id;
-    list.innerHTML = '';
+    list.replaceChildren();
     states.forEach(({ id, st }) => {
       const pw = PATHWAYS[id];
       const row = document.createElement('div');
@@ -10318,16 +10174,16 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       const dots = (pw.tempoTiers || []).map((_, i) => {
         const done = i <= st.highestTier;
         const lbl = TIER_LABELS[i] || ('Tier ' + (i + 1));
-        return `<span class="tree-tier-dot${done ? ' cleared' : ''}" title="${lbl} — ${done ? 'cleared' : 'not yet'}" aria-label="${lbl}, ${done ? 'cleared' : 'not cleared'}"></span>`;
-      }).join('');
-      const marker = id === practiceSelection.pathwayId ? '<span class="virtuoso_lab-pw-here">you are here</span>'
-        : id === nextId ? '<span class="virtuoso_lab-pw-next">→ next</span>' : '';
+        return domEl('span', {className:`tree-tier-dot${done ? ' cleared' : ''}`, title:`${lbl} — ${done ? 'cleared' : 'not yet'}`, 'aria-label':`${lbl}, ${done ? 'cleared' : 'not cleared'}`});
+      });
+      const marker = id === practiceSelection.pathwayId ? domEl('span', {className:'virtuoso_lab-pw-here'}, 'you are here')
+        : id === nextId ? domEl('span', {className:'virtuoso_lab-pw-next'}, '→ next') : null;
       // Soft "Builds on …" hint — only when the prereq is in ANOTHER band (a Style
       // pathway pointing back to its Core foundation). Within a band the top→bottom
       // order already communicates sequence, so the hint there is just noise.
       const crossBandPrereq = st.prereq && pathwayBandId(st.prereq) !== activeBand.id;
       const sub = (st.prereqUnmet && crossBandPrereq && PATHWAYS[String(st.prereq)])
-        ? `<div class="virtuoso_lab-pw-sub">Builds on ${PATHWAYS[String(st.prereq)].label} — suggested first</div>` : '';
+        ? domEl('div', {className:'virtuoso_lab-pw-sub'}, `Builds on ${PATHWAYS[String(st.prereq)].label} — suggested first`) : null;
       // Depth-ladder pip (Phase 9 Slice 5): a 5-rung mastery overview from the
       // progress store — Speed → Travel → Clean → Ears-off → Master. Off mode →
       // no pip (st.depth is null; the whole layer collapses). A filled rung means
@@ -10340,12 +10196,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           ['Ears off', st.depth.eyesOff,   'no metronome / eyes off'],
           ['Master',   st.depth.mastered,  'owned'],
         ];
-        const pips = rungs.map(([name, done, hint]) =>
-          `<span class="virtuoso_lab-pw-pip${done ? ' done' : ''}" title="${name} — ${done ? 'cleared' : 'not yet'} (${hint})" aria-label="${name}, ${done ? 'cleared' : 'not cleared'}"></span>`).join('');
-        return `<div class="virtuoso_lab-pw-depth"><span class="virtuoso_lab-pw-depth-lbl">Depth</span>${pips}</div>`;
+        const pips = rungs.map(([name, done, hint]) => domEl('span', {className:`virtuoso_lab-pw-pip${done ? ' done' : ''}`, title:`${name} — ${done ? 'cleared' : 'not yet'} (${hint})`, 'aria-label':`${name}, ${done ? 'cleared' : 'not cleared'}`}));
+        return domEl('div', {className:'virtuoso_lab-pw-depth'}, domEl('span', {className:'virtuoso_lab-pw-depth-lbl'}, 'Depth'), pips);
       })() : '';
-      row.innerHTML = `<div class="virtuoso_lab-pw-rowtop"><span class="virtuoso_lab-pw-label">${pw.label}</span>${marker}</div>`
-        + `<div class="virtuoso_lab-pw-dots">${dots}</div>${depthPip}${sub}`;
+      row.replaceChildren(domEl('div', {className:'virtuoso_lab-pw-rowtop'}, domEl('span', {className:'virtuoso_lab-pw-label'}, pw.label), marker), domEl('div', {className:'virtuoso_lab-pw-dots'}, dots), depthPip, sub);
       row.addEventListener('click', () => {
         const sel = $('virtuoso_lab-pathway');
         if (sel) { sel.value = id; sel.dispatchEvent(new Event('change')); }
@@ -10372,9 +10226,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         cue.setAttribute('role', 'button');
         cue.tabIndex = 0;
         cue.title = `Go to ${PATHWAYS[cross.id].label} in ${cross.band.label}`;
-        cue.innerHTML = `<span class="virtuoso_lab-pw-next">→ next</span>`
-          + `<span class="virtuoso_lab-pw-nextband-label">${PATHWAYS[cross.id].label}</span>`
-          + `<span class="virtuoso_lab-pw-nextband-band">in ${cross.band.label}</span>`;
+        cue.replaceChildren(domEl('span', {className:'virtuoso_lab-pw-next'}, '→ next'), domEl('span', {className:'virtuoso_lab-pw-nextband-label'}, PATHWAYS[cross.id].label), domEl('span', {className:'virtuoso_lab-pw-nextband-band'}, `in ${cross.band.label}`));
         const go = () => {
           practiceSelection.browseBand(cross.band.id); renderPathwayList();
           const sel = $('virtuoso_lab-pathway'); if (sel) { sel.value = cross.id; sel.dispatchEvent(new Event('change')); }
@@ -10399,7 +10251,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const ptData = pathwayTiersLoad();
     const hiddenNode = practiceSelection.isHidden;
     // Build inner wrapper + SVG edge layer + node buttons
-    container.innerHTML = '<div class="virtuoso_lab-tree-inner" id="virtuoso_lab-tree-inner"></div>';
+    container.replaceChildren(domEl('div', {className:'virtuoso_lab-tree-inner', id:'virtuoso_lab-tree-inner'}));
     const inner = /** @type {HTMLElement} */ (container.firstChild);
     const NS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(NS, 'svg');
@@ -10428,14 +10280,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       wrapper.className = 'virtuoso_lab-tree-node' + (isActive ? ' active' : '');
       wrapper.style.left = node.x + '%';
       wrapper.style.top  = node.y + '%';
-      const tiers = (pw.tempoTiers || []).map((_, i) =>
-        `<span class="tree-tier-dot${i <= highestTier ? ' cleared' : ''}"></span>`
-      ).join('');
+      const tiers = (pw.tempoTiers || []).map((_, i) => domEl('span', {className:`tree-tier-dot${i <= highestTier ? ' cleared' : ''}`}));
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'virtuoso_lab-tree-node-btn';
       btn.title = pw.label;
-      btn.innerHTML = `<span>${node.short}</span><span class="tree-node-tiers">${tiers}</span>`;
+      btn.replaceChildren(domEl('span', null, node.short), domEl('span', {className:'tree-node-tiers'}, tiers));
       btn.addEventListener('click', () => {
         const sel = $('virtuoso_lab-pathway');
         if (sel) { sel.value = node.id; sel.dispatchEvent(new Event('change')); }
@@ -11564,11 +11414,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     return 'failed';
   }
   // The share-button row (Copy card + Download) — on every results surface, every run.
-  function shareRowHtml() {
-    return `<div class="virtuoso_lab-share-row">` +
-      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-copy" data-act="copy-card" title="Copy a shareable card image to the clipboard">Copy card</button>` +
-      `<button type="button" class="virtuoso_lab-virtuoso_lab_vir-copy" data-act="download-card" title="Save the card as a PNG to share">⤓ Save</button>` +
-      `</div>`;
+  function shareRowNode() {
+    return domEl('div', {className:'virtuoso_lab-share-row'},
+      domEl('button', {type:'button', className:'virtuoso_lab-virtuoso_lab_vir-copy', dataset:{act:'copy-card'}, title:'Copy a shareable card image to the clipboard'}, 'Copy card'),
+      domEl('button', {type:'button', className:'virtuoso_lab-virtuoso_lab_vir-copy', dataset:{act:'download-card'}, title:'Save the card as a PNG to share'}, '⤓ Save'));
   }
   // Shared click logic for a Copy card / Save button (called from the modal + the
   // P-sheet card handlers — both pass the session the card describes).
@@ -11934,26 +11783,22 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   }
   // The emblem — an aegis/laurel that elaborates by rank (accent-family via currentColor;
   // NEVER --virtuoso_lab_vir-meter). Rank 1 hollow aegis + spark · 2 filled + laurel sprigs · 3 full wreath.
-  const CREST_STAR = '<path d="M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z" fill="currentColor"/>';
   const CREST_SHIELD = 'M12 2.4l7 2.5v5.3c0 4.6-2.9 8.1-7 10.4-4.1-2.3-7-5.8-7-10.4V4.9z';
   /** @param {number} rank */
-  function crestSvg(rank) {
-    if (!rank) return '';
-    let inner = '';
-    if (rank === 1) {
-      inner = `<path d="${CREST_SHIELD}" fill="none" stroke="currentColor" stroke-width="1.5"/>` + CREST_STAR;
-    } else if (rank === 2) {
-      inner = `<path d="${CREST_SHIELD}" fill="currentColor" fill-opacity="0.20" stroke="currentColor" stroke-width="1.5"/>`
-        + CREST_STAR
-        + '<g fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"><path d="M5.5 17.6c1.7.2 3 1.1 3.7 2.6"/><path d="M18.5 17.6c-1.7.2-3 1.1-3.7 2.6"/></g>';
-    } else {
-      inner = '<g fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">'
-        + '<path d="M11 21.4C6.6 20.7 3.6 17 3.7 12.3c1.9 1 3.4 2.6 4.2 4.6"/>'
-        + '<path d="M13 21.4c4.4-.7 7.4-4.4 7.3-9.1-1.9 1-3.4 2.6-4.2 4.6"/>'
-        + '<path d="M4.4 9.6c1.8.3 3.2 1.3 4.2 2.8"/><path d="M19.6 9.6c-1.8.3-3.2 1.3-4.2 2.8"/></g>'
-        + CREST_STAR;
-    }
-    return `<svg viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+  function crestSvgNode(rank) {
+    if (!rank) return null;
+    const svgEl = (tag, props, ...children) => { const node = document.createElementNS('http://www.w3.org/2000/svg', tag); Object.entries(props).forEach(([key, value]) => node.setAttribute(key, String(value))); children.forEach(child => node.appendChild(child)); return node; };
+    const star = svgEl('path', {d:'M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z', fill:'currentColor'});
+    let graphics;
+    if (rank === 1) graphics = [svgEl('path', {d:CREST_SHIELD, fill:'none', stroke:'currentColor', 'stroke-width':1.5}), star];
+    else if (rank === 2) graphics = [svgEl('path', {d:CREST_SHIELD, fill:'currentColor', 'fill-opacity':.2, stroke:'currentColor', 'stroke-width':1.5}), star,
+      svgEl('g', {fill:'none', stroke:'currentColor', 'stroke-width':1.3, 'stroke-linecap':'round'}, svgEl('path', {d:'M5.5 17.6c1.7.2 3 1.1 3.7 2.6'}), svgEl('path', {d:'M18.5 17.6c-1.7.2-3 1.1-3.7 2.6'}))];
+    else graphics = [svgEl('g', {fill:'none', stroke:'currentColor', 'stroke-width':1.35, 'stroke-linecap':'round', 'stroke-linejoin':'round'},
+      svgEl('path', {d:'M11 21.4C6.6 20.7 3.6 17 3.7 12.3c1.9 1 3.4 2.6 4.2 4.6'}), svgEl('path', {d:'M13 21.4c4.4-.7 7.4-4.4 7.3-9.1-1.9 1-3.4 2.6-4.2 4.6'}),
+      svgEl('path', {d:'M4.4 9.6c1.8.3 3.2 1.3 4.2 2.8'}), svgEl('path', {d:'M19.6 9.6c-1.8-.3-3.2-1.3-4.2-2.8'})), star];
+    const svg = svgEl('svg', {viewBox:'0 0 24 24', 'aria-hidden':'true'});
+    graphics.forEach(graphic => svg.appendChild(graphic));
+    return svg;
   }
   // Canvas twin for the copy-card PNG (same paths → same emblem). color = accent (never green).
   /** @param {CanvasRenderingContext2D} ctx @param {number} cx @param {number} cy @param {number} size @param {string} color @param {number} rank */
@@ -11983,8 +11828,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function syncCrest(rose) {
     const el = $('virtuoso_lab-crest'); if (!el) return;
     const st = crestState();
-    if (!st.rank) { el.hidden = true; el.innerHTML = ''; el.className = 'virtuoso_lab-crest'; el.removeAttribute('title'); return; }
-    el.innerHTML = crestSvg(st.rank);
+    if (!st.rank) { el.hidden = true; el.replaceChildren(); el.className = 'virtuoso_lab-crest'; el.removeAttribute('title'); return; }
+    el.replaceChildren(crestSvgNode(st.rank));
     el.className = 'virtuoso_lab-crest cr-rank-' + st.rank + (rose ? ' cr-earned' : '');
     el.title = st.label + ' — ' + st.desc;
     el.hidden = false;
@@ -12477,12 +12322,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
     const calEl = $('virtuoso_lab-cal-dots');
     if (!calEl) return;
-    calEl.innerHTML = last7Days(sessions).map(d =>
-      `<div class="virtuoso_lab-cal-day${d.isToday ? ' today' : ''}">` +
-      `<div class="virtuoso_lab-cal-dot${d.practiced ? ' practiced' : ''}"></div>` +
-      `<span class="virtuoso_lab-cal-lbl">${d.letter}</span>` +
-      `</div>`
-    ).join('');
+    calEl.replaceChildren(...last7Days(sessions).map(d => domEl('div', {className:`virtuoso_lab-cal-day${d.isToday ? ' today' : ''}`}, domEl('div', {className:`virtuoso_lab-cal-dot${d.practiced ? ' practiced' : ''}`}), domEl('span', {className:'virtuoso_lab-cal-lbl'}, d.letter))));
   }
 
   // ── End session logger ─────────────────────────────────────────────────────
@@ -12538,7 +12378,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       if (!session) { showStatus('Build a Workout first.'); return; }
       const exercise = generateSession(session);
       lastExercise = exercise;
-      if (summary) summary.innerHTML = summarize(exercise);
+      if (summary) summary.replaceChildren(...summarize(exercise));
       const pending = attachRenderer(exercise);
       request = rendererLifecycle.currentRequest();
       if (!await transport.runStart(pending, () => {})) return;
@@ -12577,7 +12417,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       if (!await pending || !rendererLifecycle.isCurrentRequest(request)) return;
       // Refresh the LCD so a prior failed-attach state doesn't linger after a
       // successful switch.
-      if (summary) summary.innerHTML = summarize(lastExercise);
+      if (summary) summary.replaceChildren(...summarize(lastExercise));
     } catch (e) {
       if (!rendererLifecycle.isCurrentRequest(request) || lastExercise !== exercise) return;
       console.error('[Virtuoso] renderer switch failed', e);
@@ -12593,7 +12433,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
           localStorage.setItem('virtuoso_lab.renderer', 'builtin_2d');
           lastExercise.session.renderer = 'builtin_2d';
           if (!await rendererLifecycle.attach(exercise, true)) return;
-          if (summary) summary.innerHTML = summarize(lastExercise);
+          if (summary) summary.replaceChildren(...summarize(lastExercise));
         } catch (e2) {
           console.error('[Virtuoso] fallback to 2D Highway failed', e2);
           showStatus(`Renderer failed: ${(/** @type {Error} */ (e2)).message || e2}`);
@@ -12833,7 +12673,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     tuningSettings.mount();
     // The Climb signpost's summit invite (depth slice — the summit-invite atom):
     // arm the offered next-depth pattern on the live form, then regenerate. The
-    // signpost re-renders its innerHTML each sync, so delegate from the container.
+    // Signpost controls re-render each sync, so delegate from the container.
     $('virtuoso_lab-climb-next')?.addEventListener('click', (e) => {
       const btn = eventClosest(e.target, '[data-act="depth-pattern"]');
       if (!btn) return;

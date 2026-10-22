@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { STRING_SETUPS, TUNING_PRESETS, TUNING_TO_SETUP, parseNoteName, midiToNoteName } from '../core/instrument-tuning.js';
+import {el} from './dom.js';
 
 /** @typedef {{name: string, midis: number[]}} HostTuning */
 /** @typedef {{id: string, name: string, family: string, string_count: number, midis?: number[]}} SavedTuning */
@@ -74,12 +75,11 @@ export function createTuningSettings(context) {
       }
     }
     clearInputListeners();
-    inputs.innerHTML = '';
+    inputs.replaceChildren();
     const version = inputsVersion;
     for (let i = 0; i < n; i++) {
-      const input = document.createElement('input');
-      input.type = 'text'; input.className = 'virtuoso_lab-custom-tuning-input';
-      input.value = midiToNoteName(midis[i]); input.dataset.idx = String(i); input.spellcheck = false;
+      const input = /** @type {HTMLInputElement} */ (el('input', {type:'text', className:'virtuoso_lab-custom-tuning-input', dataset:{idx:i}, spellcheck:false}));
+      input.value = midiToNoteName(midis[i]);
       for (const type of mounted ? ['input', 'blur'] : []) {
         const handler = () => { if (mounted && version === inputsVersion) edit(type === 'blur'); };
         input.addEventListener(type, handler);
@@ -98,7 +98,7 @@ export function createTuningSettings(context) {
     const customStr = valueElement('virtuoso_lab-custom-open-midis')?.value || '';
     const custom = customStr ? customStr.split(',').map(Number).filter(Number.isFinite) : null;
     const effective = custom && custom.length === n ? custom : (STRING_SETUPS[setupName]?.openMidis || []);
-    sel.innerHTML = '';
+    sel.replaceChildren();
     /** @type {string | null} */
     let activeId = null;
     /** Saved rows retain their own array-iteration direction. @param {string} label @param {Array<{id: string, label: string, midis: number[]}>} rows @param {boolean} [saved] */

@@ -241,7 +241,7 @@ export function createPracticeSelection(dependencies) {
     const scale = /** @type {HTMLSelectElement | null} */ (document.querySelector('#virtuoso_lab-controls [name="scale"]'));
     const keyPc = key ? NOTE_ALIASES[key.value] ?? 0 : 0, scaleId = scale ? scale.value : 'major';
     const opens = STRING_SETUPS.guitar_6_standard.openMidis, previous = picker.value;
-    picker.innerHTML = '';
+    picker.replaceChildren();
     if (!isShapeAwareSystem(system)) return;
     const order = shapeOrderForKey(keyPc,system,scaleId,opens);
     if (!order.length) {
@@ -294,7 +294,7 @@ export function createPracticeSelection(dependencies) {
     /** @type {Record<string, string | null>} */
     const labels = {};
     document.querySelectorAll('[name="scale"] option').forEach(node => { const option = /** @type {HTMLOptionElement} */ (node); labels[option.value] = option.textContent; });
-    picker.innerHTML = '';
+    picker.replaceChildren();
     const current = /** @type {HTMLSelectElement | null} */ (document.querySelector('[name="scale"]'))?.value || '';
     for (const scale of scales) {
       const option = document.createElement('option'); option.value = scale; option.textContent = labels[scale] || scale;

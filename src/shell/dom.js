@@ -24,12 +24,16 @@ export function el(tag, props, ...children) {
       for (const [name, styleValue] of Object.entries(value)) {
         if (styleValue != null) Object.assign(node.style, {[name]:styleValue});
       }
-    } else if (key.startsWith('aria-') || key.startsWith('data-')) {
+    } else if (key.startsWith('aria-') || key.startsWith('data-') || key === 'role') {
       node.setAttribute(key, String(value));
-    } else if (['type', 'title', 'disabled', 'hidden', 'draggable'].includes(key)) {
+    } else if (['id', 'type', 'title', 'disabled', 'hidden', 'draggable', 'value', 'min', 'max', 'step', 'accept', 'spellcheck', 'tabIndex', 'name', 'multiple', 'selected', 'checked'].includes(key)) {
       const properties = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (node));
       const current = properties[key];
-      properties[key] = typeof current === 'boolean' ? Boolean(value) : value;
+      if (key === 'id' || key === 'min' || key === 'max' || key === 'step' || key === 'accept' || key === 'name') node.setAttribute(key, String(value));
+      else if (key === 'value') properties[key] = String(value);
+      else if (key === 'selected' || key === 'checked') properties[key] = Boolean(value);
+      else if (key === 'tabIndex') node.tabIndex = Number(value);
+      else properties[key] = typeof current === 'boolean' ? Boolean(value) : value;
     }
   }
   /** @param {Child} child */
