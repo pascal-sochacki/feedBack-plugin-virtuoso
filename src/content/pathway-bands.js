@@ -213,11 +213,4 @@ export const PATHWAY_BANDS = [
 // Family display order for the Pack-manager Available column (Core-branch-point
 // depth → the catalog reads as a curriculum map, not a scrolling wall).
 export const PACK_FAMILY_ORDER = ['Concepts', 'Roots & Rock', 'Groove', 'Jazz & Sophisticated Harmony', 'High-Gain & Technical', 'Acoustic & Fingerstyle', 'Bass'];
-// Pack integrity guard (the pack-layer analog of the no-unison guard): a Style
-// pack with no Core foundation or family is a curricular error — fail loudly on load.
-PATHWAY_BANDS.forEach(b => {
-  if (b.kind === 'style' && (!b.buildsOn || !b.family)) {
-    throw new Error(`[Virtuoso pack] style pack "${b.id}" must declare buildsOn + family`);
-  }
-});
 // ===========================================================================

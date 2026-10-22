@@ -69,6 +69,21 @@ test('all nine rhythm cells preserve quarter-beat arrays, strokes and accent met
   assert.equal(RHYTHM_CELLS.herta_chug.strokes, undefined);
 });
 
+test('every authored rhythm cell has valid beat durations and optional strokes', () => {
+  for (const [name, cell] of Object.entries(RHYTHM_CELLS)) {
+    assert.ok(Array.isArray(cell.beats) && cell.beats.length > 0, `${name} beats must be a non-empty array`);
+    assert.ok(cell.beats.every(beat => beat > 0), `${name} beat values must be positive`);
+    const sum = cell.beats.reduce((total, beat) => total + beat, 0);
+    assert.ok(Math.abs(sum - Math.round(sum)) <= 1e-6, `${name} beat sum ${sum} must be an integer`);
+
+    if (cell.strokes != null) {
+      assert.ok(Array.isArray(cell.strokes), `${name} strokes must be an array when present`);
+      assert.equal(cell.strokes.length, cell.beats.length, `${name} strokes must match beats length`);
+      assert.ok(cell.strokes.every(stroke => stroke === 'd' || stroke === 'u'), `${name} strokes must contain only 'd' or 'u'`);
+    }
+  }
+});
+
 test('numeric timing quirks and inherited-key behavior are not newly validated', () => {
   for (const [bpm, expected] of [[0,Infinity], [NaN,NaN], [undefined,NaN], [-120,-0.5], ['120',0.5], [Infinity,0]]) {
     assert.equal(secondsPerDivision({bpm, subdivision:'quarter'}), expected);

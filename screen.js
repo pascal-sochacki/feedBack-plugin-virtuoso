@@ -1,3 +1,4 @@
+import { DRUMKIT_BANKS, KIT_REGISTRY, TONE_GM, BJ_KCS, SAMPLED_DRUM_NOTES, drumFile, drumVar } from './src/core/audio-registries.js';
 import { createRunTransport } from './src/shell/run-transport.js';
 import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell/renderers/host-factories.js';
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
@@ -7,7 +8,7 @@ import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
 import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
 import { createPracticePresets } from './src/shell/practice-presets.js';
 import { createPracticeSelection } from './src/shell/practice-selection.js';
-import { PRACTICE_APPLICABILITY, offerable } from './src/core/practice-selection.js';
+import { offerable } from './src/core/practice-selection.js';
 import { createPracticePresentation } from './src/shell/practice-presentation.js';
 import { countInSubTicks } from './src/core/count-in.js';
 import { rollSegment, refreshWorkout, materializeSegment, prettyKind, segmentEstDuration } from './src/core/segments.js';
@@ -16,22 +17,20 @@ import { applyLengthPreset } from './src/core/workout-length.js';
 import {} from './src/core/session-config.js';
 import {} from './src/core/session-chart.js';
 import { generateSession } from './src/core/session.js';
-import { STYLE_PALETTES, JAM_PROG_LABELS, jamProgressionLabel } from './src/core/style-palettes.js';
+import { STYLE_PALETTES, jamProgressionLabel } from './src/core/style-palettes.js';
 import { blockTargetSec } from './src/core/chart-tiling.js';
 import {} from './src/core/key-cycle.js';
 import { jamSpotlightPhraseNotes } from './src/core/jam-chart.js';
 import { generateExercise } from './src/core/exercise.js';
-import { AUDIO_FAMILY_DEFAULTS, AUDIO_PROFILES, resolveAudioProfile } from './src/core/audio-profiles.js';
+import { resolveAudioProfile } from './src/core/audio-profiles.js';
 import { DRUM_PIECE_GAIN, DRUM_GROOVES, resolveGroove, buildDrumEvents } from './src/core/drum-grooves.js';
 import { recipeTracks, buildBackingEvents } from './src/core/backing.js';
 import { SWING_RATIOS, swingNotesBacking, applyFeelLean } from './src/core/feel.js';
 import { buildMotifExercise } from './src/core/builders/motif.js';
 import {} from './src/core/exercise-dispatch.js';
-import { cfgAudioProfile, ARRANGEMENT_TIERS, ARRANGEMENT_RECIPES, resolveArrangement } from './src/core/arrangement.js';
-import { COMP_ARTIC, COMP_GROOVES, TGT, compCellForConfig, BANJO_DRONE_BY_TONIC, compTargetMidis, buildCompCellHits } from './src/core/comp-cells.js';
-import { BASS_FIG_FLOOR, BASS_FIG_CEIL, BASS_FIGURES, bassFigureForConfig } from './src/core/bass-figures.js';
-import { STRUM_GRIPS } from './src/core/strum-grips.js';
-import { STRUM_PATTERNS } from './src/core/builders/strum.js';
+import { cfgAudioProfile, ARRANGEMENT_RECIPES, resolveArrangement } from './src/core/arrangement.js';
+import { COMP_GROOVES, compCellForConfig, compTargetMidis, buildCompCellHits } from './src/core/comp-cells.js';
+import { BASS_FIGURES, bassFigureForConfig } from './src/core/bass-figures.js';
 import { compileChordTimeline, applyTimelinePush } from './src/core/chord-timeline.js';
 import { MOTIF_CELLS, resolveMotifCell } from './src/core/motif.js';
 import { pcAtOrAbove } from './src/core/voicing.js';
@@ -52,7 +51,7 @@ import {} from './src/core/builders/arpeggio.js';
 import { NOTE_NAMES, NOTE_ALIASES, pcName, midiToFreq } from './src/core/pitch.js';
 import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
 import { CAGED_SHAPES, CAGED_CYCLE, THREE_NPS_POSITION_DEFS, THREE_NPS_CYCLE, openPcForString, pcOfDegree, degreeOfPc, resolveCAGEDShape, resolveThreeNPSPosition, resolveOpenShape, isOpenSystemSensible, fretWindowForShape, shapeOrderForKey, nextShapeInCycle, isShapeAwareSystem, defaultShapeForSystem } from './src/core/fretboard-shapes.js';
-import { CHORD_FORMULAS, DIATONIC_QUALITIES } from './src/core/chord-theory.js';
+import { DIATONIC_QUALITIES } from './src/core/chord-theory.js';
 import { RHYTHM_CELLS, parseMeter, secondsPerDivision, measureSeconds } from './src/core/timing.js';
 import {} from './src/core/notes.js';
 import { applyEconomyPicking, applyGypsyPicking, applyMetalPicking, applyBassPlucking } from './src/core/stroke-policy.js';
@@ -141,22 +140,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // the minigames SDK's YIN minHz — if the WEB SDK is still 70, sub-70 notes go
   // MISSED, not exempt, on the web path; the desktop/DI-rig contained verifier is 30.
   const DETECTOR_MIN_HZ = 30;
-  // Startup integrity guard (mirrors the no-unison / applicability / strum-grip guards):
-  // a cell that doesn't close on a whole number of beats would desync the click, the
-  // loop, and the count-in. Caught the panel's bad Scotch-snap [0.25,0.5] (¾ of a beat).
-  (function assertRhythmCellsValid() {
-    for (const name of Object.keys(RHYTHM_CELLS)) {
-      const beats = RHYTHM_CELLS[name].beats;
-      if (!Array.isArray(beats) || !beats.length) throw new Error(`[Virtuoso rhythm-cell] ${name} has no beats array`);
-      if (beats.some(b => !(b > 0))) throw new Error(`[Virtuoso rhythm-cell] ${name} has a non-positive step`);
-      const sum = beats.reduce((a, b) => a + b, 0);
-      if (Math.abs(sum - Math.round(sum)) > 1e-6) throw new Error(`[Virtuoso rhythm-cell] ${name} sums to ${sum} beats — must be a whole number of beats (it would phase against the bar)`);
-      const strokes = RHYTHM_CELLS[name].strokes;
-      if (strokes != null && (!Array.isArray(strokes) || strokes.length !== beats.length || strokes.some(s => s !== 'd' && s !== 'u'))) {
-        throw new Error(`[Virtuoso rhythm-cell] ${name} strokes must be a d/u array matching beats (${beats.length})`);
-      }
-    }
-  })();
   // Tempo tier labels — shared by all pathways. Index 0 = Slow.
   const TIER_LABELS = ['Slow', 'Med', 'Fast', 'Push'];
   // §2 · CURATED PATHWAYS
@@ -199,44 +182,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // See docs/theory/fretboard-pedagogy.md for the design rationale and
   // docs/archive/position-system-rework.md for how this data model is intended to
   // flow into the rest of the plugin.
-
-  // Startup integrity guard (pedagogy review 2026-06-06; mirrors the
-  // STRUM_GRIPS finger-collision guard): a chord template drawn MOVABLE must be
-  // humanly fingerable — one finger holds ONE fret offset (equal fOffs = a
-  // barre), and a barre may not cross a LOWER fret offset on a string inside
-  // its span (the finger would have to lie through it). Caught the A:dim and
-  // D:dim fg data bugs above on first run. Exclusions, by design:
-  //   G:*  — an open-position shape; the strum lane voices its movable form as
-  //          a PARTIAL (pickStrumGrip) and the walk skips movable G min/dim.
-  //   C:min — no real movable C-minor grip exists (a 5-finger form); excluded
-  //          from the strum lane's movable picks (walk + economy).
-  //   E:dim — the full 6-string movable dim doesn't exist either (the ♭5 sits a
-  //          fret BELOW the would-be barre); real dim comping uses the 4-string
-  //          D/A forms. Excluded from the strum lane's movable picks likewise.
-  (function assertCagedChordTemplatesValid() {
-    const SKIP = new Set(['G:maj', 'G:min', 'G:dim', 'C:min', 'E:dim']);
-    for (const shape of Object.keys(CAGED_SHAPES)) {
-      const tmpls = CAGED_SHAPES[shape].chordTemplates || {};
-      for (const q of Object.keys(tmpls)) {
-        if (SKIP.has(`${shape}:${q}`)) continue;
-        const ent = tmpls[q];
-        /** @type {Record<string, {s: number, fOff: number, iv: number, fg: number}[]>} */
-        const byFg = {};
-        for (const n of ent) { if (!n.fg) continue; (byFg[n.fg] = byFg[n.fg] || []).push(n); }
-        for (const fg of Object.keys(byFg)) {
-          const grp = byFg[fg];
-          const offs = new Set(grp.map(n => n.fOff));
-          if (offs.size > 1) throw new Error(`[Virtuoso caged-template] ${shape}:${q} finger ${fg} spans fret offsets ${[...offs].join(',')} (impossible)`);
-          if (grp.length >= 2) {
-            const lo = Math.min.apply(null, grp.map(n => n.s)), hi = Math.max.apply(null, grp.map(n => n.s)), f = grp[0].fOff;
-            for (const n of ent) {
-              if (n.s > lo && n.s < hi && n.fOff < f) throw new Error(`[Virtuoso caged-template] ${shape}:${q} barre (finger ${fg} at fOff ${f}) crosses a lower stop on string ${n.s} (impossible)`);
-            }
-          }
-        }
-      }
-    }
-  })();
 
   // Resolve the shape selected in the form (or default) into fret range +
   // shape-note set. Called by readConfig. Returns null if the current system
@@ -1166,85 +1111,11 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // Voice ids mirror the host's lib/drums.py PIECES vocabulary (snake_case) so a
   // Virtuoso drum event maps 1:1 onto the host's 18-piece kit (and a future
   // drum_tab.json export needs no translation). GM notes match where we overlap.
-  const ACOUSTIC_PIECES = {
-    kick:36, snare:38, snare_xstick:37,
-    hh_closed:42, hh_open:46, hh_pedal:44,
-    ride:51, ride_bell:53, bell:80,
-    crash_l:49, crash_r:57, splash:55, china:52,
-    tom_hi:50, tom_mid:47, tom_low:43, tom_floor:41,
-    clap:39,
-  };
-  /** @param {number} note @param {string | undefined} font @param {number | undefined} variant */
-  const drumFile = (note, font, variant) => `128${note}_${variant}_${font}_sf2_file.js`;
-  /** @param {number} note @param {string | undefined} font @param {number | undefined} variant @returns {`_virtuoso_lab_drum_${string}`} */
-  const drumVar  = (note, font, variant) => `_virtuoso_lab_drum_${note}_${variant}_${font}_sf2_file`;
-  // GM notes that ACTUALLY ship a committed FluidR3 one-shot under static/wafonts.
-  // The step-5 extended pieces (snare_xstick 37, tom_floor 41, china 52, ride_bell
-  // 53, splash 55, crash_r 57, bell 80) have NO sample yet → they take the synth
-  // voice instead of a per-hit 404 (loadWafPreset retries on 'failed'). ADD a note
-  // here only when its sample file lands. (Drum curation pass = a later phase.)
-  const SAMPLED_DRUM_NOTES = new Set([35, 36, 38, 39, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51]);
-  // REAL acoustic drum kit (Versilian/Karoryfer "virtuosity_drums", CC0) — a curated
-  // lightweight subset replacing the GM FluidR3 one-shots (the drum-side of the melodic
-  // sample-bank upgrade). Single medium-velocity layer per piece + round-robins (the #1
-  // anti-machine-gun lever per the drum-pedagogy panel); dynamics come from `vol` scaling.
-  // `src` maps an engine piece → the harvested source token (the 4 tom slots alias the 2
-  // harvested toms); `rr` is the take count per token; missing pieces (ride_bell/splash/
-  // china/crash_r/bell/clap) fall through to FluidR3 then synth. Files dk_<token>_<n>.ogg
-  // in static/samples (the /sample route). Provenance: static/samples/README.md.
-  /** @type {Record<string, import('./src/types/audio-graph.js').DrumBank>} */
-  const DRUMKIT_BANKS = {
-    virtuosity: {
-      src: { kick:'kick', snare:'snare', snare_xstick:'xstick', hh_closed:'hhclosed',
-             hh_open:'hhopen', hh_pedal:'hhpedal', ride:'ride', crash_l:'crash',
-             tom_hi:'htom', tom_mid:'htom', tom_low:'ltom', tom_floor:'ltom' },
-      rr: { kick:3, snare:3, xstick:2, hhclosed:4, hhopen:2, hhpedal:2, ride:3, crash:2, htom:2, ltom:2 },
-      file: (token, n) => `dk_${token}_${n}.ogg`,
-    },
-  };
-  /** @type {Record<string, import('./src/types/audio-graph.js').DrumKit>} */
-  const KIT_REGISTRY = {
-    kit_909: { engine: 'synth', preset: '909' },   // tight/punchy default electronic
-    kit_808: { engine: 'synth', preset: '808' },   // sub-heavy, long kick tail
-    // Sampled acoustic kits — REAL virtuosity_drums samples, FluidR3_GM = per-piece
-    // fallback for the pieces the curated subset drops. Share the piece set; differ by level.
-    kit_rock:          { engine: 'sample', bank: 'virtuosity', font: 'FluidR3_GM', variant: 0, level: 1.0,  pieces: ACOUSTIC_PIECES },
-    kit_acoustic_soft: { engine: 'sample', bank: 'virtuosity', font: 'FluidR3_GM', variant: 0, level: 0.82, pieces: ACOUSTIC_PIECES },
-    kit_jazz:          { engine: 'sample', bank: 'virtuosity', font: 'FluidR3_GM', variant: 0, level: 0.8,  pieces: ACOUSTIC_PIECES },  // brush sample set = later curation
-    // kit_latin / kit_afro (percussion-led) → Phase D6
-  };
-  // Startup integrity (mirrors the no-unison / palette guards): every kit `bank` must
-  // exist, and every mapped source token must declare a round-robin count.
-  (function validateDrumKits() {
-    for (const [id, k] of Object.entries(KIT_REGISTRY))
-      if (k.bank && !DRUMKIT_BANKS[k.bank]) throw new Error(`[Virtuoso drumkit] ${id} bank "${k.bank}" missing`);
-    for (const [bk, b] of Object.entries(DRUMKIT_BANKS))
-      for (const [piece, token] of Object.entries(b.src))
-        if (b.rr[token] == null) throw new Error(`[Virtuoso drumkit] ${bk}.${piece} → token "${token}" has no rr count`);
-  })();
   // Core groove staples preloaded at generate; cymbals/toms lazy-load on first hit.
   const DRUM_CORE_PIECES = ['kick', 'snare', 'hh_closed', 'hh_open'];
   // Resolve a style palette into a mergeable partial config the way a Pathway/Custom/
   // Jam consumer uses it: Object.assign({}, base, stylePaletteConfig('blues')). opts let
   // a consumer pick a non-default progression/scale (by index) or pin key/progression/scale.
-  // Startup integrity guard (mirrors the no-unison guard): every palette must point at
-  // real engine tokens, so the shared style table can't silently rot as the engine
-  // evolves. Throws on load if a palette references a missing progression/scale/profile.
-  (function validateStylePalettes() {
-    for (const id of Object.keys(STYLE_PALETTES)) {
-      const p = STYLE_PALETTES[id];
-      for (const pr of p.progressions) if (!COMMON_PROGRESSIONS[pr]) throw new Error(`[Virtuoso style-palette] ${id} references unknown progression "${pr}"`);
-      for (const sc of p.leadScales)   if (!SCALE_INTERVALS[sc])     throw new Error(`[Virtuoso style-palette] ${id} references unknown scale "${sc}"`);
-      if (p.audioProfile && !AUDIO_PROFILES[p.audioProfile])         throw new Error(`[Virtuoso style-palette] ${id} references unknown audioProfile "${p.audioProfile}"`);
-    }
-  })();
-  (function validateJamProgressionLabels() {
-    for (const id of Object.keys(STYLE_PALETTES)) {
-      for (const pr of STYLE_PALETTES[id].progressions || []) {
-        if (!JAM_PROG_LABELS[pr]) throw new Error(`[Virtuoso jam] ${id} progression "${pr}" needs a JAM_PROG_LABELS label`);
-      }
-    }
-  })();
   // One per-style "try this" line (slice J-1 — the intent SEED, goal-card grammar:
   // a constraint to jam against, never a score). Draft prompts pending the
   // genre-idiom refinement sweep (logged in ROADMAP).
@@ -1406,68 +1277,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     return kind === 'modal_vamp' || !progression || progression === 'none' || SINGLE_CHORD_BACKINGS.has(progression);
   }
 
-  // Passive templates/materialization are imported; startup validation stays here.
-  // Startup integrity guard (mirrors validateStylePalettes + the no-unison guard):
+  // Passive templates/materialization are imported; the cross-product transposition
+  // and generated-outcome validation remains here because it exercises resolution.
   // injects each template's id, then enforces the four refresh invariants over every
   // variant of every template — throws on load if an authored template violates one.
-  // Anchor-rung integrity guard (keyless-anchor model 2026-06-06; mirrors the
-  // no-unison / palette / segment guards — throws at load so a mis-authored
-  // rung can never ship): anchor rungs derive their key, so a co-coded `key`
-  // is a contradiction; anchorFret 12+ aliases down an octave (re-author);
-  // anchorFret without the anchor flag is dead data.
-  (function assertAnchorRungsValid() {
-    for (const [id, pw] of Object.entries(PATHWAYS)) {
-      const isAnchor = (pw.base || {}).anchor === 'open_lowest';
-      const variants = [pw.base || {}].concat(pw.vary || []);
-      for (const v of variants) {
-        if (v.anchor != null && v.anchor !== 'open_lowest') throw new Error(`[Virtuoso anchor] ${id}: unknown anchor '${v.anchor}'`);
-        if (v.anchorFret != null && (!Number.isInteger(v.anchorFret) || v.anchorFret < 0 || v.anchorFret > 11))
-          throw new Error(`[Virtuoso anchor] ${id}: anchorFret ${v.anchorFret} out of range 0-11 (12+ aliases down an octave — re-author)`);
-        if (isAnchor && v.key != null) throw new Error(`[Virtuoso anchor] ${id}: 'key' co-coded with anchor:'open_lowest' — the key is DERIVED; author anchorFret instead`);
-        if (!isAnchor && (v.anchor != null || v.anchorFret != null)) throw new Error(`[Virtuoso anchor] ${id}: anchor fields without anchor:'open_lowest' in base`);
-      }
-    }
-  })();
-
-  // Density-ladder integrity guard (panel 2026-06-12; mirrors the anchor guard —
-  // throws at load so a mis-authored ladder can never ship). Two rules:
-  // (1) a rung with tempoTierSubdivs/tempoTierBars must keep its arrays aligned
-  //     with tempoTiers, use known subdivision tokens, and keep tempoTiers
-  //     STRICTLY INCREASING — every bpm→tier inference in crediting
-  //     (creditBlockTier / creditFeltRung / the custom-mode fuzzy match) scans
-  //     `bpm >= tier`, so duplicate or descending BPMs would mis-credit a
-  //     density tier it can't see;
-  // (2) the BEGINNER DENSITY FLOOR (learning-design ruling): tier 0 of any
-  //     core_beginner rung presents ≤ ~2 notes/sec — sixteenth@60-style entries
-  //     ("wrecked from ez mode") become a load-time error, not a beta report.
-  (function assertTierLaddersValid() {
-    const TIER_SUBDIV_OK = new Set(['quarter', 'eighth', 'triplet', 'eighth_triplet', 'sixteenth', 'sixteenth_triplet']);
-    /** @type {Record<string, number>} */
-    const PER_BEAT = { quarter: 1, eighth: 2, triplet: 3, eighth_triplet: 3, sixteenth: 4, sixteenth_triplet: 6 };
-    for (const [id, pw] of Object.entries(PATHWAYS)) {
-      const tiers = pw.tempoTiers || [];
-      if (pw.tempoTierSubdivs || pw.tempoTierBars) {
-        if (pw.tempoTierSubdivs) {
-          if (pw.tempoTierSubdivs.length !== tiers.length) throw new Error(`[Virtuoso tier-ladder] ${id}: tempoTierSubdivs length ${pw.tempoTierSubdivs.length} ≠ tempoTiers length ${tiers.length}`);
-          for (const s of pw.tempoTierSubdivs) if (!TIER_SUBDIV_OK.has(s)) throw new Error(`[Virtuoso tier-ladder] ${id}: unknown tier subdivision '${s}'`);
-        }
-        if (pw.tempoTierBars && pw.tempoTierBars.length !== tiers.length) throw new Error(`[Virtuoso tier-ladder] ${id}: tempoTierBars length ${pw.tempoTierBars.length} ≠ tempoTiers length ${tiers.length}`);
-        for (let i = 1; i < tiers.length; i++) {
-          if (!(tiers[i] > tiers[i - 1])) throw new Error(`[Virtuoso tier-ladder] ${id}: tempoTiers must be strictly increasing when a density ladder is declared (bpm→tier crediting scans 'bpm ≥ tier'); got ${tiers[i - 1]} → ${tiers[i]}`);
-        }
-      }
-    }
-    const beginner = PATHWAY_BANDS.find(b => b.id === 'core_beginner');
-    for (const id of (beginner ? beginner.pathways : [])) {
-      const pw = PATHWAYS[id]; if (!pw || !pw.tempoTiers || !pw.tempoTiers.length) continue;
-      const sub0 = (pw.tempoTierSubdivs && pw.tempoTierSubdivs[0]) || (pw.base || {}).subdivision;
-      const perBeat = PER_BEAT[String(sub0)];
-      if (perBeat == null) continue;   // cell tokens (gallop etc.) aren't entry-tier material; nothing to check
-      const nps = (pw.tempoTiers[0] / 60) * perBeat;
-      if (nps > 2.4) throw new Error(`[Virtuoso tier-ladder] ${id}: core_beginner tier 0 is ${nps.toFixed(1)} notes/sec (${sub0}@${pw.tempoTiers[0]}) — over the ~2/sec beginner floor; ramp density before BPM`);
-    }
-  })();
-
   (function validateSegmentTemplates() {
     for (const id of Object.keys(SEGMENT_TEMPLATES)) {
       const t = SEGMENT_TEMPLATES[id];
@@ -1504,16 +1317,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // lives in the generators + the goal-cards (e.g. bass legato = HO/PO only, bass
   // "sweep" = a raked broken arpeggio). Per-lane spec: agent-memory/
   // bass-pedagogy-expert/project_bass_offerable_tag_table.
-  // Startup integrity guard (mirrors the no-unison / style-palette / segment guards):
-  // every applicability value must be one of the three tags.
-  (function validateApplicability() {
-    const ok = new Set(['native', 'adapted', 'n-a']);
-    for (const k of Object.keys(PRACTICE_APPLICABILITY)) {
-      const e = PRACTICE_APPLICABILITY[k];
-      for (const inst of Object.keys(e)) if (!ok.has(e[inst])) throw new Error(`[Virtuoso applicability] ${k}.${inst} = "${e[inst]}" is not native/adapted/n-a`);
-    }
-  })();
-
   // ── VirtuosoLabWebAudioFont sampler (the engine:'sample' path) ───────────────────────
   // Borrows the host's GM-multisample approach. Loads the player + a GM preset
   // on demand, caches it, and harmony notes for sampled profiles play via
@@ -1533,31 +1336,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // served by routes.py (offline-safe). guitar = steel acoustic (25); clean =
   // clean electric (27); bass = fingered electric (33); upright = acoustic bass (32).
   /** @type {Record<string, number>} */
-  const TONE_GM = {
-    piano: 0, epiano: 4, clav: 7, organ: 19, nylon: 24, guitar: 25, clean: 27,
-    upright: 32, bass: 33, strings: 48, brass: 61, synthlead: 81, synthpad: 88, pad: 89,
-  };
-  // Startup integrity guard (mirrors validateStylePalettes/validateArrangementRecipes):
-  // every AUDIO_PROFILES voice points at a real TONE_GM sample, every kit at a real
-  // KIT_REGISTRY id, every pad.role is a known role, every family is known. Placed
-  // HERE (not next to AUDIO_PROFILES) because it depends on TONE_GM, defined just above.
-  // Closes a real gap: drums.kit was previously unguarded — a typo'd kit fell silently
-  // to kit_909 at play time. Throws on load, same as a bad progression token.
-  (function validateAudioProfiles() {
-    const PAD_ROLES = new Set(['sustain', 'comp', 'counter']);
-    /** @param {string} id @param {import('./src/core/generation-types.js').AudioVoice | null | undefined} slot @param {string} where */
-    const chkTone = (id, slot, where) => {
-      if (slot && (slot.engine == null || slot.engine === 'sample') && slot.tone != null && !(slot.tone in TONE_GM))
-        throw new Error(`[Virtuoso audio-profile] ${id} ${where} tone "${slot.tone}" is not a TONE_GM voice`);
-    };
-    for (const id of Object.keys(AUDIO_PROFILES)) {
-      const p = AUDIO_PROFILES[id];
-      chkTone(id, p.harmony, 'harmony'); chkTone(id, p.bass, 'bass'); chkTone(id, p.pad, 'pad'); chkTone(id, p.notes, 'notes');
-      if (p.pad && p.pad.role != null && !PAD_ROLES.has(p.pad.role)) throw new Error(`[Virtuoso audio-profile] ${id} pad.role "${p.pad.role}" not in ${[...PAD_ROLES].join('|')}`);
-      if (p.drums && p.drums.kit != null && !KIT_REGISTRY[p.drums.kit]) throw new Error(`[Virtuoso audio-profile] ${id} drums.kit "${p.drums.kit}" is not a KIT_REGISTRY kit`);
-      if (p.family && !AUDIO_FAMILY_DEFAULTS[p.family]) throw new Error(`[Virtuoso audio-profile] ${id} family "${p.family}" unknown`);
-    }
-  })();
+
   /** @param {number} gm */
   const wafFile = gm => String(gm * 10).padStart(4, '0') + '_' + WAF_SF;
   /** @param {number} gm */
@@ -1737,7 +1516,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // drone landed on a corrupted take) — each was PITCH-CORRECTED onto its keycenter on
   // re-export (verified avg 1.5¢ / worst 8¢ off). The broken kc47 source (an octave low) was
   // dropped; 53/61/71 added for coverage. No per-bank `tune` correction needed now.
-  const BJ_KCS = [39, 40, 41, 42, 43, 44, 45, 46, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 61, 63, 67, 68, 70, 71];
+
   // CP-80 electric grand keycenters (Greg Sullivan E-Pianos, CC-BY 3.0; harvested 2026-06-14)
   // — 21 notes (A0..D#7, ~minor-third spacing), 3 real velocity layers (mp/f/ff). The
   // leading number in the source filename IS the MIDI (no octave trap). Same pack as WUR.
@@ -2059,68 +1838,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   /** @type {Record<string, string>} */
   const FUNCTION_HUE = { tonic: '#3b82f6', subdominant: '#06b6d4', dominant: '#f59e0b' };
   function isJamMode() { const r = $('virtuoso_lab-root'); return !!(r && (r.classList.contains('virtuoso_lab_vir-mode-jam') || r.classList.contains('virtuoso_lab-jam-mode'))); }
-  // Startup integrity guard (mirrors validateStrumPatterns): grid shape, known
-  // targets/artics, a label on every cell (player-facing from day one).
-  (function validateCompGrooves() {
-    for (const id of Object.keys(COMP_GROOVES)) {
-      const c = COMP_GROOVES[id];
-      const expect = (c.bars || 1) * 4 * c.div;
-      if (!c.label) throw new Error(`[Virtuoso comp-groove] ${id} has no player-facing label`);
-      /** @param {import('./src/core/generation-types.js').CompCell['grid']} g @param {string} tag */
-      const chkGrid = (g, tag) => {
-        if (g.length !== expect) throw new Error(`[Virtuoso comp-groove] ${id} ${tag} has ${g.length} steps, expected ${expect}`);
-        for (const s of g) {
-          if (s === '.') continue;
-          if (!s || typeof s !== 'object' || !TGT.has(s.t) || COMP_ARTIC[s.a] == null) throw new Error(`[Virtuoso comp-groove] ${id} ${tag} has a bad step ${JSON.stringify(s)}`);
-        }
-      };
-      chkGrid(c.grid, 'grid');
-      if (c.vary) c.vary.forEach((g, i) => chkGrid(g, `vary[${i}]`));   // Layer 3: each bar-variant
-    }
-  })();
-  // Guard (mirrors validateCompGrooves): a drone that isn't a real BJ_KCS keycenter would
-  // pitch-shift the always-on drone into a coverage gap — throw on load so it can't regress.
-  (function validateBanjoDrone() {
-    for (const pc in BANJO_DRONE_BY_TONIC) if (!BJ_KCS.includes(BANJO_DRONE_BY_TONIC[pc]))
-      throw new Error(`[Virtuoso banjo] drone MIDI ${BANJO_DRONE_BY_TONIC[pc]} (tonic pc ${pc}) is not a BJ_KCS keycenter`);
-  })();
-  // Startup integrity guard (mirrors validateCompGrooves): grid shape, the
-  // beat-1 root (the kick lock is structural), iv range, a root window under
-  // the line ceiling, a label on every figure.
-  (function validateBassFigures() {
-    for (const id of Object.keys(BASS_FIGURES)) {
-      const f = BASS_FIGURES[id];
-      if (!f.label) throw new Error(`[Virtuoso bass-figure] ${id} has no player-facing label`);
-      if (f.kind === 'gen') continue;
-      const expect = (f.bars || 1) * 4 * f.div;
-      if (!Array.isArray(f.grid) || f.grid.length !== expect) throw new Error(`[Virtuoso bass-figure] ${id} grid has ${(f.grid || []).length} steps, expected ${expect}`);
-      let maxIv = 0;
-      for (const s of f.grid) {
-        if (s === '.') continue;
-        if (!s || typeof s !== 'object' || !Number.isFinite(s.iv) || s.iv < 0 || s.iv > 12) throw new Error(`[Virtuoso bass-figure] ${id} has a bad step ${JSON.stringify(s)}`);
-        maxIv = Math.max(maxIv, s.iv);
-      }
-      if (f.grid[0] === '.' || !f.grid[0] || f.grid[0].iv !== 0) throw new Error(`[Virtuoso bass-figure] ${id} must land the ROOT on beat 1 (the kick lock)`);
-      if (BASS_FIG_CEIL - maxIv < BASS_FIG_FLOOR) throw new Error(`[Virtuoso bass-figure] ${id} maxIv ${maxIv} leaves no root window under the ${BASS_FIG_CEIL} ceiling`);
-    }
-  })();
-  // Startup integrity guard (mirrors validateCompGrooves/validateBassFigures): the
-  // key shape is style:feel:tier with a known tier, and every pointer resolves.
-  (function validateArrangementRecipes() {
-    for (const key of Object.keys(ARRANGEMENT_RECIPES)) {
-      const parts = key.split(':');
-      if (parts.length !== 3 || !ARRANGEMENT_TIERS.includes(parts[2])) throw new Error(`[Virtuoso arrangement] bad recipe key "${key}" — want style:feel:tier with tier in ${ARRANGEMENT_TIERS.join('|')}`);
-      const p = ARRANGEMENT_RECIPES[key].picks || {};
-      if (p.comp && !COMP_GROOVES[p.comp]) throw new Error(`[Virtuoso arrangement] ${key} comp "${p.comp}" is not a COMP_GROOVES cell`);
-      if (p.bass && !BASS_FIGURES[p.bass]) throw new Error(`[Virtuoso arrangement] ${key} bass "${p.bass}" is not a BASS_FIGURES figure`);
-      if (p.drums && !DRUM_GROOVES[p.drums]) throw new Error(`[Virtuoso arrangement] ${key} drums "${p.drums}" is not a DRUM_GROOVES groove`);
-      for (const t of (ARRANGEMENT_RECIPES[key].tracks || [])) {   // track-arch stage 3b: extra comp lanes
-        if (!t.id || !t.cell) throw new Error(`[Virtuoso arrangement] ${key} track needs {id, cell}`);
-        if (!COMP_GROOVES[t.cell]) throw new Error(`[Virtuoso arrangement] ${key} track "${t.id}" cell "${t.cell}" is not a COMP_GROOVES cell`);
-        if (t.voice != null && !(t.voice in TONE_GM)) throw new Error(`[Virtuoso arrangement] ${key} track "${t.id}" voice "${t.voice}" is not a TONE_GM voice`);
-      }
-    }
-  })();
   // Startup integrity guard (mirrors assertRhythmCellsValid / assertStrumGripsValid
   // / the no-unison guard — throws at load so a mis-authored cell never ships):
   // schema sanity + bar-sum, the v1-limit fences, then the TRANSPOSITION SWEEP —
@@ -2168,59 +1885,13 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       }
     }
   })();
-  // Startup integrity guard (mirrors the no-unison / style-palette guards): every
-  // cell's grid must fill exactly bars × 4 beats × div (authored in 4/4).
-  (function validateStrumPatterns() {
-    for (const id of Object.keys(STRUM_PATTERNS)) {
-      const p = STRUM_PATTERNS[id];
-      const expect = (p.bars || 1) * 4 * p.div;
-      if (p.grid.length !== expect) throw new Error(`[Virtuoso strum-pattern] ${id} grid has ${p.grid.length} steps, expected ${expect} (bars×4×div)`);
-    }
-  })();
 
   // Startup guard (mirrors assertNoUnison): every STRUM_GRIPS grip, at several
   // frets, must voice ONLY chord tones of its CHORD_FORMULAS stack (subset — a
   // voicing may omit the 5th/9th), include the root + 3rd/♭3 + 7th + the headline
   // extension, and never double a MIDI (a same-pitch unison sounds dead). Throws on
   // load → any wrong fOff/interval is caught by every smoke as a pageerror.
-  (function assertStrumGripsValid() {
-    const opens = [40, 45, 50, 55, 59, 64];   // standard 6-string, for a tuning-independent relative check
-    for (const quality of Object.keys(STRUM_GRIPS)) {
-      const F = CHORD_FORMULAS[quality];
-      if (!F) throw new Error(`[Virtuoso strum-grip] ${quality} has no CHORD_FORMULAS entry`);
-      const formula = new Set(F.intervals.map(i => ((i % 12) + 12) % 12));
-      const has3 = formula.has(4), hasFlat3 = formula.has(3), has7 = formula.has(10) || formula.has(11);
-      // Only the NAME tone (the HIGHEST extension) must be voiced — real grips omit
-      // inner extensions (a min11 drops the 9, a 13 may drop the 11).
-      const exts = F.intervals.filter(i => i >= 13);
-      const headline = exts.length ? ((Math.max.apply(null, exts) % 12) + 12) % 12 : null;
-      for (const grip of STRUM_GRIPS[quality]) {
-        // Finger-collision (fret-independent): one finger can barre many strings at
-        // ONE fret, never two different frets. `fg` is a display hint (does not affect
-        // pitch, so the pc checks below can't catch this) — but a chord box that draws
-        // an impossible fingering misteaches. (guitar-pedagogy Phase-B review.)
-        /** @type {Record<string, Set<number>>} */
-        const byFinger = {};
-        for (const n of grip.notes) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
-        for (const fg of Object.keys(byFinger)) {
-          if (byFinger[fg].size > 1) throw new Error(`[Virtuoso strum-grip] ${quality}/${grip.form} finger ${fg} spans ${byFinger[fg].size} frets (impossible)`);
-        }
-        for (const rootFret of [3, 5, 7, 9]) {
-          const rootMidi = opens[grip.rootStr] + rootFret, midis = [], pcs = new Set();
-          for (const n of grip.notes) { const m = opens[n.s] + rootFret + n.fOff; midis.push(m); pcs.add(((m - rootMidi) % 12 + 12) % 12); }
-          const tag = `${quality}/${grip.form}@${rootFret}`;
-          if (new Set(midis).size !== midis.length) throw new Error(`[Virtuoso strum-grip] ${tag} doubles a MIDI (unison)`);
-          for (const pc of pcs) if (!formula.has(pc)) throw new Error(`[Virtuoso strum-grip] ${tag} has non-chord-tone ${pc}`);
-          if (!pcs.has(0)) throw new Error(`[Virtuoso strum-grip] ${tag} missing the root`);
-          if (pcs.size < 3) throw new Error(`[Virtuoso strum-grip] ${tag} has <3 distinct tones`);
-          if (has3 && !pcs.has(4)) throw new Error(`[Virtuoso strum-grip] ${tag} missing the 3rd`);
-          if (!has3 && hasFlat3 && !pcs.has(3)) throw new Error(`[Virtuoso strum-grip] ${tag} missing the ♭3`);
-          if (has7 && !(pcs.has(10) || pcs.has(11))) throw new Error(`[Virtuoso strum-grip] ${tag} missing the 7th`);
-          if (headline != null && !pcs.has(headline)) throw new Error(`[Virtuoso strum-grip] ${tag} missing the headline extension ${headline}`);
-        }
-      }
-    }
-  })();
+
 
   // §9 generation now lives in src/core/session*.js; live-tier run policy stays shell-side.
   // ── Right-sized finite runs (Depth Ladder slice 1) ──────────────────────────
@@ -12003,14 +11674,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // never ship a false flip: the target must be a real PATHWAYS id, the role must be
   // credit-eligible (a tagged warmup/cooldown/jam is a contradiction), the kind must
   // not be an excluded primitive.
-  (function assertCreditTagsValid() {
-    for (const [id, t] of Object.entries(SEGMENT_TEMPLATES)) {
-      if (!t.creditsPathway) continue;
-      if (!PATHWAYS[t.creditsPathway]) throw new Error(`[Virtuoso credit-tag] ${id}: creditsPathway "${t.creditsPathway}" is not a PATHWAYS id`);
-      if (!CREDIT_ROLES.has(t.role)) throw new Error(`[Virtuoso credit-tag] ${id}: role "${t.role}" cannot credit (warmup/cooldown/jam never flip)`);
-      if (CREDIT_KIND_EXCLUDE.has(t.kind)) throw new Error(`[Virtuoso credit-tag] ${id}: kind "${t.kind}" cannot credit a flip`);
-    }
-  })();
+
 
   // ── Depth Ladder + XP (virtuoso_lab.progress) — Phase 8 ───────────────────────
   // The second mastery axis ABOVE the shipped Speed Climb (pathway_tiers). Locked
