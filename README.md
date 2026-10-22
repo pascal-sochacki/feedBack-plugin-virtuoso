@@ -233,6 +233,9 @@ warnings; Knip intentionally reports one full/two production export findings
 maintainer-only ESLint, TypeScript and Knip configs/tooling for its source-checks
 workflow; these are not used by the plugin at runtime. Only `src/package.json`
 selects native ESM. No runtime npm install is required.
+The `main` test command runs 56 focused Node unit tests covering pure music/core
+behavior and directly exercised shell controllers; it intentionally excludes the
+source branch's AST, characterization, packaging and generated-snapshot suites.
 
 To enable the same blocking checks before each local commit, install the
 maintainer dependencies with `npm ci --ignore-scripts`, then run

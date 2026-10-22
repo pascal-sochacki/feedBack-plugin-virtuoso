@@ -2,36 +2,24 @@
   "name": "virtuoso-source-tools",
   "private": true,
   "scripts": {
-    "lint": "eslint --config eslint.config.mjs screen.js 'src/**/*.js'",
+    "test": "node --test tests/*.mjs",
+    "lint": "eslint --config eslint.config.mjs screen.js 'src/**/*.js' 'tests/**/*.mjs'",
     "lint:core": "eslint --config eslint.config.mjs 'src/**/*.js'",
     "typecheck": "tsc --project tsconfig.core.json && tsc --project tsconfig.shell.json && tsc --project tsconfig.renderer.json",
-    "check:precommit": "npm run lint -- --max-warnings 18 && npm run typecheck",
+    "check:precommit": "npm run check:quality && npm test",
+    "check:quality": "npm run lint -- --max-warnings 18 && npm run typecheck",
     "deadcode": "knip --config knip.json --no-progress",
     "deadcode:production": "knip --config knip.json --no-progress --production"
   },
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
-  "c8": {
-    "all": true,
-    "src": ["."],
-    "include": ["src/core/**/*.js", "src/content/**/*.js", "src/shell/**/*.js", "screen.js"],
-    "exclude": ["**/node_modules/**", "vendor/**", "scripts/**", "tests/**", "assets/**", "static/**", "dist/**", "coverage/**"],
-    "allow-external": false,
-    "exclude-after-remap": true,
-    "reporter": ["text-summary", "html", "lcovonly", "json-summary"],
-    "reports-dir": "coverage",
-    "temp-directory": "coverage/tmp",
-    "check-coverage": false
-  },
   "overrides": {
     "@eslint/plugin-kit": "0.7.2"
   },
   "devDependencies": {
     "@eslint/js": "9.28.0",
-    "c8": "12.0.0",
     "eslint": "10.6.0",
-    "fast-check": "4.10.2",
     "globals": "17.11.0",
     "knip": "6.42.1",
     "typescript": "5.9.3"

@@ -5,9 +5,10 @@
   "workspaces": {
     ".": {
       "entry": [
-        "screen.js!"
+        "screen.js!",
+        "tests/*.mjs"
       ],
-      "project": [],
+      "project": ["tests/**/*.mjs"],
       "eslint": { "config": ["eslint.config.mjs"] }
     },
     "src": {
