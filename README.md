@@ -1,10 +1,10 @@
 # Virtuoso (Lab) — experimental personal fork
 
-**Current testing candidate (2026-10-22): 0.2.14-lab.2 — unpublished and soon to
-be pushed to the personal fork's `main` for testing.** This candidate integrates
-host themes and removes the plugin's local theme pickers/skins. It is not yet
-published or installed/user-tested; confirm the manifest reports
-**0.2.14-lab.2** after the push and update. Earlier published-candidate notes
+**Current testing candidate (2026-10-22): 0.2.14-lab.3 — unpublished and not
+installed-host certified.** This candidate removes the Studio Energy toggle and
+aligns the transport and generated-facts strip with FeedBack surfaces. It is not
+yet published or installed/user-tested; confirm the manifest reports
+**0.2.14-lab.3** after publication and update. Earlier published-candidate notes
 below are historical and are not the status of this candidate.
 
 **Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,

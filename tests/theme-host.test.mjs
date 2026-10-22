@@ -51,12 +51,41 @@ test('plugin theme pickers and persisted theme settings are removed', () => {
   }
 });
 
-test('remaining settings keep Studio energy and non-theme preferences', () => {
-  for (const setting of ['virtuoso_lab-energy-pick', 'virtuoso_lab-xp-mode', 'virtuoso_lab-countin-default']) {
+test('Studio Energy is removed while other preferences remain', () => {
+  for (const removed of ['virtuoso_lab-energy-pick', 'virtuoso_lab.energy', 'applyEnergy', 'virtuoso_lab_vir-lit']) {
+    assert.equal(html.includes(removed) || screen.includes(removed), false, `${removed} should be absent`);
+  }
+  assert.match(html, /id="virtuoso_lab-jam-energy"[\s\S]*?data-energy="auto"/);
+  assert.ok(screen.includes('virtuoso_lab.jamEnergy'));
+  for (const setting of ['virtuoso_lab-xp-mode', 'virtuoso_lab-countin-default']) {
     assert.ok(html.includes(setting), `${setting} remains available`);
   }
-  assert.ok(screen.includes('virtuoso_lab.energy'));
   assert.ok(screen.includes('virtuoso_lab.xpMode'));
+});
+
+test('player transport controls keep explicit host-native surfaces and focus states', () => {
+  for (const selector of ['.virtuoso_lab-root .virtuoso_lab-tp-play', '.virtuoso_lab-root .virtuoso_lab-tp-btn']) {
+    const start = html.indexOf(selector);
+    assert.notEqual(start, -1, `${selector} rule exists`);
+    const rule = html.slice(start, html.indexOf('}', start) + 1);
+    assert.match(rule, /background:\s*var\(--virtuoso_lab_vir-(?:accent-grad|secondary)\)/);
+    assert.match(rule, /border:\s*1px solid var\(--virtuoso_lab_vir-(?:accent-edge|border)\)/);
+    assert.match(rule, /appearance:\s*none/);
+  }
+  assert.match(html, /\.virtuoso_lab-root \.virtuoso_lab-tp-play:focus-visible[^}]*vir-ring/);
+  assert.match(html, /\.virtuoso_lab-root \.virtuoso_lab-tp-btn:focus-visible[^}]*vir-ring/);
+});
+
+test('generated-facts strip uses host surfaces, dividers, text and editing affordances', () => {
+  const start = html.indexOf('.virtuoso_lab-summary { display:');
+  assert.notEqual(start, -1);
+  const rule = html.slice(start, html.indexOf('}', start) + 1);
+  for (const token of ['vir-card', 'vir-border']) assert.ok(rule.includes(`--virtuoso_lab_${token}`));
+  assert.doesNotMatch(rule, /#[0-9a-f]{3,8}|rgb\(/i);
+  assert.match(html, /\.virtuoso_lab-lcd-cell \{[^}]*vir-hairline/);
+  assert.match(html, /\.virtuoso_lab-lcd-val \{[^}]*vir-fg/);
+  assert.match(html, /\.virtuoso_lab-lcd-input:focus-visible[^}]*vir-accent-edge/);
+  assert.match(html, /\.virtuoso_lab-lcd-select:focus-visible[^}]*vir-accent-edge/);
 });
 
 test('Tab and Notation retain only the fixed light palette', () => {

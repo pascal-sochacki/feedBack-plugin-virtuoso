@@ -26,6 +26,11 @@ Experimental source 0.2.14 modification notice (2026-10-22): integrates host
 themes and removes the plugin's local theme skins and pickers. Lab candidate
 0.2.14-lab.2; unpublished and not installed-host certified.
 
+Experimental source 0.2.14-lab.3 modification notice (2026-10-22): removes the
+Studio Energy preference and its gated chrome effects; aligns transport controls
+and the generated-facts strip with host surfaces and focus styling. Lab candidate
+0.2.14-lab.3; unpublished and not installed-host certified.
+
 The installation consists of editable native JS, HTML, Python and assets.
 No plugin source transpilation or runtime build is required. Source for each
 published install is the Git revision containing that install's `plugin.json`:

@@ -53,7 +53,6 @@
     --virtuoso_lab_vir-playhead: #f43f5e;                                  /* "now" marker — distinct red, NEVER folded into destructive */
     --virtuoso_lab_vir-destructive: #b91c1c;                               /* stop / danger — the other red */
     --virtuoso_lab_vir-heat: #f0a050; --virtuoso_lab_vir-heat-soft: rgba(240,160,80,0.14); /* coaching warmth — never error-red */
-    --virtuoso_lab_vir-heat-strong: #ffb866; --virtuoso_lab_vir-heat-glow: rgba(240,160,80,0.45); /* the "earning" bloom — amber building toward the green "earned" (Studio-energy Lit) */
 
     /* ── radius scale (one base → derived) ── */
     --virtuoso_lab_vir-radius: 13px; --virtuoso_lab_vir-radius-sm: 8px; --virtuoso_lab_vir-radius-lg: 16px; --virtuoso_lab_vir-radius-pill: 999px;
@@ -68,7 +67,6 @@
     --virtuoso_lab_vir-plate-shadow: inset 0 1px 0 rgb(var(--fbv-text, 255 255 255) / 0.10), 0 1px 0 rgba(0,0,0,0.7), 0 6px 18px rgba(0,0,0,0.45);
     --virtuoso_lab_vir-plate-edge: rgb(var(--fbv-border, 255 255 255) / 0.14);
     --virtuoso_lab_vir-mono: ui-monospace, "SF Mono", Menlo, monospace;   /* (read in screen.js) */
-    --virtuoso_lab_vir-font-display: 'VirtuosoLabDisplay', 'Orbitron', ui-sans-serif, system-ui, sans-serif; /* esports/lit display face (self-hosted Orbitron, OFL — assets/fonts) */
     --virtuoso_lab_vir-sp-1: 4px; --virtuoso_lab_vir-sp-2: 8px; --virtuoso_lab_vir-sp-3: 12px; --virtuoso_lab_vir-sp-4: 16px; --virtuoso_lab_vir-sp-5: 24px;
 
     /* ── legacy aliases → canonical (retire per component as §10 migration lands) ── */
@@ -83,107 +81,6 @@
     --virtuoso_lab_vir-r-pill: var(--virtuoso_lab_vir-radius-pill);
     --virtuoso_lab_vir-shadow-panel: var(--virtuoso_lab_vir-shadow-lg);
   }
-  /* ── Studio energy: the "Lit" treatment (settings → Studio energy; default on) ──
-     Host-parity polish (charette 2026-06-28) + the earned-bloom, ALL gated on
-     .virtuoso_lab_vir-lit so "Calm" is EXACTLY the restrained base look — the toggle-back
-     guarantee. Energetic CHROME, calm COCKPIT: nothing here touches the playing
-     surface / fretboard / judge. Reduced-motion degrades every motion to static.
-     Borrow the host's glow GRAMMAR (MIRRORed into our own --virtuoso_lab_vir-* tokens), never
-     its heat-engine: no speed rainbow, no fill-and-drain meter, no failure-smoke. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-mixer { background: rgb(var(--fbv-card, 9 15 30) / 0.82); backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-progress-sheet,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-cheat-card,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card { background: rgb(var(--fbv-card, 17 24 39) / 0.84); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
-  /* The LCD reads as a lit screen — a touch more rationed-accent inner glow + edge. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-summary { box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), inset 0 0 22px var(--virtuoso_lab_vir-accent-soft), inset 0 1px 0 rgba(255,255,255,0.03); border-top-color: var(--virtuoso_lab_vir-accent-edge); }
-  /* "Next ▸" seam caption as the host's neon gradient-headline idiom (static). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-seam-next { background: linear-gradient(90deg, var(--virtuoso_lab_vir-accent-hover), var(--virtuoso_lab_vir-accent-edge)); -webkit-background-clip: text; background-clip: text; color: transparent; }
-  /* ── Lit, dialed up: obvious at REST, still strictly CHROME (never the cockpit) ── */
-  /* Wordmark glows like a neon sign; a slow breathe is the ONE sanctioned motion. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-header h1 { filter: drop-shadow(0 0 9px var(--virtuoso_lab_vir-accent-glow)); animation: virtuoso_lab-lit-breathe 4.6s ease-in-out infinite; }
-  @keyframes virtuoso_lab-lit-breathe { 0%, 100% { filter: drop-shadow(0 0 6px var(--virtuoso_lab_vir-accent-glow)); } 50% { filter: drop-shadow(0 0 14px var(--virtuoso_lab_vir-accent-glow)); } }
-  /* Header trades its flat hairline for an accent edge + soft underglow. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-header { border-bottom-color: var(--virtuoso_lab_vir-accent-edge); box-shadow: 0 7px 22px -12px var(--virtuoso_lab_vir-accent-glow); }
-  /* Active mode segment: a clearly-lit halo + edge (the switcher reads lit). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-mode-btn.active { box-shadow: var(--virtuoso_lab_vir-edge-top), 0 0 0 1px var(--virtuoso_lab_vir-accent-edge), 0 0 18px 2px var(--virtuoso_lab_vir-accent-glow), 0 1px 4px rgba(0,0,0,0.45); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-mode-toggle { box-shadow: var(--virtuoso_lab_vir-recess), inset 0 0 13px var(--virtuoso_lab_vir-accent-soft); }
-  /* Progress chip + the primary action pick up a real accent glow-ring. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-progress-chip { border-color: var(--virtuoso_lab_vir-accent-edge); box-shadow: 0 0 11px -2px var(--virtuoso_lab_vir-accent-glow); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-actions button.primary { box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 0 0 1px var(--virtuoso_lab_vir-accent-edge), 0 0 24px 2px var(--virtuoso_lab_vir-accent-glow), 0 2px 8px rgba(0,0,0,0.5); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-tp-play { box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-accent-edge), 0 0 22px 3px var(--virtuoso_lab_vir-accent-glow), 0 2px 10px rgba(0,0,0,0.55); }
-  @media (prefers-reduced-motion: reduce) {
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-header h1 { animation: none; filter: drop-shadow(0 0 9px var(--virtuoso_lab_vir-accent-glow)); }
-  }
-  /* Earned-bloom: a cleared rung blooms amber → settles into the green "earned" glow
-     (amber = earning, green = earned). One-shot on card entrance; fires only on the
-     EXISTING .virtuoso_lab_vir-earned state, so it can never be farmed — it rides a proved clear. */
-  @keyframes virtuoso_lab-earn-bloom {
-    0%   { box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-heat-soft), 0 0 6px 0 var(--virtuoso_lab_vir-heat-glow); }
-    35%  { box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-heat-strong), 0 0 30px 7px var(--virtuoso_lab_vir-heat-glow); }
-    100% { box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-meter-edge), 0 0 16px 2px var(--virtuoso_lab_vir-meter-soft); }
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-earned.virtuoso_lab_vir-enter { animation: virtuoso_lab-results-enter 0.17s ease-out, virtuoso_lab-earn-bloom 1.1s cubic-bezier(0.22,1,0.36,1) both; }
-  @media (prefers-reduced-motion: reduce) {
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-earned.virtuoso_lab_vir-enter { animation: none; box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-meter-edge), 0 0 16px 2px var(--virtuoso_lab_vir-meter-soft); }
-  }
-  /* ── Results card: neon glow-ring + slam-in hero (Studio-energy Lit only) ──────
-     MIRRORed from a neon results-screen's animated conic glow-ring recipe into our
-     own --virtuoso_lab_vir-* tokens (we did NOT consume its classes or its display webfont). A
-     registered angle property makes the conic start-angle interpolable, so a single
-     bright "comet" arc orbits the card border — drawn as a sharp ring (::after) plus
-     a blurred duplicate (::before). The ring rides ONLY .virtuoso_lab_vir-lit (Calm stays the
-     restrained static card — the toggle-back guarantee); an EARNED card swaps the
-     comet to meter-green so it HARMONIZES with the earn-bloom instead of fighting it.
-     Reduced-motion freezes it to a static arc — no startle. */
-  /* Self-hosted Orbitron display face for the Lit card and share-card canvas. */
-  @font-face { font-family: 'VirtuosoLabDisplay'; font-style: normal; font-weight: 700; font-display: swap; src: url('data:font/woff2;base64,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') format('woff2'); }
-  /* The share-card canvas uses the same self-contained display face as the Lit card. */
-  @property --virtuoso_lab_vir-ring-angle { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card {
-    --virtuoso_lab_vir-ring-w: 2px; --virtuoso_lab_vir-ring-overhang: 2px;
-    --virtuoso_lab_vir-ring-stops: var(--virtuoso_lab_vir-accent-soft) 0deg, var(--virtuoso_lab_vir-accent-soft) 248deg, var(--virtuoso_lab_vir-accent-edge) 312deg, var(--virtuoso_lab_vir-accent) 332deg, var(--virtuoso_lab_vir-accent-soft) 360deg;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-earned {
-    --virtuoso_lab_vir-ring-stops: var(--virtuoso_lab_vir-meter-edge) 0deg, var(--virtuoso_lab_vir-meter-edge) 248deg, var(--virtuoso_lab_vir-meter) 312deg, var(--virtuoso_lab_vir-meter) 332deg, var(--virtuoso_lab_vir-meter-edge) 360deg;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card::before,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card::after {
-    content: ''; position: absolute; inset: calc(-1 * var(--virtuoso_lab_vir-ring-overhang)); border-radius: 14px; padding: var(--virtuoso_lab_vir-ring-w);
-    background: conic-gradient(from var(--virtuoso_lab_vir-ring-angle), var(--virtuoso_lab_vir-ring-stops));
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); mask-composite: exclude;
-    pointer-events: none; animation: virtuoso_lab_vir-ring-spin 6s linear infinite;
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card::before { filter: blur(10px); opacity: 0.7; }
-  @keyframes virtuoso_lab_vir-ring-spin { to { --virtuoso_lab_vir-ring-angle: 360deg; } }
-  /* The competency verdict is the HERO — it SLAMS in (Lit only): a cubic-bezier
-     overshoot that lands after the card settles. Calm shows it plainly (no motion). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-verdict,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-felt,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-session-title {
-    animation: virtuoso_lab_vir-verdict-slam 0.5s cubic-bezier(0.2, 1.5, 0.4, 1) 0.12s both;
-  }
-  @keyframes virtuoso_lab_vir-verdict-slam { from { opacity: 0; transform: scale(1.18); } to { opacity: 1; transform: scale(1); } }
-  /* Strip rows (ladder · deltas · recognizer) stagger in (Lit only). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-strip > * {
-    animation: virtuoso_lab_vir-row-in 0.34s ease-out both; animation-delay: calc(0.3s + var(--virtuoso_lab_vir-row-i, 0) * 0.08s);
-  }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-strip > *:nth-child(1) { --virtuoso_lab_vir-row-i: 0; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-strip > *:nth-child(2) { --virtuoso_lab_vir-row-i: 1; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-strip > *:nth-child(3) { --virtuoso_lab_vir-row-i: 2; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-strip > *:nth-child(4) { --virtuoso_lab_vir-row-i: 3; }
-  @keyframes virtuoso_lab_vir-row-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-  /* In Lit, a cleared rung reads earned (a soft meter-green glow), not just outlined. */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-rung.cleared { box-shadow: 0 0 10px -1px var(--virtuoso_lab_vir-meter-soft); }
-  @media (prefers-reduced-motion: reduce) {
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card::before,
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card::after { animation: none; }
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-verdict,
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-felt,
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-session-title { animation: none; }
-    .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-enter .virtuoso_lab-results-strip > * { animation: none; opacity: 1; transform: none; }
-  }
-
   /* ══ Mastery CREST — earned-standing emblem (gamification: derived, additive, never a
      tally — Proven → Versed → Fluent; UX: a laurel/aegis that elaborates by rank). Accent-
      family ONLY, NEVER --virtuoso_lab_vir-meter/green — so a CLEARED run shows BOTH the green cleared
@@ -193,10 +90,6 @@
   .virtuoso_lab-crest[hidden] { display: none; }
   .virtuoso_lab-crest svg { width: 100%; height: 100%; display: block; }
   .virtuoso_lab-crest.cr-rank-3 { color: var(--virtuoso_lab_vir-accent); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-crest { filter: drop-shadow(0 0 5px var(--virtuoso_lab_vir-accent-glow)); }
-  /* Earn-moment: reuse the calm earn-bloom on a rank-UP (Lit only; RM/Calm → just appear). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-crest.cr-earned { animation: virtuoso_lab-earn-bloom 1.1s cubic-bezier(0.22,1,0.36,1) both; }
-  @media (prefers-reduced-motion: reduce) { .virtuoso_lab-crest.cr-earned { animation: none; } }
   /* P-sheet crest — larger, with a plain-English descriptor (names the competency, not a count). */
   .virtuoso_lab-pm-crest { display: flex; align-items: center; gap: 11px; padding: 2px 2px 12px; }
   .virtuoso_lab-pm-crest .virtuoso_lab-crest { width: 36px; height: 36px; margin: 0; }
@@ -594,22 +487,22 @@
      scrolling working ruler. 14 + 2 gap + 34 = 50, so the HUD top:60px holds. */
   .virtuoso_lab-transport-ruler #virtuoso_lab-overview-canvas { display: block; width: 100%; height: 14px; touch-action: none; margin-bottom: 2px; cursor: pointer; }
   .virtuoso_lab-transport-ruler #virtuoso_lab-ruler-canvas { display: block; width: 100%; height: 34px; touch-action: none; }
-  /* Flatter pill aesthetic, in parity with the host player control bar:
-     borderless dark pills, lighter weight, flat accent fills (host accent
-     #4080e0), `|` group separators. Multi-row layout + drag-loop preserved. */
+  /* Compact transport controls: primary playback action with quiet, outlined secondary controls. */
   .virtuoso_lab-tp-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
   /* The ONE lit beat in the transport — a big purple GLOWING CIRCLE (toolbarexample.png): the focal "go" control. */
-  .virtuoso_lab-tp-play { width: 46px; height: 46px; min-width: 46px; padding: 0; border-radius: 50%; border: 1px solid var(--virtuoso_lab_vir-accent-edge); background: var(--virtuoso_lab_vir-accent-grad); color: var(--virtuoso_lab_vir-accent-fg); font-weight: 700; font-size: 16px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: filter 0.15s, box-shadow 0.2s; box-shadow: 0 0 0 1px var(--virtuoso_lab_vir-accent-soft), 0 0 20px 2px var(--virtuoso_lab_vir-accent-glow), 0 2px 10px rgba(0,0,0,0.55); }
-  .virtuoso_lab-tp-play:hover { filter: brightness(1.08); }
+  .virtuoso_lab-root .virtuoso_lab-tp-play { appearance: none; -webkit-appearance: none; box-sizing: border-box; width: 96px; height: 42px; min-width: 96px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--virtuoso_lab_vir-accent-edge); background: var(--virtuoso_lab_vir-accent-grad); color: var(--virtuoso_lab_vir-accent-fg); font: inherit; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: filter 0.15s, box-shadow 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.24); }
+  .virtuoso_lab-root .virtuoso_lab-tp-play:hover { background: var(--virtuoso_lab_vir-accent-hover); border-color: var(--virtuoso_lab_vir-accent-edge); filter: brightness(1.04); }
+  .virtuoso_lab-root .virtuoso_lab-tp-play:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring); outline-offset: 2px; }
   /* Play/Pause keeps the primary accent in all three states (stopped/running/
      paused) — the stop-red moved to the dedicated Stop button when the transport
      split (2026-06-06); a Pause control is not a danger action. */
-  .virtuoso_lab-tp-btn { min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid transparent; background: var(--virtuoso_lab_vir-secondary, #1e2740); color: var(--virtuoso_lab_vir-secondary-fg, #cbd5e1); font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
-  .virtuoso_lab-tp-btn:disabled { opacity: 0.35; cursor: default; }
-  .virtuoso_lab-tp-stop:not(:disabled) { color: #fca5a5; }
-  .virtuoso_lab-tp-stop:not(:disabled):hover { background: var(--virtuoso_lab_vir-stop); color: #fff; }
-  .virtuoso_lab-tp-btn:not(:disabled):hover { background: var(--virtuoso_lab_vir-btn-hover, #2a3654); border-color: var(--virtuoso_lab_vir-accent-edge, #64748b); }
-  .virtuoso_lab-tp-btn.active { background: var(--virtuoso_lab_vir-accent); color: #fff; }
+  .virtuoso_lab-root .virtuoso_lab-tp-btn { appearance: none; -webkit-appearance: none; box-sizing: border-box; min-height: 30px; min-width: 30px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--virtuoso_lab_vir-border); background: var(--virtuoso_lab_vir-secondary); color: var(--virtuoso_lab_vir-secondary-fg); font: inherit; font-weight: 600; font-size: 12px; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
+   .virtuoso_lab-root .virtuoso_lab-tp-btn:disabled { opacity: 0.45; cursor: default; }
+   .virtuoso_lab-root .virtuoso_lab-tp-stop:not(:disabled) { color: var(--virtuoso_lab_vir-destructive); }
+   .virtuoso_lab-root .virtuoso_lab-tp-btn:not(:disabled):hover { background: var(--virtuoso_lab_vir-btn-hover); border-color: var(--virtuoso_lab_vir-accent-edge); }
+   .virtuoso_lab-root .virtuoso_lab-tp-stop:not(:disabled):hover { background: var(--virtuoso_lab_vir-stop); border-color: var(--virtuoso_lab_vir-stop); color: #fff; }
+  .virtuoso_lab-root .virtuoso_lab-tp-btn:focus-visible, .virtuoso_lab-root .virtuoso_lab-tp-seg:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring); outline-offset: 2px; }
+  .virtuoso_lab-root .virtuoso_lab-tp-btn.active { background: var(--virtuoso_lab_vir-accent); border-color: var(--virtuoso_lab_vir-accent-edge); color: #fff; }
   .virtuoso_lab-tp-time { font-family: var(--virtuoso_lab_vir-mono); font-size: 12px; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); min-width: 84px; text-align: center; }
   .virtuoso_lab-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
   .virtuoso_lab-tp-loop, .virtuoso_lab-tp-countin { display: flex; align-items: center; gap: 5px; }
@@ -617,18 +510,19 @@
   /* Bars|beats cycle readout (DAW-style): the loop's bar.beat bounds + span. */
   .virtuoso_lab-tp-looprange { font-family: var(--virtuoso_lab_vir-mono); font-size: 11px; color: var(--virtuoso_lab_vir-text-muted); font-weight: 600; letter-spacing: 0.01em; white-space: nowrap; }
   .virtuoso_lab-tp-lbl { font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #64748b; }
-  .virtuoso_lab-tp-seg { min-height: 28px; min-width: 30px; padding: 0 9px; border: none; background: var(--virtuoso_lab_vir-secondary, #141d33); color: var(--virtuoso_lab_vir-secondary-fg, #cbd5e1); font-weight: 600; font-size: 12px; cursor: pointer; }
+  .virtuoso_lab-root .virtuoso_lab-tp-seg { appearance: none; -webkit-appearance: none; box-sizing: border-box; min-height: 28px; min-width: 30px; padding: 0 9px; border: 1px solid var(--virtuoso_lab_vir-border); background: var(--virtuoso_lab_vir-secondary); color: var(--virtuoso_lab_vir-secondary-fg); font: inherit; font-weight: 600; font-size: 12px; cursor: pointer; }
   .virtuoso_lab-tp-seg:first-of-type { border-radius: 7px 0 0 7px; }
   .virtuoso_lab-tp-seg:last-of-type { border-radius: 0 7px 7px 0; }
-  .virtuoso_lab-tp-seg + .virtuoso_lab-tp-seg { box-shadow: inset 1px 0 0 rgba(2,6,23,0.55); }
-  .virtuoso_lab-tp-seg:hover:not(.active) { background: var(--virtuoso_lab_vir-btn-hover, #24324a); }
-  .virtuoso_lab-tp-seg.active { background: var(--virtuoso_lab_vir-accent); color: #fff; }
+  .virtuoso_lab-tp-seg + .virtuoso_lab-tp-seg { box-shadow: inset 1px 0 0 var(--virtuoso_lab_vir-hairline); }
+  .virtuoso_lab-root .virtuoso_lab-tp-seg:hover:not(.active) { background: var(--virtuoso_lab_vir-btn-hover); border-color: var(--virtuoso_lab_vir-accent-edge); }
+  .virtuoso_lab-root .virtuoso_lab-tp-seg.active { background: var(--virtuoso_lab_vir-accent); border-color: var(--virtuoso_lab_vir-accent-edge); color: #fff; }
   /* View switcher toolbar inside the render stage */
   .virtuoso_lab-view-switcher { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 7px 12px; background: var(--virtuoso_lab_vir-surface-bar); border-bottom: 1px solid var(--virtuoso_lab_vir-hairline); flex-shrink: 0; }
   /* Push the generated-facts glance strip to its own right-hand zone so the
      renderer tabs read as one cluster and the LCD readout as another (toolbar
      zoning — FeedBack workspace-polish pass). */
   .virtuoso_lab-view-switcher > #virtuoso_lab-summary { margin-left: auto; }
+  @media (max-width: 920px) { .virtuoso_lab-view-switcher > #virtuoso_lab-summary { margin-left: 0; flex: 1 1 100%; } }
   .virtuoso_lab-view-label { font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: #94a3b8; margin-right: 6px; }
   /* "Collapse sidebar" pill toggle — left of the transport row (reuses the
      .virtuoso_lab-pill-toggle switch style). Absolutely placed so the play
@@ -973,12 +867,9 @@
   .virtuoso_lab-results-modal { position: absolute; inset: 0; z-index: 23; display: none; align-items: center; justify-content: center; background: rgba(2,6,16,0.55); }
   .virtuoso_lab-root.virtuoso_lab_vir-results-open .virtuoso_lab-results-modal { display: flex; }
   .virtuoso_lab-results-card { position: relative; width: 400px; max-width: 92%; }
-  /* Accent hairline under the results header — fades to transparent at both edges
-     (a neon results-screen header rule, MIRRORed into --virtuoso_lab_vir-accent). Shown in BOTH
-     energies: Calm gets the clean static line, Lit brightens it with a soft underglow. */
+   /* Accent hairline under the results header fades to transparent at both edges. */
   .virtuoso_lab-results-card .virtuoso_lab-sheet-head { position: relative; border-bottom: none; }
   .virtuoso_lab-results-card .virtuoso_lab-sheet-head::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: linear-gradient(90deg, transparent, var(--virtuoso_lab_vir-accent), transparent); opacity: 0.6; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-sheet-head::after { opacity: 0.9; box-shadow: 0 0 9px var(--virtuoso_lab_vir-accent-glow); }
   /* Scorecard hero (panel 2026-06-12): the card widens only when a visual renders;
      the canvas is a calm static readout between the judgment and the progress strip. */
   .virtuoso_lab-results-card.virtuoso_lab_vir-has-hero { width: 520px; }
@@ -994,7 +885,6 @@
   .virtuoso_lab-results-coach-lead { display: block; font-size: 9.5px; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; color: var(--virtuoso_lab_vir-accent-edge, #7cb0ff); }
   .virtuoso_lab-results-coach-why { display: block; font-size: 12px; color: #cbd5e1; margin-top: 2px; line-height: 1.35; }
   .virtuoso_lab-results-coach-cta { display: block; font-size: 12.5px; font-weight: 700; color: var(--virtuoso_lab_vir-accent-edge, #7cb0ff); margin-top: 3px; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-coach-cta { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.02em; }
   /* The % is ALWAYS neutral (2026-06-06 redesign): meter-green belongs to cleared
      things only — a green 84% that didn't clear a rung claims a clear it didn't
      earn, and a red rough run punishes. Meaning lives in the verdict slot. */
@@ -1028,39 +918,6 @@
   .virtuoso_lab-results-rung.cleared::after { content: ' ✓'; font-size: 9px; font-weight: 900; }
   .virtuoso_lab-results-rung.rung-new { animation: virtuoso_lab-tier-glow 1.8s ease-out forwards; }
   .virtuoso_lab-results-deltas { font-size: 12px; color: #cbd5e1; }
-  /* ── Lit display-face polish (Calm keeps the system face). ── */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card #virtuoso_lab-results-title { font-family: var(--virtuoso_lab_vir-font-display); text-transform: uppercase; letter-spacing: 0.24em; font-size: 12px; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-pct { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.03em; }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-verdict,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-felt { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.04em; text-shadow: 0 0 16px var(--virtuoso_lab_vir-accent-glow); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-earned .virtuoso_lab-results-verdict,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card.virtuoso_lab_vir-earned .virtuoso_lab-results-felt { text-shadow: 0 0 16px var(--virtuoso_lab_vir-meter-soft); }
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-rung { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.06em; }
-  /* Short stat-like lines also take the display face (the long descriptive transfer
-     sentence stays in the readable system face). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-head,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-deltas,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-practiced { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.02em; }
-  /* Buttons + the "How this run was judged" toggle take the display face too, so the
-     whole card's chrome reads esports in Lit (the expanded judged-detail SENTENCES
-     stay in the system face for legibility). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-virtuoso_lab_vir-copy,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-progress-toggle,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-primary,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-quiet { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.03em; }
-  /* Workout recap — the session header + chapter list join the display face in Lit
-     (the per-block competency phrase stays system-face for readability). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-session-title,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-session-meta,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-chapter-role,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-chapter-name,
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-chapter-dur { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.03em; }
-  /* Heat rung — STRONG: a clean-pass PB (the recognizer line) gets the accent "new
-     best" glow + one-shot pulse — a notch below the earned-bloom. Named (the PB),
-     never raw speed. Reduced-motion drops the pulse (the static glow stays). */
-  .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-recog { font-family: var(--virtuoso_lab_vir-font-display); letter-spacing: 0.05em; text-transform: uppercase; font-size: 11px; text-shadow: 0 0 13px var(--virtuoso_lab_vir-accent-glow); animation: virtuoso_lab-strong-pulse 1.6s ease-out 0.2s both; }
-  @keyframes virtuoso_lab-strong-pulse { 0% { text-shadow: 0 0 4px var(--virtuoso_lab_vir-accent-soft); } 40% { text-shadow: 0 0 18px var(--virtuoso_lab_vir-accent-glow); } 100% { text-shadow: 0 0 13px var(--virtuoso_lab_vir-accent-glow); } }
-  @media (prefers-reduced-motion: reduce) { .virtuoso_lab-root.virtuoso_lab_vir-lit .virtuoso_lab-results-card .virtuoso_lab-results-recog { animation: none; } }
   .virtuoso_lab-results-recog { font-size: 12px; font-weight: 600; color: var(--virtuoso_lab_vir-accent-edge, #60a5fa); }
   .virtuoso_lab-results-practiced { text-align: center; font-size: 11.5px; color: #94a3b8; padding: 7px 16px 0; }
   /* Workout RECAP (Tier 3): the per-block chapter list REPLACES the aggregate % for a
@@ -1168,30 +1025,26 @@
      the 3D Highway's diagram corner so the position is consistent across views).
      Shown/hidden by drawChordBoxFrame() — hidden by default. */
   .virtuoso_lab-chordbox { position: absolute; top: 56px; left: 12px; z-index: 13; width: 100px; height: 120px; display: none; pointer-events: none; }
-  /* Glanceable LCD strip (replaces the old multi-line debug dump). Lives inline
-     in the view-switcher row now — shows only GENERATED facts the menus don't
-     already state: Key · Tempo · Meter · Bars · Length · Notes. Errors/fallbacks
-     go to the header #virtuoso_lab-status instead. summarize() emits the cells. */
-  /* Cohesive DAW "LCD screen": ONE recessed dark panel; the Key·Tempo·Meter·Bars·
-     Length·Notes cells are divider-separated readouts inside it, monospace values,
-     a faint rationed-purple inner glow (the "screen" feel without hurting contrast). */
-  .virtuoso_lab-summary { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; background: #0b0b0e; border: 1px solid var(--virtuoso_lab_vir-hairline); border-top-color: rgba(0,0,0,0.55); border-radius: 8px; box-shadow: inset 0 2px 6px rgba(0,0,0,0.6), inset 0 0 18px rgba(139,61,230,0.06), inset 0 1px 0 rgba(255,255,255,0.03); overflow: hidden; }
+  /* Generated facts use the same calm toolbar/card surface as the host controls. */
+  .virtuoso_lab-summary { display: flex; flex-wrap: nowrap; align-items: stretch; gap: 0; background: var(--virtuoso_lab_vir-card); border: 1px solid var(--virtuoso_lab_vir-border); border-radius: 8px; box-shadow: none; overflow: hidden; }
   .virtuoso_lab-summary:empty { display: none; }
-  .virtuoso_lab-lcd-cell { display: flex; flex-direction: column; justify-content: center; gap: 1px; padding: 4px 12px; min-width: 48px; background: transparent; border: none; border-left: 1px solid rgba(255,255,255,0.05); }
+  .virtuoso_lab-lcd-cell { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 4px 10px; min-width: 48px; background: transparent; border: none; border-left: 1px solid var(--virtuoso_lab_vir-hairline); }
   .virtuoso_lab-lcd-cell:first-child { border-left: none; }
-  .virtuoso_lab-lcd-lbl { font-size: 8px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; color: var(--virtuoso_lab_vir-text-muted); }
-  .virtuoso_lab-lcd-val { font-size: 12.5px; font-weight: 700; color: #e9e4f5; font-family: var(--virtuoso_lab_vir-mono); font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.15; }
-  /* Editable LCD tempo (DAW transport convention): reads like the other cells,
+  .virtuoso_lab-lcd-lbl { font-size: 8px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--virtuoso_lab_vir-text-muted); }
+  .virtuoso_lab-lcd-val { font-size: 12px; font-weight: 700; color: var(--virtuoso_lab_vir-fg); font-family: ui-sans-serif, system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 1.15; }
+  /* Editable tempo (DAW transport convention): reads like the other cells,
      a quiet dashed-underline affordance on hover/focus says "type here". */
   .virtuoso_lab-lcd-input { width: 4ch; background: transparent; border: none; border-bottom: 1px dashed transparent; color: inherit; font: inherit; padding: 0; text-align: right; appearance: textfield; -moz-appearance: textfield; }
   .virtuoso_lab-lcd-input::-webkit-outer-spin-button, .virtuoso_lab-lcd-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .virtuoso_lab-lcd-cell:hover .virtuoso_lab-lcd-input, .virtuoso_lab-lcd-input:focus { border-bottom-color: var(--virtuoso_lab_vir-accent-edge, #4080e0); outline: none; }
-  /* Editable LCD selects (Key · Meter · Count-in) — same in-place affordance as the
-     tempo input: reads like the readout value, a dashed-underline cue on hover/focus.
-     appearance:none drops the native chrome; the dark option list matches the LCD. */
+  .virtuoso_lab-lcd-cell:hover .virtuoso_lab-lcd-input, .virtuoso_lab-lcd-input:focus { border-bottom-color: var(--virtuoso_lab_vir-accent-edge); outline: none; }
+  .virtuoso_lab-lcd-input:focus-visible { box-shadow: 0 1px 0 var(--virtuoso_lab_vir-accent-edge); }
+  /* Editable selects (Key · Meter · Count-in) — same in-place affordance as the
+     tempo input, with host-popover option surfaces. */
   .virtuoso_lab-lcd-select { appearance: none; -webkit-appearance: none; -moz-appearance: none; background: transparent; border: none; border-bottom: 1px dashed transparent; color: inherit; font: inherit; padding: 0; cursor: pointer; line-height: 1.15; }
-  .virtuoso_lab-lcd-cell:hover .virtuoso_lab-lcd-select, .virtuoso_lab-lcd-select:focus { border-bottom-color: var(--virtuoso_lab_vir-accent-edge, #4080e0); outline: none; }
-  .virtuoso_lab-lcd-select option { background: #15151b; color: #e9e4f5; font-family: var(--virtuoso_lab_vir-mono); }
+  .virtuoso_lab-lcd-cell:hover .virtuoso_lab-lcd-select, .virtuoso_lab-lcd-select:focus { border-bottom-color: var(--virtuoso_lab_vir-accent-edge); outline: none; }
+  .virtuoso_lab-lcd-select:focus-visible { box-shadow: 0 1px 0 var(--virtuoso_lab_vir-accent-edge); }
+  .virtuoso_lab-lcd-select option { background: var(--virtuoso_lab_vir-popover); color: var(--virtuoso_lab_vir-popover-fg); font-family: ui-sans-serif, system-ui, sans-serif; }
+  @media (max-width: 920px) { .virtuoso_lab-summary { max-width: 100%; overflow-x: auto; } }
   .virtuoso_lab-pitch-meter { display: none; align-items: center; gap: 10px; padding: 7px 14px; background: rgba(2, 6, 23, 0.85); border-top: 1px solid rgba(75, 85, 99, 0.55); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12px; color: #94a3b8; }
   #virtuoso_lab-pitch-note { font-size: 14px; font-weight: 700; color: #e2e8f0; min-width: 30px; }
   .virtuoso_lab-cents-track { position: relative; width: 120px; height: 8px; background: #1e293b; border-radius: 4px; border: 1px solid #334155; overflow: hidden; flex-shrink: 0; }
@@ -1798,13 +1651,6 @@
     <div class="virtuoso_lab-header-settings">
       <button type="button" id="virtuoso_lab-settings-btn" class="virtuoso_lab-settings-btn" aria-haspopup="true" aria-expanded="false" aria-label="Settings" title="Settings">⚙</button>
       <div id="virtuoso_lab-settings-menu" class="virtuoso_lab-settings-menu" role="menu" aria-label="Settings">
-        <div class="virtuoso_lab-settings-group">
-          <span class="virtuoso_lab-settings-lbl">Studio energy</span>
-          <div class="virtuoso_lab-settings-row" id="virtuoso_lab-energy-pick" title="Lit: host-parity glow + earned-bloom celebrations (chrome only — the playing surface stays calm). Calm: the restrained base look.">
-            <button type="button" class="virtuoso_lab-mini-btn active" data-energy="lit">Lit</button>
-            <button type="button" class="virtuoso_lab-mini-btn" data-energy="calm">Calm</button>
-          </div>
-        </div>
         <div class="virtuoso_lab-settings-group">
           <span class="virtuoso_lab-settings-lbl">XP mode (default)</span>
           <div class="virtuoso_lab-settings-row" id="virtuoso_lab-xp-mode">

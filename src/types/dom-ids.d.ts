@@ -27,7 +27,6 @@ export type VirtuosoSelectors =
 export type VirtuosoHtmlLists = '#virtuoso-jam-hl .virtuoso-jam-hl-btn' | '.virtuoso-feel-btn'
   | '.virtuoso-band-add'
   | '#virtuoso-xp-mode .virtuoso-mini-btn' | '#virtuoso-countin-grid .virtuoso-mini-btn'
-  | '#virtuoso-energy-pick .virtuoso-mini-btn'
   | '.virtuoso-tp-seg' | '#virtuoso-session-progress .virtuoso-progress-seg'
   | '#virtuoso-segment-list .virtuoso-segment-card' | '.virtuoso-instr-btn'
   | '.virtuoso-mode-bar .virtuoso-mode-btn' | '.virtuoso-chromatic-only'
@@ -65,7 +64,6 @@ declare global {
     querySelectorAll(selectors: '.virtuoso-feel-btn'): NodeListOf<HTMLButtonElement & {dataset: {feel: string}}>;
     querySelectorAll(selectors: '#virtuoso-xp-mode .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {xp: string}}>;
     querySelectorAll(selectors: '#virtuoso-countin-grid .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {grid: string}}>;
-    querySelectorAll(selectors: '#virtuoso-energy-pick .virtuoso-mini-btn'): NodeListOf<HTMLButtonElement & {dataset: {energy: string}}>;
     getElementById<Id extends keyof VirtuosoElements>(elementId: Id): VirtuosoElements[Id] | null;
     getElementById<Id extends keyof GeneratedElements>(elementId: Id): GeneratedElements[Id] | null;
     getElementById(elementId: string): HTMLElement | null;

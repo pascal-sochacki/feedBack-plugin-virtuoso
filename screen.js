@@ -110,7 +110,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // a plugin's own version into its screen (note_detect hardcodes `_ND_VERSION`
   // the same way), so this is the display mirror of plugin.json's "version".
   // BUMP THIS WHENEVER plugin.json's version changes (release checklist).
-  const VIRTUOSO_VERSION = '0.2.14-lab.2';
+  const VIRTUOSO_VERSION = '0.2.14-lab.3';
 
   // ===========================================================================
   // §1 · CONSTANTS & MUSIC-THEORY DATA
@@ -6803,7 +6803,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
     // Auto-save the card to the configured folder, once per run (opt-in; mirrors
     // note_detect). A run signature guards against re-saving when the same card is
-    // re-opened. Best-effort + async (loads the display face first); silent on fail.
+    // re-opened. Best-effort + async; silent on fail.
     try {
       if (localStorage.getItem('virtuoso_lab.autosaveCard') === '1') {
         const sig = `${s.duration_ms || 0}|${s.bpm || 0}|${s.displayName || s.mode || ''}`;
@@ -7442,16 +7442,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   function applyCountInGrid(val) {
     document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.grid === val));
   }
-  // Studio energy (settings → Studio energy): the host-parity "Lit" chrome treatment
-  // is one root class (.virtuoso_lab_vir-lit, default ON). 'calm' reverts to EXACTLY the restrained
-  // base look — the user's toggle-back guarantee. Persisted; no playing-surface impact.
-  /** @param {string} mode */
-  function applyEnergy(mode) {
-    const lit = mode !== 'calm';
-    const root = $('virtuoso_lab-root'); if (root) root.classList.toggle('virtuoso_lab_vir-lit', lit);
-    try { localStorage.setItem('virtuoso_lab.energy', lit ? 'lit' : 'calm'); } catch (_) {}
-    document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.classList.toggle('active', b.dataset.energy === (lit ? 'lit' : 'calm')));
-  }
   /** @param {string} val */
   function applyCountInDefault(val) {
     const bars = Math.max(1, Math.min(8, parseInt(val, 10) || 1));
@@ -7471,8 +7461,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const sel = $('virtuoso_lab-countin-default');
     if (sel) sel.value = ci;
     applyCountInGrid(countInGridOn() ? 'on' : 'off');
-    let energy = 'lit'; try { energy = localStorage.getItem('virtuoso_lab.energy') || 'lit'; } catch (_) {}
-    applyEnergy(energy);
   }
 
   /** @param {AudioContext} ctx @param {number} when @param {number} freq @param {number} dur @param {string} instrument @param {number} gainScale @param {number} bendSemis */
@@ -9066,7 +9054,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     }
   }
 
-  // Compact, glanceable LCD readout for #virtuoso_lab-summary. Shows only the
+  // Compact, glanceable generated-facts strip for #virtuoso_lab-summary. Shows only the
   // GENERATED facts the left-panel controls don't already state — the readout
   // used to restate every menu selection (debug-log style); now it confirms
   // what actually got built. Returns HTML (labeled cells); set via .innerHTML.
@@ -9091,7 +9079,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       ].join('');
     }
     const bars = measureSeconds(cfg) > 0 ? Math.round(c.duration / measureSeconds(cfg)) : 0;
-    // ── Editable LCD cells (DAW transport convention) ──────────────────────────
+    // ── Editable summary cells (DAW transport convention) ──────────────────────
     // Key · Meter · Count-in join Tempo as in-place edits: each is a quiet <select>
     // that reads like the readout, commits via the delegated handler in bind()
     // (writes the Inspector field → regenerate). Works as a live OVERRIDE in any
@@ -12081,15 +12069,12 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     let t = text; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1);
     return t + '…';
   }
-  // Ensure the shared display face is resident before the canvas rasterizes.
+  // Let the platform settle font metrics before the canvas rasterizes.
   async function loadCardFonts() {
-    if (!(document.fonts && document.fonts.load)) return;
-    const faces = ["700 64px 'VirtuosoLabDisplay'", "700 18px 'VirtuosoLabDisplay'"];
-    try { await Promise.all(faces.map(f => document.fonts.load(f))); } catch (_) {}
-    try { if (document.fonts.ready) await document.fonts.ready; } catch (_) {}
+    try { if (document.fonts?.ready) await document.fonts.ready; } catch (_) {}
     try {
       const wc = document.createElement('canvas').getContext('2d');
-      if (wc) faces.forEach(f => { wc.font = f; wc.fillText('Mg', -50, -50); });
+      if (wc) { wc.font = '700 64px ui-sans-serif, system-ui, sans-serif'; wc.fillText('Mg', -50, -50); }
     } catch (_) {}
   }
   // The card image is rendered from the same verdict-led model as the on-screen card.
@@ -12106,7 +12091,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     let cardBg = '#111827';
     const SANS = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
     const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-    const DISP = `'VirtuosoLabDisplay', 'Orbitron', ${SANS}`;
     try {
       const root = $('virtuoso_lab-root');
       if (root) {
@@ -12121,12 +12105,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
         cardBg = gv('--virtuoso_lab_vir-card', cardBg);
       }
     } catch (_) {}
-    let lit = false; try { lit = !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab_vir-lit'); } catch (_) {}
-    const HEAD = lit ? 'disp' : false;
     const radius = 18;
     const glow = true;
     /** @param {number} px @param {number} w @param {string | boolean} [m] */
-    const font = (px, w, m) => ctx.font = `${w} ${px}px ${m === 'disp' ? DISP : m ? MONO : SANS}`;
+    const font = (px, w, m) => ctx.font = `${w} ${px}px ${m ? MONO : SANS}`;
     /** @param {number} x @param {number} y @param {number} w @param {number} h @param {number} r */
     const pill = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
     const bg = ctx.createLinearGradient(0, 0, 0, H);
@@ -12149,23 +12131,23 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     ctx.textBaseline = 'alphabetic';
     // Brand strip
     ctx.fillStyle = accent; pill(P, 70, 6, 40, 3); ctx.fill();
-    ctx.fillStyle = TXT; font(40, 800, HEAD); ctx.fillText('Virtuoso', P + 22, 104);
+    ctx.fillStyle = TXT; font(40, 800); ctx.fillText('Virtuoso', P + 22, 104);
     // Mastery crest — a small accent seal after the wordmark (never green; omitted at rank 0 / XP-Off).
     try { const _cr = crestState(); if (_cr.rank) drawCrestCanvas(ctx, P + 22 + ctx.measureText('Virtuoso').width + 26, 90, 30, accent, _cr.rank); } catch (_) {}
-    font(15, 700, HEAD); const pT = m.lane, pW = ctx.measureText(pT).width + 28, pX = W - P - pW;
+    font(15, 700); const pT = m.lane, pW = ctx.measureText(pT).width + 28, pX = W - P - pW;
     ctx.fillStyle = accentSoft; pill(pX, 72, pW, 34, 17); ctx.fill();
     ctx.strokeStyle = accent; ctx.lineWidth = 1.5; pill(pX, 72, pW, 34, 17); ctx.stroke();
     ctx.fillStyle = accent; ctx.fillText(pT, pX + 14, 95);
     // Eyebrow + hero
-    ctx.fillStyle = accent; font(18, 700, HEAD); ctx.letterSpacing = '3px'; ctx.fillText(m.eyebrow.toUpperCase(), P, 212); ctx.letterSpacing = '0px';
+    ctx.fillStyle = accent; font(18, 700); ctx.letterSpacing = '3px'; ctx.fillText(m.eyebrow.toUpperCase(), P, 212); ctx.letterSpacing = '0px';
     const heroMaxW = W - P * 2;
-    let hs = 64; font(hs, 700, HEAD); if (ctx.measureText((m.heroGreen ? '✓ ' : '') + m.hero).width > heroMaxW) { hs = 50; font(hs, 700, HEAD); }
+    let hs = 64; font(hs, 700); if (ctx.measureText((m.heroGreen ? '✓ ' : '') + m.hero).width > heroMaxW) { hs = 50; font(hs, 700); }
     let hx = P; const hy = 296;
-    if (m.heroGreen) { ctx.fillStyle = GREEN; ctx.fillText('✓', hx, hy); hx += ctx.measureText('✓  ').width; font(hs, 700, HEAD); }
+    if (m.heroGreen) { ctx.fillStyle = GREEN; ctx.fillText('✓', hx, hy); hx += ctx.measureText('✓  ').width; font(hs, 700); }
     ctx.fillStyle = TXT; ctx.fillText(_fitCanvasText(ctx, m.hero, heroMaxW - (hx - P)), hx, hy);
     if (m.sub) { ctx.fillStyle = DIM; font(23, 500); ctx.fillText(_fitCanvasText(ctx, m.sub, heroMaxW), P, hy + 42); }
-    // Stats row — up to 6 even columns (note_detect parity): tracked display-face
-    // labels + display-face, color-coded values. Green stays cleared-only (never a
+    // Stats row — up to 6 even columns (note_detect parity): tracked labels and
+    // color-coded values. Green stays cleared-only (never a
     // stat), so the pop comes from the accent on TEMPO/BEST. No marketing footer —
     // the wordmark already brands the card.
     const cols = m.stats.slice(0, 6), sy = 470;
@@ -12174,8 +12156,8 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     const valColor = (label) => (label === 'TEMPO' || label === 'BEST') ? accent : (label === 'TIME' || label === 'DAY') ? MUT : TXT;
     cols.forEach((st, i) => {
       const cx = P + i * colW;
-      ctx.fillStyle = MUT; font(12, 700, HEAD); ctx.letterSpacing = '1.5px'; ctx.fillText(st.label.toUpperCase(), cx, sy); ctx.letterSpacing = '0px';
-      ctx.fillStyle = valColor(st.label); font(28, 700, HEAD); ctx.fillText(st.value, cx, sy + 42);
+      ctx.fillStyle = MUT; font(12, 700); ctx.letterSpacing = '1.5px'; ctx.fillText(st.label.toUpperCase(), cx, sy); ctx.letterSpacing = '0px';
+      ctx.fillStyle = valColor(st.label); font(28, 700); ctx.fillText(st.value, cx, sy + 42);
     });
     return cv;
   }
@@ -12217,8 +12199,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
   // Returns 'copied' | 'saved' | 'copied-text' | 'failed'.
   /** @param {import('./src/types/results-data.js').RunSummary | null} s @param {string} action */
   async function shareCardAction(s, action) {
-    // The share card uses Virtuoso's own session model and shared display face.
-    // (the DOM card gets it via CSS font-display; the canvas needs it resident).
+    // The share card uses Virtuoso's own session model and the platform's system face.
     await loadCardFonts();
     const cv = renderShareCardImage(s);
     const toBlob = () => new Promise(r => (/** @type {HTMLCanvasElement} */ (cv)).toBlob(r, 'image/png'));
@@ -12658,8 +12639,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     ctx.fill(new Path2D('M12 6l1.3 3.3 3.6.2-2.8 2.3 1 3.5-3.1-2-3.1 2 1-3.5L7.1 9.5l3.6-.2z'));
     ctx.restore();
   }
-  // Paint the header-chip crest (leading child of #virtuoso_lab-progress-strip). rose=true adds
-  // the one-shot earn-bloom (Lit only; RM/Calm just show the new rank). Hidden at rank 0.
+  // Paint the header-chip crest (leading child of #virtuoso_lab-progress-strip).
   /** @param {boolean} [rose] */
   function syncCrest(rose) {
     const el = $('virtuoso_lab-crest'); if (!el) return;
@@ -13105,7 +13085,7 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     _activeSession = null;
     if (unlock) { _newlyUnlockedTier = unlock.tier; syncTempoTierButtons(); renderSkillTree(); _newlyUnlockedTier = null; }
     syncProgressStrip();
-    if (crestGain && crestGain.rose) syncCrest(true);   // earn-moment: bloom the chip crest (Lit/RM-aware in CSS)
+    if (crestGain && crestGain.rose) syncCrest(true);   // mark the earned rank on the chip crest
     presentSessionSummary();
   }
 
@@ -14213,11 +14193,10 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       toggleSettingsMenu(false);
     try { const bus = hostBus(); if (bus && typeof bus.navigate === 'function') bus.navigate('settings'); } catch (_) {}
     });
-    // Settings prefs: default XP mode, count-in and Studio energy.
+    // Settings prefs: default XP mode and count-in.
     document.querySelectorAll('#virtuoso_lab-xp-mode .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyXpModeDefault(b.dataset.xp)));
     $('virtuoso_lab-countin-default')?.addEventListener('change', (e) => { try { localStorage.setItem('virtuoso_lab.countInDefault', (/** @type {HTMLSelectElement} */ (e.target)).value); } catch (_) {} applyCountInDefault((/** @type {HTMLSelectElement} */ (e.target)).value); });
     document.querySelectorAll('#virtuoso_lab-countin-grid .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => { try { localStorage.setItem('virtuoso_lab.countInGrid', b.dataset.grid); } catch (_) {} applyCountInGrid(b.dataset.grid); }));
-    document.querySelectorAll('#virtuoso_lab-energy-pick .virtuoso_lab-mini-btn').forEach(b => b.addEventListener('click', () => applyEnergy(b.dataset.energy)));
     loadSettingsPrefs();
     document.addEventListener('click', (e) => {
       const menu = $('virtuoso_lab-settings-menu'); if (!menu || !menu.classList.contains('virtuoso_lab_vir-open')) return;
