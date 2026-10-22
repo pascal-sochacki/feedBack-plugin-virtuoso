@@ -3,6 +3,7 @@ import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
 import { SEGMENT_TEMPLATES, SEGMENT_ROLES, SEGMENT_BANDS } from './src/content/segments.js';
 import { stylePaletteConfig } from './src/core/config-defaults.js';
+import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
 import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
 import { createPracticePresets } from './src/shell/practice-presets.js';
 import { createPracticeSelection } from './src/shell/practice-selection.js';
@@ -262,119 +263,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       degreeOfPc
     };
   }
-
-  // Smoke tests — verify the data model produces correct output for known
-  // reference cases. Fires once on load via console.assert; failures are
-  // visible in DevTools but don't break the plugin.
-  (function smokeTestShapeSystem() {
-    const guitar = [40, 45, 50, 55, 59, 64];
-    /** @param {import('./src/core/fretboard-shapes.js').ResolvedShape | null} shape */
-    function fretsByString(shape) {
-      /** @type {Record<string, number[]>} */
-      const map = {};
-      for (const n of (/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (shape)).notes) {
-        if (!map[n.s]) map[n.s] = [];
-        map[n.s].push(n.f);
-      }
-      for (const s of Object.keys(map)) map[s] = map[s].slice().sort((a, b) => a - b);
-      return map;
-    }
-    /** @param {(string | number)[] | null} a @param {(string | number)[] | null} b */
-    function arraysEqual(a, b) {
-      if (!a || !b || a.length !== b.length) return false;
-      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
-      return true;
-    }
-    // CAGED C-shape in C major → frets 0–5, root at A-string fret 3
-    const cShapeC = resolveCAGEDShape(0, 'C', 'major', guitar);
-    console.assert((/** @type {boolean} */ (/** @type {unknown} */ (cShapeC && cShapeC.fretMin === 0 && cShapeC.fretMax === 5))),
-      '[Virtuoso shapes] C-shape in C major should span frets 0–5', cShapeC);
-    console.assert((/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (cShapeC)).notes.some(n => n.s === 1 && n.f === 3 && n.isRoot),
-      '[Virtuoso shapes] C-shape in C major should have root at s=1 f=3', cShapeC);
-    // CAGED E-shape in G major → root on low E fret 3, span 2–7
-    const eShapeG = resolveCAGEDShape(7, 'E', 'major', guitar);
-    console.assert((/** @type {boolean} */ (/** @type {unknown} */ (eShapeG && eShapeG.fretMin === 2 && eShapeG.fretMax === 7))),
-      '[Virtuoso shapes] E-shape in G major should span frets 2–7', eShapeG);
-    console.assert((/** @type {import('./src/core/fretboard-shapes.js').ResolvedShape} */ (eShapeG)).notes.some(n => n.s === 0 && n.f === 3 && n.isRoot),
-      '[Virtuoso shapes] E-shape in G major should have root at s=0 f=3', eShapeG);
-    // 3NPS Position 1 (Ionian) in C major → low E starts at fret 8
-    const pos1C = resolveThreeNPSPosition(0, 1, 'major', guitar);
-    const pos1Frets = fretsByString(pos1C);
-    console.assert(arraysEqual(pos1Frets[0], [8, 10, 12]),
-      '[Virtuoso shapes] 3NPS Pos 1 in C major, low E should be [8,10,12]', pos1Frets);
-    console.assert(arraysEqual(pos1Frets[4], [10, 12, 13]),
-      '[Virtuoso shapes] 3NPS Pos 1 in C major, B string should be [10,12,13]', pos1Frets);
-    // 3NPS Position 1 in G major → low E starts at fret 3
-    const pos1G = resolveThreeNPSPosition(7, 1, 'major', guitar);
-    const pos1GFrets = fretsByString(pos1G);
-    console.assert(arraysEqual(pos1GFrets[0], [3, 5, 7]),
-      '[Virtuoso shapes] 3NPS Pos 1 in G major, low E should be [3,5,7]', pos1GFrets);
-    // CAGED order in C major: C → A → G → E → D
-    const cagedC = shapeOrderForKey(0, 'caged', 'major', guitar);
-    console.assert(arraysEqual(cagedC, ['C', 'A', 'G', 'E', 'D']),
-      '[Virtuoso shapes] CAGED order in C major should be C,A,G,E,D', cagedC);
-    // CAGED order in G major: G → E → D → C → A
-    const cagedG = shapeOrderForKey(7, 'caged', 'major', guitar);
-    console.assert(arraysEqual(cagedG, ['G', 'E', 'D', 'C', 'A']),
-      '[Virtuoso shapes] CAGED order in G major should be G,E,D,C,A', cagedG);
-    // Open is sensible for C major (root on B-string fret 1, plenty of notes)
-    console.assert(isOpenSystemSensible(0, 'major', guitar),
-      '[Virtuoso shapes] Open should be sensible for C major');
-    // Open is NOT sensible for Db major or Ab major — those are the only two
-    // major keys with no root note in frets 0-3 across any string.
-    console.assert(!isOpenSystemSensible(1, 'major', guitar),
-      '[Virtuoso shapes] Open should NOT be sensible for Db major (no root in frets 0-3)');
-    console.assert(!isOpenSystemSensible(8, 'major', guitar),
-      '[Virtuoso shapes] Open should NOT be sensible for Ab major (no root in frets 0-3)');
-    // Next-variation cycle in C major CAGED: C → A → G → E → D → C
-    console.assert(nextShapeInCycle(0, 'caged', 'C', 'major', guitar) === 'A',
-      '[Virtuoso shapes] After C-shape in C major, next is A-shape');
-    console.assert(nextShapeInCycle(0, 'caged', 'D', 'major', guitar) === 'C',
-      '[Virtuoso shapes] After D-shape in C major, wraps to C-shape');
-    // No-unison rule: a resolved scale shape must never place the same pitch
-    // (openMidi + fret) on two strings. Roots in different octaves are distinct
-    // midis and are kept; only true unisons are dropped. Regression guard for
-    // the duplicate-root bug (fret-window blocks doubled pitches across strings).
-    /** @param {import('./src/core/fretboard-shapes.js').ResolvedShape | null} resolved */
-    const shapeDupMidis = (resolved) => {
-      if (!resolved) return ['unresolved'];
-      const seen = new Set(), dups = [];
-      for (const n of resolved.notes) {
-        const midi = guitar[n.s] + n.f;
-        if (seen.has(midi)) dups.push(midi); else seen.add(midi);
-      }
-      return dups;
-    };
-    for (const k of [0, 7, 9, 2, 3]) for (const sc of ['major', 'natural_minor', 'harmonic_minor']) {
-      for (const shape of CAGED_CYCLE) {
-        const d = shapeDupMidis(resolveCAGEDShape(k, shape, sc, guitar));
-        console.assert(d.length === 0,
-          `[Virtuoso no-unison] CAGED ${shape}-shape key=${k} ${sc} doubles a pitch`, d);
-      }
-      const od = shapeDupMidis(resolveOpenShape(k, sc, guitar));
-      console.assert(od.length === 0,
-        `[Virtuoso no-unison] Open key=${k} ${sc} doubles a pitch`, od);
-    }
-    // Finger-collision guard over the authored CAGED chord templates
-    // (hand-marks Slice 3 — mirrors assertStrumGripsValid's byFinger check;
-    // the double-booked-finger class shipped twice in grip data before the
-    // guard existed): one finger may barre many strings at ONE fret offset,
-    // never sit on two different offsets. fg is display-only, so the pitch
-    // checks above can't catch it — but a chord box drawing an impossible
-    // fingering misteaches.
-    for (const shapeKey of Object.keys(CAGED_SHAPES)) {
-      const cts = CAGED_SHAPES[shapeKey].chordTemplates || {};
-      for (const quality of Object.keys(cts)) {
-        /** @type {Record<string, Set<number>>} */
-        const byFinger = {};
-        for (const n of cts[quality]) { if (!n.fg) continue; (byFinger[n.fg] = byFinger[n.fg] || new Set()).add(n.fOff); }
-        for (const fg of Object.keys(byFinger)) {
-          console.assert(byFinger[fg].size <= 1,
-            `[Virtuoso chord-template] ${shapeKey}/${quality} finger ${fg} spans ${byFinger[fg].size} fret offsets (impossible)`);
-        }
-      }
-    }
-  })();
 
   let /** @type {ReturnType<typeof makeBundle> | null} */ activeBundle = null, /** @type {number | null} */ rafId = null, /** @type {import('./src/types/entry-data.js').EntryExercise | null} */ lastExercise = null;
   let sessionLaunch = null;
@@ -6342,14 +6230,14 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
     // DRIFT first (the worst — a moving pulse you can't feel): a tempo trend.
     // The fix splits by direction (bass-pedagogy 2026-07-14): slowing = the
     // subdivision is decaying (keep the grid alive); speeding = chasing the beat.
-    if (Math.abs(drift) >= FELT.DRIFT_FAIL) {
+    if (Math.abs(drift) >= FELT_HOLD_THRESHOLDS.DRIFT_FAIL) {
       const fix = drift > 0
         ? 'Anchor to the click and keep the subdivision moving between hits.'
         : "Anchor to the click — don't chase it, let it come to you.";
       return { text: `Your time ${drift > 0 ? 'slips later' : 'creeps ahead'} across the phrase (~${Math.abs(drift)}ms) — you're ${drift > 0 ? 'slowing down' : 'speeding up'} as it goes. ${fix}`, tone: 'work' };
     }
     // LEAN: a steady offset (the kinder fix — consistent, just off-center).
-    if (lean >= FELT.LEAN_BEHIND || lean <= FELT.LEAN_AHEAD) {
+    if (lean >= FELT_HOLD_THRESHOLDS.LEAN_BEHIND || lean <= FELT_HOLD_THRESHOLDS.LEAN_AHEAD) {
       const behind = lean > 0;
       return { text: `You sit ~${Math.abs(lean)}ms ${behind ? 'behind' : 'ahead of'} the beat — consistent, just off-center. ${behind ? 'Lean in a hair earlier.' : 'Relax and let the click come to you.'}`, tone: 'work' };
     }
@@ -11637,71 +11525,6 @@ import { PATHWAY_BANDS, SKILL_TREE_NODES, SKILL_TREE_EDGES, PACK_FAMILY_ORDER } 
       });
     }
     return { pathwayId, tier };
-  }
-  // ── Bass FELT-HOLD (engagement foundations) — docs/plugin/design/bass-felt-hold-roundtable.md ──
-  // The bass analog of the guitar clean-tempo PB. Bass is felt-not-scored, so a
-  // FELT-rung pathway (feltGate:true) completes on a sustained POCKET, not a %: a
-  // verdict — Locked / Settling / Dragging / Rushing — from the onset-timing
-  // deviations we already collect (_ptDevs = { d:sec, t:sec }), NO new DSP, NO %, NO
-  // per-note flash. THREE numbers (rhythm-meter): leanMs (median placement), driftMs
-  // (Theil-Sen slope × span = tempo trend), jitterMs (MAD×1.4826 of the DETRENDED
-  // residuals = tightness). Sign (D1, the code's): + = LATE = behind, − = early =
-  // ahead. Bucketing order drift → lean → tightness, so a player sliding through
-  // center can't read Locked. Below the evidence gate → null (never a directional
-  // label); jitter-loose-but-centered → null+untight (encouraging "keep working it",
-  // NOT shaming). Thresholds bass-ped, v1 dogfood-tunable.
-  const FELT = { MIN_N: 12, MIN_BARS: 4, JITTER_LOCK: 25, JITTER_SETTLE: 45, LEAN_AHEAD: -18, LEAN_BEHIND: 28, DRIFT_FAIL: 35 };
-  /** @param {number[]} a */
-  function _feltMedian(a) { if (!a.length) return 0; const s = a.slice().sort((x, y) => x - y); const m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
-  /** @param {{t: number, d: number}[]} pts */
-  function _feltTheilSen(pts) {   // median pairwise slope (ms per second) over { t:sec, d:ms }
-    const sl = [];
-    for (let i = 0; i < pts.length; i++) for (let j = i + 1; j < pts.length; j++) {
-      const dt = pts[j].t - pts[i].t; if (Math.abs(dt) > 1e-6) sl.push((pts[j].d - pts[i].d) / dt);
-    }
-    return sl.length ? _feltMedian(sl) : 0;
-  }
-  // devs = [{ d:sec, t:sec }]; opts.barSec. Returns { verdict, leanMs, driftMs,
-  // jitterMs, n, spanBars, untight } — verdict null = no pocket read (untight true →
-  // loose-but-played, false → too little evidence). Pure; no host/DOM.
-  /** @param {import('./src/types/results-data.js').TimingDeviation[] | null} devs @param {{barSec?: number}} [opts] @returns {import('./src/types/results-data.js').FeltAnalysis} */
-  function feltHoldAnalyze(devs, opts) {
-    opts = opts || {};
-    const barSec = opts.barSec !== undefined && opts.barSec > 0 ? opts.barSec : 2;
-    if (!Array.isArray(devs) || devs.length < FELT.MIN_N) return { verdict: null, n: devs ? devs.length : 0, untight: false };
-    // D3 (v1.1): subtract each deviation's register-dependent speak-budget EXCESS
-    // (`sb`, s — see the window-build comment) so a low note's late-arriving
-    // evidence doesn't read as the PLAYER late. Corrects both the lean (fake
-    // "Dragging" on low lines) and the cross-register jitter inflation a walking
-    // line suffers (E1→G3 spans ~30ms of speak spread — enough alone to push a
-    // Locked player past JITTER_LOCK). Missing sb (old vectors, tests) = 0.
-    const pts = devs.map(x => ({ t: x.t, d: (x.d - (x.sb || 0)) * 1000 })).sort((a, b) => a.t - b.t);   // d → ms
-    // Longest CONTINUOUS credited span (break the chain on a gap > ~2 bars).
-    const gapMax = 2 * barSec; let runStart = 0, best = [0, 0];
-    for (let i = 1; i <= pts.length; i++) {
-      if (i === pts.length || pts[i].t - pts[i - 1].t > gapMax) {
-        if (i - runStart > best[1] - best[0]) best = [runStart, i];
-        runStart = i;
-      }
-    }
-    const seg = pts.slice(best[0], best[1]);
-    const spanSec = seg.length ? (seg[seg.length - 1].t - seg[0].t) : 0;
-    const spanBars = barSec > 0 ? spanSec / barSec : 0;
-    if (seg.length < FELT.MIN_N || spanBars < FELT.MIN_BARS) return { verdict: null, n: seg.length, spanBars: Math.round(spanBars), untight: false };
-    const leanMs = Math.round(_feltMedian(seg.map(p => p.d)));
-    const slope = _feltTheilSen(seg);                  // ms/s
-    const driftMs = Math.round(slope * spanSec);
-    const resid = seg.map(p => p.d - slope * (p.t - seg[0].t));   // detrend
-    const medR = _feltMedian(resid);
-    const jitterMs = Math.round(1.4826 * _feltMedian(resid.map(r => Math.abs(r - medR))));
-    let /** @type {import('./src/types/results-data.js').FeltAnalysis['verdict']} */ verdict, untight = false;
-    if (Math.abs(driftMs) >= FELT.DRIFT_FAIL) verdict = driftMs > 0 ? 'dragging' : 'rushing';   // trend first (+ = behind)
-    else if (leanMs >= FELT.LEAN_BEHIND) verdict = 'dragging';
-    else if (leanMs <= FELT.LEAN_AHEAD) verdict = 'rushing';
-    else if (jitterMs <= FELT.JITTER_LOCK) verdict = 'locked';
-    else if (jitterMs <= FELT.JITTER_SETTLE) verdict = 'settling';
-    else { verdict = null; untight = true; }          // loose-but-centered: no pocket yet, encouraging copy
-    return { verdict, leanMs, driftMs, jitterMs, n: seg.length, spanBars: Math.round(spanBars), untight };
   }
   // Credit a FELT-rung pathway (the engine gap fix): Settling-or-better flips the
   // tier (D2 — mirrors guitar's "clean enough" bar); LOCKED additionally raises the
