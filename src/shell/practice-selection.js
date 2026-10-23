@@ -216,9 +216,11 @@ export function createPracticeSelection(dependencies) {
     await dependencies.regenerateSelectedConfig();
   }
   async function loadFile() {
-    const customMode = (stored(MODE_KEY) || 'guided') === 'custom';
-    if (pendingInitial) { cancelInitial(); if (!customMode) applyPathway('custom'); }
-    if (hasPathwayFile() && !customMode) applyPathway('custom');
+    if (activeTab !== 'custom') selectMode('custom');
+    save(MODE_KEY, 'custom');
+    dependencies.changeModeView('custom', false);
+    if (pendingInitial) cancelInitial();
+    if (hasPathwayFile()) applyPathway('custom');
     // A failed replacement intentionally leaves the old file cleared.
     clearFile('cursor');
     const identity = requestIdentity, currentVisit = visit;
@@ -234,6 +236,8 @@ export function createPracticeSelection(dependencies) {
       file = loaded;
       filePath = catalog?.state.entries.find(item => item.id === id)?.path || (await getLoader().index(controller.signal)).find(item => item.id === id)?.path || null;
       if (!ownsRequest()) return;
+      const disclosure = /** @type {HTMLDetailsElement | null} */ ($('virtuoso_lab-file-practices'));
+      if (disclosure) disclosure.open = true;
       variantId = variants[0]?.id || null;
       syncFileControls(); await dependencies.regenerateSelectedConfig();
     } catch (error) {
@@ -279,6 +283,7 @@ export function createPracticeSelection(dependencies) {
       }
     }
     applyPathway(picker.value);
+    dependencies.changeModeView(mode, mode === 'guided');
     if (picker.value !== 'custom') save(PATHWAY_KEY,picker.value);
     if (!pendingInitial) dependencies.regenerateSelectedConfig();
     if (retained) status('Previous Ladder lesson unavailable. Selected a compatible lesson; Setup was not changed.');
@@ -465,7 +470,9 @@ export function createPracticeSelection(dependencies) {
       listen('virtuoso_lab-file-select','change',() => {
         const id = select('virtuoso_lab-file-select')?.value;
         cancelLoad();
-        if ((stored(MODE_KEY) || 'guided') !== 'custom') return;
+        if (activeTab !== 'custom') selectMode('custom');
+        save(MODE_KEY, 'custom');
+        dependencies.changeModeView('custom', false);
         if (file && file.id === id) {
           const first = fileChoices(file)[0];
           return first ? chooseVariant(first.id) : dependencies.regenerateSelectedConfig();

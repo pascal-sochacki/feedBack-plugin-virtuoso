@@ -28,7 +28,7 @@ function dom() {
     setAttribute(){}
   }
   const nodes=new Map();
-  for(const id of ['controls','root','status','pathway','file-select','file-load','file-unload','file-next','file-variant','advanced-toggle','shape','fretboard-system','caged-shape-value','anchor-station','pathway-scale','pathway-scale-wrap','shape-prev','shape-next','mode-select',...['guided','custom','session','jam'].map(x=>'mode-'+x)])nodes.set('virtuoso_lab-'+id,new Element());
+  for(const id of ['controls','root','status','pathway','file-select','file-load','file-unload','file-next','file-variant','advanced-toggle','shape','fretboard-system','caged-shape-value','anchor-station','pathway-scale','pathway-scale-wrap','shape-prev','shape-next','mode-select','file-practices',...['guided','custom','session','jam'].map(x=>'mode-'+x)])nodes.set('virtuoso_lab-'+id,new Element());
   const fields=Object.fromEntries(['key','scale','bpm','meter','subdivision','bars','direction','sequence','shape','fretboardSystem','fretMin','fretMax','keyCycle','swing','stringSetup','instrument'].map(name=>[name,new Element()]));
   fields.shape=nodes.get('virtuoso_lab-shape');fields.fretboardSystem=nodes.get('virtuoso_lab-fretboard-system');
   for(const [name,field] of Object.entries(fields)){field.name=name;field.type='text';}
@@ -111,15 +111,35 @@ test('direct file lifecycle stops/resets before validation, Next wraps, failed r
   owner.leave();await owner.enter();await stale({target:nodes.get('virtuoso_lab-file-load')});assert.equal(owner.file,retainedFile);
 });
 
-test('Custom file selector loads on selection without leaving Custom mode',async()=>{
-  const {owner,nodes,store,events}=dom();
-  store.set('virtuoso_lab.lastMode','custom');
-  owner.mount('files');
-  nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
-  await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
-  assert.equal(owner.file.id,'chromatic-warmup');
-  assert.equal(store.get('virtuoso_lab.lastMode'),'custom');
-  assert.equal(events.some(row=>row[0]==='mode'),false);
+test('Custom file selection loads from active mode despite missing or stale persisted mode',async()=>{
+  for (const persistedMode of [null,'guided']) {
+    const {owner,nodes,store,events}=dom();
+    owner.selectMode('custom');
+    if (persistedMode == null) store.delete('virtuoso_lab.lastMode');
+    else store.set('virtuoso_lab.lastMode',persistedMode);
+    owner.mount('files');
+    nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
+    await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
+    assert.equal(owner.activeTab,'custom');
+    assert.equal(owner.file.id,'chromatic-warmup');
+    assert.equal(owner.variantId,owner.file.variants[0].id);
+    assert.equal(nodes.get('virtuoso_lab-file-practices').open,true);
+    assert.deepEqual(events.filter(row=>row[0]==='file').at(-1),['file','chromatic-warmup',owner.file.variants[0].id]);
+    assert.equal(store.get('virtuoso_lab.lastMode'),'custom');
+    assert.equal(nodes.get('virtuoso_lab-root').classList.contains('virtuoso_lab-pathway-mode'),false);
+    owner.leave();
+  }
+});
+
+test('returning to Custom synchronizes its view and saved preset favorites remain available',async()=>{
+  const {owner,nodes}=dom();
+  owner.selectMode('guided');
+  owner.selectMode('custom');
+  assert.equal(nodes.get('virtuoso_lab-root').classList.contains('virtuoso_lab-pathway-mode'),false);
+  const html=readFileSync(new URL('../screen.html',import.meta.url),'utf8');
+  assert.match(html,/id="virtuoso_lab-preset-picker-wrap"[^>]*>Load preset/);
+  assert.match(html,/id="virtuoso_lab-preset-picker"/);
+  assert.match(html,/optgroup label="Favorites"/);
   owner.leave();
 });
 
@@ -149,7 +169,7 @@ test('Custom selector immediately applies authored and generated Markdown conten
   const selected=owner.selectedConfig({key:'C',scale:'major',bpm:92,meter:'4/4',instrument:'guitar',stringSetup:'guitar_6_standard',stringCount:6,renderer:'highway_3d'});
   assert.equal(selected.key,alt.key);
   assert.equal(selected.practiceFilePath,'guitar/pathways/file-pent_foundation.md');
-  assert.equal(events.some(row=>row[0]==='mode'),false);
+  assert.ok(events.some(row=>row[0]==='mode'&&row[1]==='custom'&&row[2]===false));
   nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
   await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
   assert.equal(owner.file.id,'chromatic-warmup');

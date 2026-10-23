@@ -1,6 +1,7 @@
 ---
 id: b_cool_scale
 title: Cool-down scale
+practiceTypeLabel: Scale pattern
 instrument: bass
 tuning: standard
 meter: 4/4

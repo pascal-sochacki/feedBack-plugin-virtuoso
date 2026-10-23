@@ -4,7 +4,7 @@ import { parseMeter, secondsPerDivision } from './timing.js';
 /** @typedef {{t:number, s:number, f:number, sus:number, fg?:number, pkd?:number}} PracticeNote */
 /** @typedef {{id:string, title:string, hint?:string, duration:number, notes:PracticeNote[]}} PracticeVariant */
 /** @typedef {{goal?:string, scales?:string[], formCues?:string[], instAgnostic?:boolean, base?:Record<string, any>, vary?:Record<string, any>[], variations?:{id:string, title:string, config:Record<string, any>, charts:string[]}[], tiers?:{bpm:number, subdivision:string, bars:number}[], tempoTiers?:number[], tempoTierSubdivs?:string[], tempoTierBars?:number[], practiceType?:string}} PracticePathway */
-/** @typedef {{id:string, title:string, instrument:string, tuning:string, meter:string, referenceTempo:number, genre?:string, skill?:string, applicability?:string[], role?:string, competency?:string, prose:string, block?:Record<string, any>, variants?:PracticeVariant[], pathway?:PracticePathway}} Practice */
+/** @typedef {{id:string, title:string, instrument:string, tuning:string, meter:string, referenceTempo:number, genre?:string, skill?:string, applicability?:string[], role?:string, competency?:string, practiceTypeLabel?:string, prose:string, block?:Record<string, any>, variants?:PracticeVariant[], pathway?:PracticePathway}} Practice */
 
 /** @param {unknown} value @param {number} min @param {number} max */
 function number(value, min, max) {
@@ -252,11 +252,11 @@ export function practicePathwayCredit(cfg, practice) {
 /** @param {unknown} value @returns {Practice} */
 export function validatePractice(value) {
   const practice = object(value);
-  keys(practice, ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'genre', 'skill', 'applicability', 'role', 'competency', 'prose', 'block', 'variants', 'pathway']);
+  keys(practice, ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'genre', 'skill', 'applicability', 'role', 'competency', 'practiceTypeLabel', 'prose', 'block', 'variants', 'pathway']);
   slug(practice.id);
   plainText(practice.title, 120);
   if (!['guitar','bass'].includes(practice.instrument) || practice.tuning !== 'standard' || typeof practice.meter !== 'string') throw new Error('Unsupported practice instrument or tuning');
-  for (const field of ['genre','skill','role','competency']) if (practice[field] !== undefined) plainText(practice[field], 120);
+  for (const field of ['genre','skill','role','competency','practiceTypeLabel']) if (practice[field] !== undefined) plainText(practice[field], 120);
   if (practice.skill !== undefined && !['beginner','intermediate','advanced'].includes(practice.skill)) throw new Error('Invalid practice skill level');
   if (practice.applicability !== undefined && (!Array.isArray(practice.applicability) || !practice.applicability.length || practice.applicability.some(item => !['guitar','bass'].includes(item)))) throw new Error('Invalid practice applicability');
   number(practice.referenceTempo, 30, 260);
@@ -299,7 +299,7 @@ export function parsePracticeMarkdown(source) {
   if (!match) throw new Error('Missing scalar frontmatter');
   /** @type {Record<string, any>} */
   const metadata = {};
-  const fields = ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'genre', 'skill', 'applicability', 'role', 'competency'];
+  const fields = ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'genre', 'skill', 'applicability', 'role', 'competency', 'practiceTypeLabel'];
   for (const line of match[1].split('\n')) {
     const row = /^([A-Za-z]+): ([^\r\n]+)$/.exec(line);
     if (!row || !fields.includes(row[1]) || Object.hasOwn(metadata, row[1])) throw new Error('Invalid or duplicate frontmatter field');

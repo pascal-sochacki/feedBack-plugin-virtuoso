@@ -1,6 +1,7 @@
 ---
 id: b_app_octave_disco
 title: Disco octave line
+practiceTypeLabel: Octave groove
 instrument: bass
 tuning: standard
 meter: 4/4

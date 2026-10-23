@@ -1,6 +1,7 @@
 ---
 id: g_cool_scale
 title: Cool-down scale
+practiceTypeLabel: Scale pattern
 instrument: guitar
 tuning: standard
 meter: 4/4

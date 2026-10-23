@@ -4,6 +4,7 @@ import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
 import { SEGMENT_TEMPLATES, SEGMENT_ROLES } from './src/content/segments.js';
 import { PRACTICE_BLOCKS } from './src/content/practice-blocks.js';
+import { practiceTypesForInstrument, practiceTypeSelection } from './src/shell/practice-type-catalog.js';
 import { stylePaletteConfig } from './src/core/config-defaults.js';
 import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
 import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
@@ -11,7 +12,6 @@ import { createPracticePresets } from './src/shell/practice-presets.js';
 import { createPracticeSelection } from './src/shell/practice-selection.js';
 import { deriveLessonFields } from './src/core/lesson-adaptation.js';
 import { createModePreview } from './src/shell/mode-preview.js';
-import { offerable } from './src/core/practice-selection.js';
 import { createPracticePresentation } from './src/shell/practice-presentation.js';
 import { countInSubTicks } from './src/core/count-in.js';
 import { rollSegment, refreshWorkout, materializeSegment, prettyKind, segmentEstDuration } from './src/core/segments.js';
@@ -8509,15 +8509,19 @@ import { el as domEl } from './src/shell/dom.js';
     const ptSel = document.querySelector('[name="practiceType"]');
     if (ptSel) {
       const instrument = isBass ? 'bass' : ((instrSel?.value) === 'piano' ? 'piano' : 'guitar');
-      let mustSwitch = false;
-      ptSel.querySelectorAll('option').forEach(opt => {
-        const ok = offerable(opt.value, instrument);
-        opt.hidden = !ok; opt.disabled = !ok;
-        if (!ok && ptSel.value === opt.value) mustSwitch = true;
-      });
-      if (mustSwitch && practiceSelection.activeTab === 'custom' && !practiceSelection.file) {
-        ptSel.value = 'scale';
-        showStatus('Previous Custom practice is incompatible. Selected Scale; your other settings are retained.');
+      const options = practiceTypesForInstrument(instrument);
+      const previous = ptSel.value;
+      const selected = practiceTypeSelection(previous, options);
+      ptSel.replaceChildren(...options.map(({ kind, label }) => {
+        const option = document.createElement('option');
+        option.value = kind;
+        option.textContent = label;
+        return option;
+      }));
+      ptSel.value = selected;
+      if (previous && previous !== selected && practiceSelection.activeTab === 'custom' && !practiceSelection.file) {
+        const label = options.find(option => option.kind === selected)?.label || 'a supported practice';
+        showStatus(`Previous Custom practice is incompatible. Selected ${label}; your other settings are retained.`);
       }
     }
     // Re-render the skill tree so the Bending node hides/shows with the instrument.

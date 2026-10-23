@@ -43,6 +43,7 @@ export const PRACTICE_BLOCKS = {
     "practice": {
       "id": "b_app_octave_disco",
       "title": "Disco octave line",
+      "practiceTypeLabel": "Octave groove",
       "instrument": "bass",
       "tuning": "standard",
       "meter": "4/4",
@@ -102,7 +103,8 @@ export const PRACTICE_BLOCKS = {
       "standardOnly": false,
       "applicability": [
         "bass"
-      ]
+      ],
+      "practiceTypeLabel": "Octave groove"
     }
   },
   "b_app_root_motion": {
@@ -652,6 +654,7 @@ export const PRACTICE_BLOCKS = {
     "practice": {
       "id": "b_cool_scale",
       "title": "Cool-down scale",
+      "practiceTypeLabel": "Scale pattern",
       "instrument": "bass",
       "tuning": "standard",
       "meter": "4/4",
@@ -708,7 +711,8 @@ export const PRACTICE_BLOCKS = {
       "standardOnly": false,
       "applicability": [
         "bass"
-      ]
+      ],
+      "practiceTypeLabel": "Scale pattern"
     }
   },
   "b_jam_blues": {
@@ -24243,6 +24247,7 @@ export const PRACTICE_BLOCKS = {
     "practice": {
       "id": "g_cool_scale",
       "title": "Cool-down scale",
+      "practiceTypeLabel": "Scale pattern",
       "instrument": "guitar",
       "tuning": "standard",
       "meter": "4/4",
@@ -24301,7 +24306,8 @@ export const PRACTICE_BLOCKS = {
       "standardOnly": false,
       "applicability": [
         "guitar"
-      ]
+      ],
+      "practiceTypeLabel": "Scale pattern"
     }
   },
   "g_jam_blues": {
@@ -25993,3 +25999,151 @@ export const PRACTICE_BLOCKS = {
     }
   }
 };
+
+/** @type {{kind: string, label: string}[]} */
+export const PRACTICE_TYPE_CATALOG = [
+  {
+    "kind": "octave_groove",
+    "label": "Octave groove"
+  },
+  {
+    "kind": "progression_arpeggios",
+    "label": "Progression Arpeggios"
+  },
+  {
+    "kind": "walking_bass",
+    "label": "Walking Bass"
+  },
+  {
+    "kind": "diatonic_arpeggios",
+    "label": "Diatonic Arpeggios"
+  },
+  {
+    "kind": "scale",
+    "label": "Scale pattern"
+  },
+  {
+    "kind": "dead_note_groove",
+    "label": "Dead Note Groove"
+  },
+  {
+    "kind": "root_fifth_octave",
+    "label": "Root Fifth Octave"
+  },
+  {
+    "kind": "legato",
+    "label": "Legato"
+  },
+  {
+    "kind": "right_hand_technique",
+    "label": "Right Hand Technique"
+  },
+  {
+    "kind": "slap_pop",
+    "label": "Slap Pop"
+  },
+  {
+    "kind": "chromatic",
+    "label": "Chromatic"
+  },
+  {
+    "kind": "arpeggio_inversions",
+    "label": "Arpeggio Inversions"
+  },
+  {
+    "kind": "sweep_arpeggios",
+    "label": "Sweep Arpeggios"
+  },
+  {
+    "kind": "bending",
+    "label": "Bending"
+  },
+  {
+    "kind": "call_response",
+    "label": "Call Response"
+  },
+  {
+    "kind": "motif",
+    "label": "Motif"
+  },
+  {
+    "kind": "strum_comp",
+    "label": "Strum Comp"
+  },
+  {
+    "kind": "chord_scales",
+    "label": "Chord Scales"
+  },
+  {
+    "kind": "hybrid_picking",
+    "label": "Hybrid Picking"
+  },
+  {
+    "kind": "scale_sixths",
+    "label": "Scale Sixths"
+  },
+  {
+    "kind": "vibrato",
+    "label": "Vibrato"
+  },
+  {
+    "kind": "position_shift",
+    "label": "Position Shift"
+  },
+  {
+    "kind": "fingerstyle_arp",
+    "label": "Fingerstyle Arp"
+  },
+  {
+    "kind": "spider",
+    "label": "Spider"
+  },
+  {
+    "kind": "guide_tones",
+    "label": "Guide Tones"
+  },
+  {
+    "kind": "scale_thirds",
+    "label": "Scale Thirds"
+  },
+  {
+    "kind": "pedal_riff",
+    "label": "Pedal Riff"
+  },
+  {
+    "kind": "modal_vamp",
+    "label": "Modal Vamp"
+  },
+  {
+    "kind": "herta",
+    "label": "Herta"
+  },
+  {
+    "kind": "string_skipping",
+    "label": "String Skipping"
+  },
+  {
+    "kind": "tremolo_picking",
+    "label": "Tremolo Picking"
+  },
+  {
+    "kind": "rhythm_pulse",
+    "label": "Rhythm Pulse"
+  },
+  {
+    "kind": "rhythmic_displacement",
+    "label": "Rhythmic Displacement"
+  },
+  {
+    "kind": "tapping",
+    "label": "Tapping"
+  },
+  {
+    "kind": "triadic_pairs",
+    "label": "Triadic Pairs"
+  },
+  {
+    "kind": "shell_voicings",
+    "label": "Shell Voicings"
+  }
+];
