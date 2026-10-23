@@ -29,8 +29,10 @@ jobs:
         run: npm test
 
       - name: Knip
-        continue-on-error: true
         run: npm run deadcode
+
+      - name: Knip production
+        run: npm run deadcode:production
 
       - name: Whitespace check
         run: git diff --check

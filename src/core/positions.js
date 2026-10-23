@@ -114,13 +114,6 @@ export function singleStringScalePositions(cfg) {
   return best.sort((a,b) => a.midi - b.midi || a.f - b.f);
 }
 
-/** @template {Position} T @param {T[]} positions @param {PositionConfig} cfg */
-export function startAtRootPc(positions, cfg) {
-  const keyPc = NOTE_ALIASES[cfg.key] ?? 0;
-  const idx = positions.findIndex(p => p.pc === keyPc);
-  return idx > 0 ? positions.slice(idx).concat(positions.slice(0, idx)) : positions;
-}
-
 // Drop unison duplicates (same pitch on two strings) from a position list,
 // keeping the first occurrence. Positions are expected midi-ascending, so the
 // lower string/fret wins. Enforces the no-unison rule for any run — scales and

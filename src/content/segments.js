@@ -19,5 +19,3 @@ export const SEGMENT_ROLES = {
   review:      { label:'Review',      order:5 },
   cooldown:    { label:'Cool-down',   order:6 },
 };
-
-export const SEGMENT_BANDS = ['beginner','intermediate','advanced'];

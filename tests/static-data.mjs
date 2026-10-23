@@ -6,7 +6,7 @@ import { SEGMENT_TEMPLATES } from '../src/content/segments.js';
 import { AUDIO_FAMILY_DEFAULTS, AUDIO_PROFILES } from '../src/core/audio-profiles.js';
 import { ARRANGEMENT_RECIPES, ARRANGEMENT_TIERS } from '../src/core/arrangement.js';
 import { BASS_FIG_CEIL, BASS_FIG_FLOOR, BASS_FIGURES } from '../src/core/bass-figures.js';
-import { BANJO_DRONE_BY_TONIC, COMP_ARTIC, COMP_GROOVES, TGT } from '../src/core/comp-cells.js';
+import { BANJO_DRONE_BY_TONIC, COMP_ARTIC, COMP_GROOVES } from '../src/core/comp-cells.js';
 import { COMMON_PROGRESSIONS } from '../src/core/harmony.js';
 import { DRUM_GROOVES } from '../src/core/drum-grooves.js';
 import { JAM_PROG_LABELS, STYLE_PALETTES } from '../src/core/style-palettes.js';
@@ -18,6 +18,8 @@ import { STRUM_GRIPS } from '../src/core/strum-grips.js';
 import { MOTIF_CELLS, resolveMotifCell } from '../src/core/motif.js';
 import { applyEconomyPicking, applyGypsyPicking, applyMetalPicking, applyBassPlucking } from '../src/core/stroke-policy.js';
 import { ACOUSTIC_PIECES, BJ_KCS, DRUMKIT_BANKS, KIT_REGISTRY, TONE_GM, drumFile, drumVar, SAMPLED_DRUM_NOTES } from '../src/core/audio-registries.js';
+
+const COMP_TARGETS = new Set(['chord', 'shell', 'root5', 'pedal', 'top', 'drone', 'deg']);
 
 test('authored audio kit and bank registries reference declared banks and round robins', () => {
   for (const [id, kit] of Object.entries(KIT_REGISTRY)) {
@@ -140,7 +142,7 @@ test('authored comp grids and their variants have valid shape and tokens', () =>
       assert.equal(grid.length, expected, `[Virtuoso comp-groove] ${id} ${label} has ${grid.length} steps, expected ${expected}`);
       for (const step of grid) {
         if (step === '.') continue;
-        assert.ok(step && typeof step === 'object' && TGT.has(step.t) && COMP_ARTIC[step.a] != null,
+        assert.ok(step && typeof step === 'object' && COMP_TARGETS.has(step.t) && COMP_ARTIC[step.a] != null,
           `[Virtuoso comp-groove] ${id} ${label} has a bad step ${JSON.stringify(step)}`);
       }
     };

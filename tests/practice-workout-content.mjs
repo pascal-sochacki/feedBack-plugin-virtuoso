@@ -4,7 +4,7 @@ import {readFileSync, readdirSync} from 'node:fs';
 import {join, relative} from 'node:path';
 import {parsePracticeMarkdown, practiceWorkoutSegment, validatePracticeIndex, buildPracticeFileExercise} from '../src/core/practice-files.js';
 import {PRACTICE_BLOCKS} from '../src/content/practice-blocks.js';
-import {SEGMENT_TEMPLATES, SEGMENT_BANDS} from '../src/content/segments.js';
+import {SEGMENT_TEMPLATES} from '../src/content/segments.js';
 import {materializeSegment, refreshWorkout} from '../src/core/segments.js';
 import {buildSessionChart} from '../src/core/session-chart.js';
 import {buildSegmentConfig} from '../src/core/session-config.js';
@@ -12,7 +12,9 @@ import {materializeWorkoutConfig} from '../src/core/workout-config.js';
 import {createWorkoutEditor} from '../src/shell/workout-editor.js';
 import {STYLE_PALETTES} from '../src/core/style-palettes.js';
 import {rollSegment} from '../src/core/segments.js';
-import {assertSegmentTemplatesValid} from '../src/core/segment-integrity.js';
+import {assertSegmentTemplatesValid} from './support/segment-integrity.mjs';
+
+const SEGMENT_BANDS = ['beginner','intermediate','advanced'];
 
 const root = new URL('../assets/practices/', import.meta.url);
 const rootPath = root.pathname;

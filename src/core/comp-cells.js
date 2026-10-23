@@ -345,8 +345,6 @@ export const COMP_GROOVES = {
            { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }, { t: 'root5', a: 'chug', acc: 1 }] },
 };
 
-export const TGT = new Set(['chord', 'shell', 'root5', 'pedal', 'top', 'drone', 'deg']);
-
 // Which cell (if any) drives the comp for this cfg. Authored wins; density 1
 // is the vamp; the boogie recipe's comp half is the offbeat stabs (step 4 —
 // the full-recipe migration; its bass half is the bass_ostinato figure); the

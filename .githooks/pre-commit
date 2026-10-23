@@ -1,16 +1,11 @@
 #!/bin/sh
 set -eu
 
-if [ ! -x "node_modules/.bin/eslint" ] || [ ! -x "node_modules/.bin/tsc" ]; then
+if [ ! -x "node_modules/.bin/eslint" ] || [ ! -x "node_modules/.bin/tsc" ] || [ ! -x "node_modules/.bin/knip" ]; then
   echo "pre-commit: install maintainer dependencies first: npm ci --ignore-scripts" >&2
   exit 1
 fi
 
 npm run check:precommit
-
-# Knip is an advisory inventory in CI too; report findings without blocking a commit.
-if [ -x "node_modules/.bin/knip" ]; then
-  npm run deadcode || echo "pre-commit: Knip reported advisory findings (not blocking)." >&2
-fi
 
 git diff --cached --check

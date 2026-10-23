@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
-import { DIATONIC_QUALITIES } from './chord-theory.js';
-import { SEGMENT_BANDS, SEGMENT_ROLES } from '../content/segments.js';
-import { STYLE_PALETTES } from './style-palettes.js';
-import { rollSegment } from './segments.js';
+import { DIATONIC_QUALITIES } from '../../src/core/chord-theory.js';
+import { SEGMENT_ROLES } from '../../src/content/segments.js';
+import { STYLE_PALETTES } from '../../src/core/style-palettes.js';
+import { rollSegment } from '../../src/core/segments.js';
 
+const SEGMENT_BANDS = ['beginner', 'intermediate', 'advanced'];
 const SINGLE_CHORD_BACKINGS = new Set(['static_i', 'none']);
 const GATE_EXEMPT_SCALES = new Set(['minor_pentatonic', 'major_pentatonic', 'blues', 'bebop_major', 'bebop_dominant']);
 
 /** Validate every catalog variant against the workout authoring invariants. */
-/** @param {Record<string, import('./session-types.js').SegmentTemplate>} templates */
+/** @param {Record<string, import('../../src/core/session-types.js').SegmentTemplate>} templates */
 export function assertSegmentTemplatesValid(templates) {
   for (const [id, template] of Object.entries(templates)) {
     if (!SEGMENT_ROLES[template.role]) throw new Error(`[Virtuoso segment-template] ${id} has unknown role "${template.role}"`);
