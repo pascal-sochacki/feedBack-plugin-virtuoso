@@ -9,6 +9,7 @@ import {STRING_SETUPS} from '../core/instrument-tuning.js';
 import {positionStepperIsShapeMode} from './practice-presentation.js';
 import {NOTE_ALIASES} from '../core/pitch.js';
 import {isShapeAwareSystem, shapeOrderForKey, fretWindowForShape, defaultShapeForSystem} from '../core/fretboard-shapes.js';
+import {captureTabControls, restoreTabControls} from './tab-state.js';
 
   /** @typedef {import('../core/practice-files.js').Practice} Practice */
   /** @typedef {import('../core/practice-selection.js').SelectablePathway & {label?: string, scales?: string[], instAgnostic?: boolean, practiceFile?: Practice}} SelectionPathway */
@@ -36,11 +37,34 @@ function status(text) { const el = $('virtuoso_lab-status'); if (el) el.textCont
  * changeModeView: (mode: string, pathwayMode?: boolean) => void,
  * stopAndInvalidatePlayback: (reset: 'none' | 'cursor' | 'loop') => void,
  * regenerateSelectedConfig: () => Promise<boolean | undefined>,
+ * rederiveSelection?: () => void,
  * presentation: {renderFile: () => void, renderPosition: () => void, renderCatalog: () => void, refreshStatus: () => void}
  * }} dependencies
  */
 export function createPracticeSelection(dependencies) {
   let selection = initialPracticeSelection();
+  let activeTab = 'guided';
+  let unavailableReason = '';
+  /** @param {string} reason */
+  function block(reason) { unavailableReason = reason; dependencies.stopAndInvalidatePlayback('loop'); syncAvailability(); status(reason); }
+  function recover() { unavailableReason = ''; syncAvailability(); }
+  function syncAvailability() {
+    for (const id of ['virtuoso_lab-play','virtuoso_lab-regenerate','virtuoso_lab-listen']) {
+      const button = /** @type {HTMLButtonElement | null} */ ($(id));
+      if (button) { button.disabled = !!unavailableReason; button.setAttribute('aria-disabled',String(!!unavailableReason)); }
+    }
+  }
+  /** All entry points share ownership, including direct lesson/file actions. @param {string} mode */
+  function activate(mode) {
+    if (mode === activeTab) return;
+    snapshots.set(activeTab, {selection:{...selection}, controls:captureTabControls(form()), file, variantId});
+    cancelInitial(); cancelLoad(); dependencies.stopAndInvalidatePlayback('loop');
+    file = null; variantId = null; activeTab = mode; recover(); save(MODE_KEY, mode);
+    dependencies.changeModeView(mode);
+  }
+  /** @type {Map<string, {selection: typeof selection, controls: ReturnType<typeof captureTabControls>, file: Practice | null, variantId: string | null}>} */
+  const snapshots = new Map();
+  const form = () => /** @type {HTMLFormElement | null} */ ($('virtuoso_lab-controls'));
   /** @type {Practice | null} */
   let file = null;
   /** @type {string | null} */
@@ -84,6 +108,7 @@ export function createPracticeSelection(dependencies) {
   }
   /** @param {'none' | 'cursor' | 'loop'} [reset] */
   function clearFile(reset = 'none') {
+    recover();
     dependencies.stopAndInvalidatePlayback(reset);
     cancelLoad(); file = null; variantId = null;
     syncFileControls();
@@ -92,8 +117,17 @@ export function createPracticeSelection(dependencies) {
   function beforeConfig() { cancelInitial(); clearFile(); }
   /** @param {string} id @param {number | null} [variationIndex] */
   function applyPathway(id, variationIndex) {
+    activate(id === 'custom' ? 'custom' : 'guided');
     cancelInitial();
-    if (id === DEFAULT && !pathways[id]) { unavailable(); return; }
+    if (id === DEFAULT && !pathways[id]) {
+      selection = {...selection,pathwayId:id};
+      dependencies.changeModeView('guided',true);
+      if (catalog?.state.error) fallbackLadder();
+      else { pendingInitial = {id,visit}; unavailable(); }
+      return;
+    }
+    if (id !== 'custom' && (!pathways[id]?.base || isHidden(id))) { fallbackLadder(); return; }
+    recover();
     const pathway = pathways[id];
     selection = selectPracticePathway(selection, id, pathway, bandFor(id), variationIndex);
     const picker = select('virtuoso_lab-pathway'); if (picker) picker.value = id;
@@ -109,7 +143,12 @@ export function createPracticeSelection(dependencies) {
     dependencies.applySelectedConfig(id, config, variation);
   }
   function unavailable() { status(catalog?.state.error ? 'Chromatic Warmup unavailable' : 'Chromatic Warmup loading…'); }
+  function canGenerate() {
+    if (unavailableReason) { status(unavailableReason); return false; }
+    return true;
+  }
   function initial() {
+    if (!snapshots.has('custom')) snapshots.set('custom', {selection:{...selection, pathwayId:'custom'}, controls:captureTabControls(form()), file:null, variantId:null});
     const picker = select('virtuoso_lab-pathway'); if (!picker) return;
     const saved = stored(PATHWAY_KEY);
     const valid = saved && saved !== 'custom' && pathways[saved] && !isHidden(saved);
@@ -127,7 +166,7 @@ export function createPracticeSelection(dependencies) {
       selection = {...selection, pathwayId:id};
       dependencies.changeModeView('guided', true);
       if (!catalog?.state.error) pendingInitial = {id, visit};
-      else applyPathway('custom');
+      else fallbackLadder();
       return;
     }
     applyPathway(id); save(PATHWAY_KEY, id);
@@ -137,15 +176,15 @@ export function createPracticeSelection(dependencies) {
     displayPracticeCatalog(catalog?.state, pathways, DEFAULT, select('virtuoso_lab-file-select'), select('virtuoso_lab-pathway'), $('virtuoso_lab-file-load'), () => document.createElement('option'));
     dependencies.presentation.renderCatalog();
     const intended = pendingInitial;
-    if (intended && intended.visit === visit && catalog?.state.settled) {
+    if (activeTab === 'guided' && intended && intended.visit === visit && catalog?.state.settled) {
       cancelInitial();
       if (select('virtuoso_lab-pathway')?.value === intended.id && selection.pathwayId === intended.id && (dependencies.getContext().family === 'guitar' || pathways[intended.id]?.instAgnostic)) {
         if (pathways[intended.id]) { applyPathway(intended.id); save(PATHWAY_KEY, intended.id); dependencies.regenerateSelectedConfig(); }
-        else applyPathway('custom');
+        else fallbackLadder();
       }
     }
     const currentId = selection.pathwayId;
-    if (!intended && currentId?.startsWith('file-') && pathways[currentId] && select('virtuoso_lab-pathway')?.value === currentId) {
+    if (activeTab === 'guided' && !intended && currentId?.startsWith('file-') && pathways[currentId] && select('virtuoso_lab-pathway')?.value === currentId) {
       applyPathway(currentId); dependencies.regenerateSelectedConfig();
     }
     dependencies.presentation.refreshStatus();
@@ -162,11 +201,13 @@ export function createPracticeSelection(dependencies) {
   /** @param {string} id */
   async function chooseVariant(id) {
     if (!file?.variants?.some(variant => variant.id === id)) return;
+    recover();
     dependencies.stopAndInvalidatePlayback('loop');
     variantId = id; syncFileControls();
     await dependencies.regenerateSelectedConfig();
   }
   async function loadFile() {
+    if (activeTab !== 'custom') selectMode('custom');
     if (pendingInitial) applyPathway('custom');
     if (hasPathwayFile()) applyPathway('custom');
     // A failed replacement intentionally leaves the old file cleared.
@@ -189,10 +230,26 @@ export function createPracticeSelection(dependencies) {
   }
   /** @param {string} mode */
   function selectMode(mode) {
+    if (!['guided','custom','session','jam'].includes(mode) || mode === activeTab) return;
     const wasPending = !!pendingInitial;
-    beforeConfig(); save(MODE_KEY, mode);
-    dependencies.changeModeView(mode);
+    activate(mode);
     if (mode === 'jam' || mode === 'session') return;
+    const retained = snapshots.get(mode);
+    if (retained && (mode === 'custom' || (pathways[retained.selection.pathwayId || ''] && !isHidden(retained.selection.pathwayId || '')))) {
+      selection = {...retained.selection};
+      restoreTabControls(form(), retained.controls);
+      // Rebuild options against restored key/scale/system BEFORE reselecting shape.
+      syncShapes();
+      restoreTabControls(form(), retained.controls);
+      syncShapeHidden();
+      file = retained.file; variantId = retained.variantId;
+      const picker = select('virtuoso_lab-pathway'); if (picker) picker.value = selection.pathwayId || 'custom';
+      dependencies.changeModeView(mode, mode === 'guided');
+      if (mode === 'guided') dependencies.rederiveSelection?.();
+      syncFileControls(); syncAnchorKeyLock();
+      dependencies.regenerateSelectedConfig();
+      return;
+    }
     const picker = select('virtuoso_lab-pathway');
     if (!picker) { dependencies.changeModeView(mode, mode === 'guided'); return; }
     if (mode === 'custom') picker.value = 'custom';
@@ -202,9 +259,17 @@ export function createPracticeSelection(dependencies) {
       const valid = saved && saved !== 'custom' && pathways[saved] && !isHidden(saved);
       const id = selection.pathwayId;
       const activeOK = id && id !== 'custom' && pathways[id] && !isHidden(id);
-      picker.value = valid ? saved : activeOK ? id : family === 'bass' ? 'bass_rh_pulse' : 'pent_foundation';
+      picker.value = valid ? saved : activeOK ? id : family === 'bass' ? 'bass_rh_pulse' : DEFAULT;
+      if (!pathways[picker.value] || isHidden(picker.value)) {
+        const fallback = Array.from(picker.options).find(option => option.value !== 'custom' && pathways[option.value]?.base && !isHidden(option.value));
+        if (!fallback) { dependencies.changeModeView(mode, true); block('No compatible Ladder lesson. Change Setup to recover.'); return; }
+        picker.value = fallback.value;
+      }
     }
-    picker.dispatchEvent(new Event('change'));
+    applyPathway(picker.value);
+    if (picker.value !== 'custom') save(PATHWAY_KEY,picker.value);
+    if (!pendingInitial) dependencies.regenerateSelectedConfig();
+    if (retained) status('Previous Ladder lesson unavailable. Selected a compatible lesson; Setup was not changed.');
   }
   function resumeMode() { const mode = stored(MODE_KEY); if (mode === 'custom' || mode === 'session' || mode === 'jam') selectMode(mode); }
   /** @param {number} index */
@@ -252,7 +317,8 @@ export function createPracticeSelection(dependencies) {
     const key = /** @type {HTMLSelectElement | null} */ (document.querySelector('#virtuoso_lab-controls [name="key"]'));
     const scale = /** @type {HTMLSelectElement | null} */ (document.querySelector('#virtuoso_lab-controls [name="scale"]'));
     const keyPc = key ? NOTE_ALIASES[key.value] ?? 0 : 0, scaleId = scale ? scale.value : 'major';
-    const opens = STRING_SETUPS.guitar_6_standard.openMidis, previous = picker.value;
+    const setup = /** @type {HTMLSelectElement | null} */ (document.querySelector('[name="stringSetup"]'));
+    const opens = (STRING_SETUPS[setup?.value || 'guitar_6_standard'] || STRING_SETUPS.guitar_6_standard).openMidis, previous = picker.value;
     picker.replaceChildren();
     if (!isShapeAwareSystem(system)) return;
     const order = shapeOrderForKey(keyPc,system,scaleId,opens);
@@ -316,8 +382,16 @@ export function createPracticeSelection(dependencies) {
     if (!scales.includes(current)) { picker.value = scales[0]; setFieldSilent('scale',scales[0]); }
   }
   function dropIfUnplayable() {
-    if ((stored(MODE_KEY) || 'guided') !== 'guided' || !selection.pathwayId || selection.pathwayId === 'custom' || !isHidden(selection.pathwayId)) return false;
-    selectMode('custom'); return true;
+    if (activeTab !== 'guided') return false;
+    if (!unavailableReason && selection.pathwayId && pathways[selection.pathwayId] && !isHidden(selection.pathwayId)) return false;
+    fallbackLadder(); return true;
+  }
+  function fallbackLadder() {
+    const fallback = Object.keys(pathways).find(id => id !== 'custom' && pathways[id]?.base && !isHidden(id));
+    dependencies.stopAndInvalidatePlayback('loop');
+    dependencies.changeModeView('guided', true);
+    if (fallback) { applyPathway(fallback); dependencies.regenerateSelectedConfig(); status('Selected a compatible Ladder lesson for your instrument.'); }
+    else block('No compatible Ladder lesson. Change Setup to recover.');
   }
   /** @param {string} name */
   function controlChanged(name) {
@@ -328,11 +402,15 @@ export function createPracticeSelection(dependencies) {
   }
   /** @param {ReturnType<import('./practice-config.js').readConfig>} cfg */
   function selectedConfig(cfg) {
+    if (unavailableReason) throw new Error(unavailableReason);
+    if (activeTab === 'custom' && !file && !offerable(cfg.practiceType, dependencies.getContext().family)) {
+      cfg.practiceType = 'scale'; cfg.mode = 'scale'; setFieldSilent('practiceType','scale');
+      status('Previous Custom practice is incompatible. Selected Scale; your generated settings and Setup are retained.');
+    }
     const selected = /** @type {ReturnType<import('./practice-config.js').readConfig> & {practiceFile?: Practice, practiceVariantId?: string | null}} */ (cfg);
     if (file) { selected.practiceFile = file; selected.practiceVariantId = variantId; }
     const pathway = pathways[selection.pathwayId || ''];
-    if (!file && !pathway?.practiceFile && pathway?.tempoTiers && pathway.vary) tierConfig(/** @type {string} */ (selection.pathwayId), cfg);
-    else if (!file && pathway?.practiceFile && hasPathwayFile()) Object.assign(cfg, catalogPathwayConfig({practiceFile:pathway.practiceFile}, selection.variationIndex, selection.tierIndex, cfg));
+    if (!file && pathway?.practiceFile && hasPathwayFile()) Object.assign(cfg, catalogPathwayConfig({practiceFile:pathway.practiceFile}, selection.variationIndex, selection.tierIndex, cfg));
     return cfg;
   }
   /** @param {'files' | 'selection' | 'position'} group */
@@ -371,8 +449,11 @@ export function createPracticeSelection(dependencies) {
       const picker = select('virtuoso_lab-pathway'); if (!picker) return;
       if (picker.value === DEFAULT && !pathways[DEFAULT]) { unavailable(); return; }
       const wasPending = !!pendingInitial;
-      applyPathway(picker.value); save(PATHWAY_KEY,picker.value);
-      if (wasPending || dependencies.getContext().hasBundle || hasPathwayFile()) return dependencies.regenerateSelectedConfig();
+      const needsPreview = dependencies.getContext().hasBundle || activeTab !== (picker.value === 'custom' ? 'custom' : 'guided');
+      applyPathway(picker.value);
+      // Custom is a mode, not a lesson to restore when returning to the Ladder.
+      if (picker.value !== 'custom') save(PATHWAY_KEY,picker.value);
+      if (wasPending || needsPreview || hasPathwayFile()) return dependencies.regenerateSelectedConfig();
     });
     for (const mode of ['guided','custom','session','jam']) listen('virtuoso_lab-mode-' + mode,'click',() => selectMode(mode));
     listen('virtuoso_lab-mode-select','change',ev => selectMode(/** @type {HTMLSelectElement} */ (ev.target).value));
@@ -380,9 +461,17 @@ export function createPracticeSelection(dependencies) {
   function leave() {
     active = false; visit++; catalog?.cancel();
     for (const remove of removers) remove(); removers = []; mounted.clear();
-    clearFile();
+    cancelLoad(); dependencies.stopAndInvalidatePlayback('loop');
   }
-  function enter() { active = true; mount('files'); mount('position'); mount('selection'); if (pendingInitial) initial(); return initialize(); }
+  function enter() {
+    active = true;
+    dependencies.changeModeView(activeTab);
+    if (activeTab === 'guided' || activeTab === 'custom') dependencies.changeModeView(activeTab, activeTab === 'guided');
+    mount('files'); mount('position'); mount('selection'); syncFileControls(); syncAvailability();
+    if (pendingInitial && activeTab === 'guided') initial();
+    return initialize();
+  }
   return {get pathwayId() {return selection.pathwayId;}, get variationIndex() {return selection.variationIndex;}, get tierIndex() {return selection.tierIndex;}, get bandId() {return selection.bandId;}, get file() {return file;}, get variantId() {return variantId;}, get pendingInitial() {return pendingInitial;}, get active() {return active;}, get catalogState() {return catalog?.state;},
+    get activeTab() {return activeTab;}, get unavailableReason() {return unavailableReason;}, canGenerate, block, recover,
     applyPathway, initial, selectMode, resumeMode, setTier, applyTier, browseBand, selectedConfig, tierConfig, isHidden, bandFor, dropIfUnplayable, controlChanged, syncScaleDropdown, syncAnchorKeyLock, syncShapes, syncShapeHidden, selectShape, cancelInitial, beforeConfig, cancelLoad, clearFile, syncFileControls, hasPathwayFile, loadFile, chooseVariant, initialize, mount, leave, enter};
 }

@@ -112,6 +112,17 @@ test('plain Workout config materializes refs and inherits only family-compatible
   const cfg=materializeWorkoutConfig(draft,options);
   assert.equal(cfg.stringSetup,options.stringSetup);assert.equal(cfg.customOpenMidis,options.customOpenMidis.trim());assert.equal(cfg.countInBars,2);
   assert.equal(cfg.segments[0].config.audio,audio);assert.notEqual(cfg.segments[0].config,draft.segments[0].config);
-  assert.equal(materializeWorkoutConfig(draft,{...options,stringSetup:'bass_4_standard'}).stringSetup,'guitar_6_standard');
+  assert.throws(()=>materializeWorkoutConfig(draft,{...options,stringSetup:'bass_4_standard'}),/draft is retained/);
   assert.equal(JSON.stringify(draft),original);
+});
+
+test('Workout explicit physical constraints block mismatched tuning/count but degree-driven drafts retain BPM and adapt counts',()=>{
+  const options={audio:{notes:true,metronome:true,harmony:false},stringSetup:'guitar_7_standard',customOpenMidis:'',countInBars:1};
+  const draft={stringSetup:'guitar_6_standard',segments:[{kind:'scale',config:{bpm:123}}]};
+  assert.equal(materializeWorkoutConfig(draft,options).segments[0].config.bpm,123);
+  const fixed={...draft,segments:[{kind:'scale',config:{bpm:123,customOpenMidis:'40,45,50,55,59,64'}}]};
+  const before=JSON.stringify(fixed);
+  assert.throws(()=>materializeWorkoutConfig(fixed,options),/tuning\/string count/);
+  assert.equal(JSON.stringify(fixed),before);
+  assert.equal(materializeWorkoutConfig(fixed,{...options,stringSetup:'guitar_6_standard'}).segments[0].config.bpm,123);
 });

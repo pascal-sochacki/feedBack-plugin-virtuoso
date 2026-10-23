@@ -6,6 +6,7 @@ import {initialPracticeSelection,selectPracticePathway,practiceTierFields,PRACTI
 import {PATHWAYS} from '../src/content/pathways.js';
 import {STRING_SETUPS} from '../src/core/instrument-tuning.js';
 import {parsePracticeMarkdown,practicePathwayEntry} from '../src/core/practice-files.js';
+import {deriveLessonFields} from '../src/core/lesson-adaptation.js';
 
 const ladder=readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup-ladder.md',import.meta.url),'utf8');
 const index=JSON.stringify({practices:[{id:'chromatic-warmup',title:'Chromatic warm-up',path:'guitar/beginner/chromatic-warmup.md',use:'custom'},{id:'chromatic_warmup',title:'Chromatic Warmup',path:'guitar/beginner/chromatic-warmup-ladder.md',use:'pathway'}]});
@@ -28,9 +29,12 @@ function dom() {
   }
   const nodes=new Map();
   for(const id of ['controls','root','status','pathway','file-select','file-load','file-unload','file-next','file-variant','advanced-toggle','shape','fretboard-system','caged-shape-value','anchor-station','pathway-scale','pathway-scale-wrap','shape-prev','shape-next','mode-select',...['guided','custom','session','jam'].map(x=>'mode-'+x)])nodes.set('virtuoso_lab-'+id,new Element());
-  const fields=Object.fromEntries(['key','scale','meter','subdivision','bars','direction','sequence','shape','fretboardSystem','fretMin','fretMax','keyCycle','swing','stringSetup','instrument'].map(name=>[name,new Element()]));
+  const fields=Object.fromEntries(['key','scale','bpm','meter','subdivision','bars','direction','sequence','shape','fretboardSystem','fretMin','fretMax','keyCycle','swing','stringSetup','instrument'].map(name=>[name,new Element()]));
+  fields.shape=nodes.get('virtuoso_lab-shape');fields.fretboardSystem=nodes.get('virtuoso_lab-fretboard-system');
+  for(const [name,field] of Object.entries(fields)){field.name=name;field.type='text';}
   fields.stringSetup.value='guitar_6_standard';fields.instrument.value='guitar';fields.key.value='C';fields.scale.value='major';
-  nodes.get('virtuoso_lab-controls').elements={namedItem:name=>fields[name]||null};
+  const elements=Object.values(fields);elements.namedItem=name=>fields[name]||null;
+  nodes.get('virtuoso_lab-controls').elements=elements;
   nodes.get('virtuoso_lab-controls').querySelector=selector=>fields[selector.match(/name="([^"]+)"/)?.[1]]||null;
   nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
   nodes.get('virtuoso_lab-fretboard-system').value='position';
@@ -71,6 +75,7 @@ test('actual 24 authored variation/tier choices and all seven setups use current
   const {owner,fields}=dom(),saved=PATHWAYS.chromatic_warmup;
   try {
     PATHWAYS.chromatic_warmup=practicePathwayEntry(parsePracticeMarkdown(ladder));
+    PATHWAYS.chromatic_warmup.instAgnostic=true;
     for(const setup of Object.keys(STRING_SETUPS)) {
       fields.stringSetup.value=setup;
       for(let variation=0;variation<6;variation++)for(let tier=0;tier<4;tier++) {
@@ -102,7 +107,8 @@ test('direct file lifecycle stops/resets before validation, Next wraps, failed r
   nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
   await owner.loadFile();
   assert.ok(owner.file);
-  owner.leave();await owner.enter();await stale({target:nodes.get('virtuoso_lab-file-load')});assert.equal(owner.file,null);
+  const retainedFile=owner.file;
+  owner.leave();await owner.enter();await stale({target:nodes.get('virtuoso_lab-file-load')});assert.equal(owner.file,retainedFile);
 });
 
 test('mode switches preserve saved Warmup intent during pending catalog, canceled page lifecycle keeps active listeners and eligibility is declaration-aware',async()=>{
@@ -145,6 +151,121 @@ test('file-prefixed saved pathway waits for catalog hydration and preserves its 
   owner.leave();for(const [id,pathway] of Object.entries(savedPathways))if(pathway)PATHWAYS[id]=pathway;
 });
 
+test('Ladder → Custom → Ladder restores loaded Markdown lessons and rejects obsolete fallback identities',async()=>{
+  const {owner,nodes,store}=dom();
+  const catalog=JSON.parse(readFileSync(new URL('../assets/practices/index.json',import.meta.url),'utf8'));
+  const savedPathways=new Map(catalog.practices.filter(item=>item.use==='pathway').map(item=>[item.id,PATHWAYS[item.id]]));
+  for(const id of savedPathways.keys())delete PATHWAYS[id];
+  // Match the real picker: migrated lessons use their catalog IDs, not legacy IDs.
+  nodes.get('virtuoso_lab-pathway').children=nodes.get('virtuoso_lab-pathway').children.filter(option=>option.value!=='pent_foundation');
+  for(const id of savedPathways.keys())if(!nodes.get('virtuoso_lab-pathway').options.some(option=>option.value===id))nodes.get('virtuoso_lab-pathway').appendChild({value:id});
+  globalThis.fetch=async url=>{
+    if(String(url).endsWith('index.json'))return new Response(JSON.stringify(catalog));
+    const item=catalog.practices.find(entry=>String(url).endsWith(entry.path));
+    return new Response(readFileSync(new URL('../assets/practices/'+item.path,import.meta.url),'utf8'));
+  };
+  try {
+    owner.mount('files');owner.mount('selection');owner.initial();await owner.initialize();
+    assert.equal(owner.catalogState.error,null);
+    for(const id of ['chromatic_warmup','file-pent_foundation']) {
+      nodes.get('virtuoso_lab-pathway').value=id;
+      await nodes.get('virtuoso_lab-pathway').dispatchEvent({type:'change'});
+      assert.ok(PATHWAYS[id].base);assert.ok(PATHWAYS[id].vary.length);
+      await nodes.get('virtuoso_lab-mode-custom').dispatchEvent({type:'click'});
+      assert.equal(owner.pathwayId,'custom');assert.equal(owner.file,null);
+      assert.equal(store.get('virtuoso_lab.lastPathway'),id);
+      await nodes.get('virtuoso_lab-mode-guided').dispatchEvent({type:'click'});
+      assert.equal(owner.pathwayId,id);assert.equal(nodes.get('virtuoso_lab-pathway').value,id);
+    }
+    for(const saved of ['custom','pent_foundation']) {
+      owner.selectMode('custom');store.set('virtuoso_lab.lastPathway',saved);
+      owner.selectMode('guided');
+      // In-open navigation now prefers the retained lesson over storage.
+      assert.equal(owner.pathwayId,'file-pent_foundation');
+      assert.ok(nodes.get('virtuoso_lab-pathway').options.some(option=>option.value===owner.pathwayId));
+    }
+  } finally {
+    owner.leave();
+    for(const [id,pathway] of savedPathways)if(pathway)PATHWAYS[id]=pathway;else delete PATHWAYS[id];
+  }
+});
+
+test('all tab transitions invalidate runtime; Custom file variant survives Workout and Jam without building their playback',async()=>{
+  const {owner,events}=dom();
+  owner.selectMode('custom');await owner.loadFile();
+  const file=owner.file,variant=file.variants.at(-1).id;
+  await owner.chooseVariant(variant);
+  for(const mode of ['session','jam','custom','guided','session','custom']) {
+    events.length=0;owner.selectMode(mode);
+    assert.deepEqual(events[0],['stop','loop']);
+    if(mode==='session'||mode==='jam')assert.equal(events.some(event=>event[0]==='generate'),false);
+    if(mode==='custom'){assert.equal(owner.file,file);assert.equal(owner.variantId,variant);}
+  }
+});
+
+test('Custom round trips rebuild dependent shape options and preserve raw tempo across systems and scales',()=>{
+  const {owner,fields,nodes}=dom();owner.selectMode('custom');
+  for(const [system,scale,key] of [['caged','major','G'],['3nps','natural_minor','A'],['position','major_pentatonic','C']]){
+    fields.fretboardSystem.value=system;fields.scale.value=scale;fields.key.value=key;
+    owner.syncShapes();const shape=fields.shape.options.at(-1)?.value || '';
+    fields.shape.value=shape;fields.bpm.value='137';
+    owner.selectMode('jam');fields.fretboardSystem.value='open';fields.scale.value='major';fields.key.value='Db';fields.bpm.value='90';owner.syncShapes();
+    owner.selectMode('custom');
+    assert.equal(fields.fretboardSystem.value,system);assert.equal(fields.scale.value,scale);assert.equal(fields.key.value,key);assert.equal(fields.bpm.value,'137');
+    assert.equal(fields.shape.value,shape);
+    if(shape)assert.ok(fields.shape.options.some(option=>option.value===shape));
+    if(system==='caged')assert.equal(nodes.get('virtuoso_lab-caged-shape-value').value,shape);
+  }
+});
+
+test('host leave/enter preserves each mode owner and editors without hidden preview or a no-op Ladder switch',async()=>{
+  const {owner,events,fields}=dom();
+  for(const mode of ['custom','session','jam','guided']){
+    owner.selectMode(mode);fields.bpm.value='119';
+    owner.leave();events.length=0;await owner.enter();
+    assert.equal(owner.activeTab,mode);assert.equal(fields.bpm.value,'119');
+    assert.ok(events.some(event=>event[0]==='mode'&&event[1]===mode));
+    if(mode==='session'||mode==='jam')assert.equal(events.some(event=>event[0]==='generate'),false);
+    if(mode!=='guided'){events.length=0;owner.selectMode('guided');assert.equal(owner.activeTab,'guided');assert.ok(events.some(event=>event[0]==='stop'&&event[1]==='loop'));}
+  }
+});
+
+test('direct Custom to non-file Ladder picker builds a stopped preview after activation clears old bundle',async()=>{
+  const {owner,nodes,events}=dom();owner.mount('selection');owner.selectMode('custom');
+  const saved=PATHWAYS.preview;
+  try{
+    PATHWAYS.preview={base:{practiceType:'scale',stringSetup:'guitar_6_standard'},vary:[{}]};
+    nodes.get('virtuoso_lab-pathway').value='preview';events.length=0;
+    await nodes.get('virtuoso_lab-pathway').dispatchEvent({type:'change'});
+    assert.equal(owner.activeTab,'guided');assert.equal(owner.pathwayId,'preview');
+    const stop=events.findIndex(event=>event[0]==='stop'&&event[1]==='loop');const generation=events.findIndex(event=>event[0]==='generate');
+    assert.ok(stop>=0&&generation>stop);
+  }finally{if(saved)PATHWAYS.preview=saved;else delete PATHWAYS.preview;}
+});
+
+test('direct mode entry has one owner; no compatible Ladder gates generation and Setup recovery generates stopped fallback',()=>{
+  const {owner,fields,events}=dom();owner.applyPathway('custom');assert.equal(owner.activeTab,'custom');
+  const retained=Object.entries(PATHWAYS);for(const id of Object.keys(PATHWAYS))delete PATHWAYS[id];
+  try{
+    owner.selectMode('guided');assert.equal(owner.activeTab,'guided');assert.equal(owner.canGenerate(),false);
+    assert.throws(()=>owner.selectedConfig({practiceType:'scale'}),/No compatible/);
+    PATHWAYS.recovery={base:{practiceType:'scale',stringSetup:'bass_4_standard'},vary:[{}]};fields.instrument.value='bass';fields.stringSetup.value='bass_4_standard';
+    events.length=0;assert.equal(owner.dropIfUnplayable(),true);assert.equal(owner.canGenerate(),true);assert.equal(owner.pathwayId,'recovery');
+    assert.ok(events.some(event=>event[0]==='generate'));assert.ok(events.some(event=>event[0]==='stop'&&event[1]==='loop'));
+  }finally{delete PATHWAYS.recovery;for(const [id,pw]of retained)PATHWAYS[id]=pw;}
+});
+
+test('Ladder restore rederives metadata against live tuning without replacing manual tempo',()=>{
+  const {owner,fields,dependencies}=dom();const saved=PATHWAYS.restore;
+  PATHWAYS.restore={base:{practiceType:'scale',stringSetup:'guitar_6_standard',key:'E'},vary:[{}],tempoTiers:[60,90]};
+  let tuning='';dependencies.rederiveSelection=()=>{const derived=deriveLessonFields(PATHWAYS.restore.base,fields.stringSetup.value,tuning);fields.key.value=derived.key;};
+  try{
+    owner.applyPathway('restore');owner.setTier(1);fields.bpm.value='113';owner.selectMode('jam');
+    tuning='38,43,48,53,57,62';owner.selectMode('guided');
+    assert.equal(fields.key.value,'D');assert.equal(fields.bpm.value,'113');assert.equal(owner.tierIndex,1);
+  }finally{if(saved)PATHWAYS.restore=saved;else delete PATHWAYS.restore;}
+});
+
 test('pending file identity and current DOM guard reject an A→B→A response after departure without clobbering the new visit',async()=>{
   const {owner,nodes}=dom();const requests=[];
   globalThis.fetch=async url=>{
@@ -159,7 +280,7 @@ test('pending file identity and current DOM guard reject an A→B→A response a
   requests[0].resolve();await old;assert.equal(owner.file,null);
   requests[1].resolve();await current;assert.equal(owner.file.id,'chromatic-warmup');
   const file=owner.file;await owner.chooseVariant(file.variants[1].id);assert.equal(owner.file,file);
-  owner.leave();await owner.enter();await flush();assert.equal(owner.file,null);
+  owner.leave();await owner.enter();await flush();assert.equal(owner.file,file);assert.equal(owner.variantId,file.variants[1].id);
   nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';await owner.loadFile();assert.ok(owner.file);
   // Request caching does not revive an abandoned event listener or DOM node.
   const stale=[...nodes.get('virtuoso_lab-file-load').handlers.get('click')][0];

@@ -8,6 +8,8 @@ import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
 import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
 import { createPracticePresets } from './src/shell/practice-presets.js';
 import { createPracticeSelection } from './src/shell/practice-selection.js';
+import { deriveLessonFields } from './src/core/lesson-adaptation.js';
+import { createModePreview } from './src/shell/mode-preview.js';
 import { offerable } from './src/core/practice-selection.js';
 import { createPracticePresentation } from './src/shell/practice-presentation.js';
 import { countInSubTicks } from './src/core/count-in.js';
@@ -232,7 +234,9 @@ import { el as domEl } from './src/shell/dom.js';
     getContext: () => ({family:currentFamily(), hasBundle:!!activeBundle}),
     bands:PATHWAY_BANDS,
     applySelectedConfig, changeModeView,
+    rederiveSelection: reapplyActivePathway,
     stopAndInvalidatePlayback(reset) {
+      if (reset === 'loop') { jamPendingClear(); _jamSnapshot = null; }
       stopRenderer();
       if (reset !== 'none') { activeBundle = null; lastExercise = null; transport.moveCursor(0); }
       if (reset === 'loop') resetTransportLoop();
@@ -8191,6 +8195,7 @@ import { el as domEl } from './src/shell/dom.js';
     }
   }
   async function onPlayToggle() {
+    if (!practiceSelection.canGenerate()) return;
     if (transport.playing && !transport.paused) { pausePlayback(); return; }
     if (transport.playing && transport.paused) {
       // Resume inside the click gesture so a context the browser suspended
@@ -8215,6 +8220,7 @@ import { el as domEl } from './src/shell/dom.js';
       await transport.runStart(rendererReadyForPlay(request), () => {});
       return;
     }
+    if (practiceSelection.activeTab === 'jam') { await jamPlay(); return; }
     if (!activeBundle) {
       if (!await onGenerate()) return;
     }
@@ -8538,6 +8544,7 @@ import { el as domEl } from './src/shell/dom.js';
   /** @param {string} text */
   function showStatus(text) { const el = $('virtuoso_lab-status'); if (el) el.textContent = text; }
   function refreshStatusFromState() {
+    if (practiceSelection.unavailableReason) { showStatus(practiceSelection.unavailableReason); return; }
     // Output-device honesty: when the host engine is on a device we couldn't
     // follow, say so right where the player is looking (the silent failure was
     // the actual bug — Arch + Focusrite report, 2026-06-07).
@@ -8547,7 +8554,17 @@ import { el as domEl } from './src/shell/dom.js';
     showStatus(transport.playing ? (transport.paused ? `Paused — ${desc}${sinkNote}` : `Playing — ${desc}${sinkNote}`) : `Ready — ${desc}${sinkNote}`);
   }
 
+  const modePreview = createModePreview({
+    mode: () => practiceSelection.activeTab,
+    invalidate() { practiceSelection.recover(); stopRenderer(); activeBundle = null; lastExercise = null; transport.moveCursor(0); resetTransportLoop(); },
+    workout: () => onLaunchSession(false), jam: () => jamPlay(false), single: () => onGenerate()
+  });
   async function onGenerate() {
+    if (!practiceSelection.canGenerate()) return false;
+    if (practiceSelection.activeTab === 'session' || practiceSelection.activeTab === 'jam') {
+      await modePreview.changed();
+      return false;
+    }
     if (practiceSelection.pendingInitial) { refreshStatusFromState(); return; }
     practiceSelection.cancelLoad();
     let request = rendererLifecycle.invalidate();
@@ -8574,7 +8591,10 @@ import { el as domEl } from './src/shell/dom.js';
       return true;
     } catch (e) {
       if (!ownsGeneration()) return;
-      if (practice || PATHWAYS[String(practiceSelection.pathwayId)]?.practiceFile) { stopRenderer(); activeBundle = null; lastExercise = null; }
+      if (practice || PATHWAYS[String(practiceSelection.pathwayId)]?.practiceFile) {
+        practiceSelection.block(`Practice unavailable: ${(/** @type {Error} */ (e)).message || e}. Change Setup, select another variant/lesson, or unload the file to recover.`);
+        return false;
+      }
       showStatus(`Error: ${(/** @type {Error} */ (e)).message || e}`);
       console.error('[Virtuoso] generate failed', e);
     }
@@ -8615,7 +8635,10 @@ import { el as domEl } from './src/shell/dom.js';
         opt.hidden = !ok; opt.disabled = !ok;
         if (!ok && ptSel.value === opt.value) mustSwitch = true;
       });
-      if (mustSwitch) { ptSel.value = 'scale'; ptSel.dispatchEvent(new Event('change', { bubbles: true })); }
+      if (mustSwitch && practiceSelection.activeTab === 'custom' && !practiceSelection.file) {
+        ptSel.value = 'scale';
+        showStatus('Previous Custom practice is incompatible. Selected Scale; your other settings are retained.');
+      }
     }
     // Re-render the skill tree so the Bending node hides/shows with the instrument.
     renderSkillTree();
@@ -8785,10 +8808,11 @@ import { el as domEl } from './src/shell/dom.js';
     hostEntries: hostTuningEntries,
     onDeclaration: instrumentStoreSave,
     onCustomChange: (commit, includeFile) => {
+      practiceSelection.recover();
       reapplyActivePathway();
       if (commit && (activeBundle || (includeFile && practiceSelection.file) || practiceSelection.hasPathwayFile())) onGenerate();
     },
-    onSelection: () => { if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate(); },
+    onSelection: () => { practiceSelection.recover(); reapplyActivePathway(); if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate(); },
     onDisplay: updateSetupButton,
   });
 
@@ -8871,6 +8895,12 @@ import { el as domEl } from './src/shell/dom.js';
   function applyPathwayConfig(config) {
     practiceSelection.beforeConfig();
     if (!config) return;
+    const brightness = document.querySelector('#virtuoso_lab-controls [name="brightness"]')?.value;
+    // Authored content may describe a tuning, but Setup belongs to the player.
+    config = {...config,
+      stringSetup:document.querySelector('[name="stringSetup"]')?.value,
+      customOpenMidis:$('virtuoso_lab-custom-open-midis')?.value || ''};
+    for (const name of ['instrument','renderer','countIn','clickSubdiv','audioNotes','audioMetronome','audioHarmony','brightness']) delete config[name];
     applyPracticeConfig(config, {
       onInstrument() { syncStringSetupControls(); syncInstrumentClass(); },
       onProfile(cfg) {
@@ -8879,7 +8909,7 @@ import { el as domEl } from './src/shell/dom.js';
         if (profile.bass.engine === 'sample') ensureWafPreset(TONE_GM[profile.bass.tone]);
         if (profile.notes.engine === 'sample') ensureWafPreset(TONE_GM[profile.notes.tone]);
       },
-      onComplete() { syncStringSetupControls(); practiceSelection.syncShapes(); practiceSelection.syncShapeHidden(); syncChromaticVisibility(); }
+      onComplete() { if (brightness != null) setFieldSilent('brightness', brightness); syncStringSetupControls(); practiceSelection.syncShapes(); practiceSelection.syncShapeHidden(); syncChromaticVisibility(); }
     });
   }
 
@@ -9568,7 +9598,9 @@ import { el as domEl } from './src/shell/dom.js';
     return { cfg };
   }
 
-  async function jamPlay() {
+  /** @param {boolean} [autoplay] */
+  async function jamPlay(autoplay = true) {
+    if (practiceSelection.activeTab !== 'jam') return;
     const built = buildJamConfig();
     if (!built) return;
     const { cfg } = built;
@@ -9579,6 +9611,11 @@ import { el as domEl } from './src/shell/dom.js';
       lastExercise = exercise;
       const pending = attachRenderer(exercise);
       request = rendererLifecycle.currentRequest();
+      if (!autoplay) {
+        if (!await pending || !rendererLifecycle.isCurrentRequest(request)) return;
+        jamPendingClear(); _jamSnapshot = null; refreshStatusFromState();
+        return;
+      }
       if (!await transport.runStart(pending, () => {
         const dur = activeBundle?.songInfo?.duration || 0, lead = activeBundle?.leadIn || 0;
         if (dur > lead + 0.1) { try { setSegmentLoop(lead, dur); } catch (_) {} }
@@ -9839,49 +9876,21 @@ import { el as domEl } from './src/shell/dom.js';
   // derived outputs refresh against the form's CURRENT declaration.
 
   function reapplyActivePathway() {
+    if (practiceSelection.activeTab !== 'guided') return;
     if (!(practiceSelection.pathwayId && practiceSelection.pathwayId !== 'custom' && PATHWAYS[practiceSelection.pathwayId])) return;
     const pw = PATHWAYS[practiceSelection.pathwayId];
     const vary = pw.vary && pw.vary.length ? pw.vary : [{}];
     const idx = ((practiceSelection.variationIndex % vary.length) + vary.length) % vary.length;
     const merged = Object.assign({}, pw.base, vary[idx] || {});
-    if (merged.anchor === 'open_lowest') {
-      // Derive from the form's CURRENT effective opens (the player's declaration
-      // — or the rung step's own L3 CSV, which also lives in the form).
-      const setupName = document.querySelector('#virtuoso_lab-controls [name="stringSetup"]')?.value;
-      const setup = STRING_SETUPS[String(setupName)] || STRING_SETUPS.guitar_6_standard;
-      let opens = setup.openMidis;
-      const csv = ($('virtuoso_lab-custom-open-midis')?.value || '').trim();
-      if (csv) {
-        const list = csv.split(',').map(s => parseInt(s, 10)).filter(Number.isFinite);
-        if (list.length === setup.openMidis.length) opens = list;
-      }
-      const af = Math.max(0, Math.min(11, parseInt(/** @type {string} */ (/** @type {unknown} */ (merged.anchorFret)), 10) || 0));
-      setFieldSilent('key', NOTE_NAMES[((opens[0] + af) % 12 + 12) % 12]);
-      setFieldSilent('anchorStation', af === 0 ? 'open' : `fret ${af}`);
-    } else if (merged.key) {
-      // Keyed rung: re-run the uniform-offset adapt against the rung's nominal
-      // key + the player's CURRENT L1 declaration. On no-adapt (standard tuning,
-      // structural tuning, family mismatch) the key resets to nominal and the
-      // stale adapt metadata clears — the form's CSV (the player's tuning) is
-      // deliberately left untouched.
-      /** @type {import('./src/types/authored-config.js').AuthoredConfig} */
-      const probe = { key: merged.key, stringSetup: merged.stringSetup, customOpenMidis: merged.customOpenMidis };
-      applyTuningAdaptL1(probe);
-      if (probe.tuningOffset) {
-        setFieldSilent('key', probe.key);
-        setFieldSilent('keyNominal', probe.keyNominal);
-        setFieldSilent('tuningOffset', probe.tuningOffset);
-        setFieldSilent('customOpenMidis', probe.customOpenMidis || '');
-      } else {
-        setFieldSilent('key', merged.key);
-        setFieldSilent('keyNominal', '');
-        setFieldSilent('tuningOffset', '');
-      }
-    } else {
-      return;   // no derived pitch fields on this rung — nothing to refresh
-    }
+    if (pw.practiceFile) return;
+    const fields = deriveLessonFields(merged,
+      document.querySelector('[name="stringSetup"]')?.value || 'guitar_6_standard',
+      $('virtuoso_lab-custom-open-midis')?.value || '');
+    for (const [name,value] of Object.entries(fields)) setFieldSilent(name,value);
     practicePresentation.renderGoal(practiceSelection.pathwayId, $('virtuoso_lab-pathway-goal-card')?.classList.contains('modified'));
     practiceSelection.syncAnchorKeyLock();
+    practiceSelection.syncShapes();
+    practiceSelection.syncShapeHidden();
   }
 
   /** @param {string} id @param {number} [variationIdx] */
@@ -12346,8 +12355,12 @@ import { el as domEl } from './src/shell/dom.js';
     syncModeBar();
   }
 
-  async function onLaunchSession() {
-    practiceSelection.clearFile();
+  /** @param {boolean} [autoplay] */
+  async function onLaunchSession(autoplay = true) {
+    if (practiceSelection.activeTab !== 'session') return;
+    practiceSelection.cancelLoad();
+    stopRenderer();
+    activeBundle = null; lastExercise = null; transport.moveCursor(0); resetTransportLoop();
     const launch = {};
     sessionLaunch = launch;
     let request = rendererLifecycle.currentRequest();
@@ -12368,10 +12381,10 @@ import { el as domEl } from './src/shell/dom.js';
     const launchAudioCtx = ensureAudioCtx();
     if (launchAudioCtx.state === 'suspended') launchAudioCtx.resume().catch(() => {});
     const formStringSetup = document.querySelector('[name="stringSetup"]')?.value || null;
-    const session = workoutEditor.launchConfig({ audio, stringSetup: formStringSetup,
-      customOpenMidis: document.querySelector('#virtuoso_lab-controls [name="customOpenMidis"]')?.value || '',
-      countInBars: countInDefaultBars() });
     try {
+      const session = workoutEditor.launchConfig({ audio, stringSetup: formStringSetup,
+        customOpenMidis: document.querySelector('#virtuoso_lab-controls [name="customOpenMidis"]')?.value || '',
+        countInBars: countInDefaultBars() });
       if (btn) { btn.disabled = true; btn.textContent = 'Building…'; }
       if (transport.playing) stopPlayback();
       showStatus('Building session…');
@@ -12381,6 +12394,10 @@ import { el as domEl } from './src/shell/dom.js';
       if (summary) summary.replaceChildren(...summarize(exercise));
       const pending = attachRenderer(exercise);
       request = rendererLifecycle.currentRequest();
+      if (!autoplay) {
+        if (!await pending || !rendererLifecycle.isCurrentRequest(request)) return;
+        refreshStatusFromState(); return;
+      }
       if (!await transport.runStart(pending, () => {})) return;
       refreshStatusFromState();
     } catch (e) {
@@ -12622,6 +12639,7 @@ import { el as domEl } from './src/shell/dom.js';
       });
     }
     instrument?.addEventListener('change', (e) => {
+      practiceSelection.recover();
       if (!setup) return;
       setup.value = instrument.value === 'bass' ? 'bass_4_standard' : 'guitar_6_standard';
       // A per-string custom tuning from the old family has the wrong string count /
@@ -12644,6 +12662,7 @@ import { el as domEl } from './src/shell/dom.js';
       if (activeBundle || practiceSelection.file || practiceSelection.hasPathwayFile()) onGenerate();
     });
     setup?.addEventListener('change', (e) => {
+      practiceSelection.recover();
       syncStringSetupControls(); syncInstrumentClass(); syncStringCountChips(); tuningSettings.sync();
       // User-driven setup change = the player's L1 instrument declaration.
       // (Pathway writes go through setFieldSilent — no 'change' — so a rung's
@@ -13025,7 +13044,7 @@ import { el as domEl } from './src/shell/dom.js';
         jamQueueChange();   // mid-jam: applies at the next wrap (J-2)
       });
     });
-    $('virtuoso_lab-jam-go')?.addEventListener('click', jamPlay);
+    $('virtuoso_lab-jam-go')?.addEventListener('click', () => jamPlay());
     // J-2 wrap-boundary live changes: key/tempo/changes edits mid-jam queue the
     // pending chip and land at the next loop wrap (no restart, no glitch).
     ['virtuoso_lab-jam-key', 'virtuoso_lab-jam-tempo', 'virtuoso_lab-jam-prog'].forEach(id =>
@@ -13379,7 +13398,7 @@ import { el as domEl } from './src/shell/dom.js';
       if (!menu.contains(/** @type {Node | null} */ (e.target)) && btn && !btn.contains(/** @type {Node | null} */ (e.target))) toggleSettingsMenu(false);
     });
     practicePresets.mount();
-    $('virtuoso_lab-launch-session')?.addEventListener('click', onLaunchSession);
+    $('virtuoso_lab-launch-session')?.addEventListener('click', () => onLaunchSession());
     workoutEditor.mount('options');
     workoutEditor.select(Object.keys(BUILT_IN_SESSIONS)[0]);
 
@@ -13454,10 +13473,10 @@ import { el as domEl } from './src/shell/dom.js';
         if (lastExercise) {
           // attachRenderer re-syncs the view row to the actual renderer.
           attachRenderer(lastExercise).catch(e => console.warn('[Virtuoso] re-attach on screen show failed', e));
-        } else if (!fireInitialGenerate?.()) {
+        } else if (practiceSelection.activeTab !== 'session' && practiceSelection.activeTab !== 'jam' && !fireInitialGenerate?.()) {
           // Binding's initial generation is once-only, but each later visit
           // needs a fresh generated chart after navigation clears file ownership.
-          onGenerate();
+          modePreview.returned();
         }
       });
     }
@@ -13467,9 +13486,9 @@ import { el as domEl } from './src/shell/dom.js';
     // nothing visible draws. A double-rAF wasn't enough on its own.
     (function fireInitialGenerateWhenLaidOut() {
       const host = $('virtuoso_lab-render-host');
-      if (!host || typeof ResizeObserver === 'undefined') { onGenerate(); return; }
+      if (!host || typeof ResizeObserver === 'undefined') { if (practiceSelection.activeTab !== 'session' && practiceSelection.activeTab !== 'jam') onGenerate(); return; }
       let fired = false;
-      const fire = () => { if (fired) return false; fired = true; try { ro.disconnect(); } catch (_) {} onGenerate(); return true; };
+      const fire = () => { if (fired) return false; fired = true; try { ro.disconnect(); } catch (_) {} if (practiceSelection.activeTab !== 'session' && practiceSelection.activeTab !== 'jam') onGenerate(); return true; };
       fireInitialGenerate = fire;
       const ro = new ResizeObserver(entries => {
         for (const entry of entries) {
