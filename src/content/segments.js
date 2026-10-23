@@ -15,7 +15,7 @@ export const SEGMENT_TEMPLATES = {
     vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
   },
   g_blues_scale: {
-    role:'scale_arp', label:'Blues scale', competency:'blues vocabulary', creditsPathway:'blues_foundation',
+    role:'scale_arp', label:'Blues scale', competency:'blues vocabulary',
     band:'beginner', instrument:'guitar', style:'blues', kind:'scale',
     base:{ scale:'blues', meter:'4/4', subdivision:'eighth', bars:12, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
     vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'D', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -42,7 +42,7 @@ export const SEGMENT_TEMPLATES = {
   // trigger as a timed Workout block — band-intel, panel 2026-06-13). vary holds
   // duration constant (length-locked): key/scale only.
   g_metal_lead: {
-    role:'application', label:'Lead over a metal band', competency:'metal lead phrasing over changes', creditsPathway:'metal_lead_changes',
+    role:'application', label:'Lead over a metal band', competency:'metal lead phrasing over changes',
     band:'advanced', instrument:'guitar', style:'metal', kind:'scale',
     base:{ scale:'natural_minor', progression:'metal_i_bVI_bVII', chordOverride:'5', backingComp:'metal_chug_8', backingBass:'root_pump', audioProfile:'metal', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'position', fretMin:11, fretMax:15 },
     vary:[ { key:'E' }, { key:'A' }, { scale:'harmonic_minor', key:'E' }, { key:'D' } ],
@@ -71,7 +71,7 @@ export const SEGMENT_TEMPLATES = {
     vary:[ { key:'A', shape:'E', bendTarget:'whole' }, { key:'A', shape:'E', bendTarget:'half' }, { key:'E', shape:'E', bendTarget:'whole' }, { key:'D', shape:'E', bendTarget:'mixed' } ],
   },
   g_tech_sweep: {
-    role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking', creditsPathway:'arp_sweeps',
+    role:'technique', label:'Sweep arpeggio primer', competency:'clean sweep picking',
     band:'advanced', instrument:'guitar', style:null, kind:'sweep_arpeggios',
     base:{ scale:'natural_minor', meter:'4/4', subdivision:'sixteenth', bars:8, direction:'up_down', fretboardSystem:'caged', chordDepth:'triad', chordOverride:'auto', progression:'i-VI-III-VII' },
     vary:[ { key:'A', shape:'E' }, { key:'A', shape:'A' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'G' } ],
@@ -96,7 +96,7 @@ export const SEGMENT_TEMPLATES = {
     vary:[ { key:'C', shape:'E' }, { key:'C', shape:'A' }, { key:'C', shape:'G' }, { key:'C', shape:'C' }, { key:'C', shape:'D' } ],
   },
   g_scale_dorian: {
-    role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour', creditsPathway:'dorian_groove',
+    role:'scale_arp', label:'Dorian groove', competency:'the raised-6th colour',
     band:'intermediate', instrument:'guitar', style:null, kind:'scale',
     base:{ scale:'dorian', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged', progression:'i-VII-VI-VII', chordDepth:'seventh', chordOverride:'min7' },
     vary:[ { key:'A', shape:'E' }, { key:'D', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'C', shape:'E' } ],
@@ -247,7 +247,7 @@ export const SEGMENT_TEMPLATES = {
   },
   // Review role (resurface an earlier skill)
   g_review_pentatonic: {
-    role:'review', label:'Pentatonic review', competency:'recall the box', creditsPathway:'pent_foundation',
+    role:'review', label:'Pentatonic review', competency:'recall the box',
     band:'beginner', instrument:'guitar', style:null, kind:'scale',
     base:{ scale:'minor_pentatonic', meter:'4/4', subdivision:'eighth', bars:8, direction:'up_down', sequence:'none', fretboardSystem:'caged' },
     vary:[ { key:'A', shape:'E' }, { key:'E', shape:'E' }, { key:'G', shape:'E' }, { key:'D', shape:'E' } ],

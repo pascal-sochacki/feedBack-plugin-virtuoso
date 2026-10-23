@@ -10,8 +10,8 @@ import {positionStepperIsShapeMode} from './practice-presentation.js';
 import {NOTE_ALIASES} from '../core/pitch.js';
 import {isShapeAwareSystem, shapeOrderForKey, fretWindowForShape, defaultShapeForSystem} from '../core/fretboard-shapes.js';
 
-/** @typedef {import('../core/practice-files.js').Practice} Practice */
-/** @typedef {import('../core/practice-selection.js').SelectablePathway & {label?: string, scales?: string[], instAgnostic?: boolean, practiceFile?: Practice}} SelectionPathway */
+  /** @typedef {import('../core/practice-files.js').Practice} Practice */
+  /** @typedef {import('../core/practice-selection.js').SelectablePathway & {label?: string, scales?: string[], instAgnostic?: boolean, practiceFile?: Practice}} SelectionPathway */
 /** @type {Record<string, SelectionPathway>} */
 const pathways = PATHWAYS;
 /** @param {string} id */
@@ -105,7 +105,6 @@ export function createPracticeSelection(dependencies) {
     if (pathway.practiceFile) {
       config.stringSetup = /** @type {HTMLSelectElement | null} */ (document.querySelector('[name="stringSetup"]'))?.value;
       config.customOpenMidis = /** @type {HTMLInputElement | null} */ ($('virtuoso_lab-custom-open-midis'))?.value || '';
-      delete config.renderer;
     }
     dependencies.applySelectedConfig(id, config, variation);
   }
@@ -114,6 +113,13 @@ export function createPracticeSelection(dependencies) {
     const picker = select('virtuoso_lab-pathway'); if (!picker) return;
     const saved = stored(PATHWAY_KEY);
     const valid = saved && saved !== 'custom' && pathways[saved] && !isHidden(saved);
+    if (!valid && saved?.startsWith('file-') && Array.from(picker.options).some(option => option.value === saved)) {
+      selection = {...selection, pathwayId:saved};
+      picker.value = saved;
+      dependencies.changeModeView('guided', true);
+      pendingInitial = {id:saved, visit};
+      return;
+    }
     const id = valid ? saved : dependencies.getContext().family === 'bass' ? 'bass_rh_pulse' : DEFAULT;
     if (!Array.from(picker.options).some(option => option.value === id)) return;
     picker.value = id;
@@ -133,10 +139,14 @@ export function createPracticeSelection(dependencies) {
     const intended = pendingInitial;
     if (intended && intended.visit === visit && catalog?.state.settled) {
       cancelInitial();
-      if (select('virtuoso_lab-pathway')?.value === intended.id && selection.pathwayId === intended.id && dependencies.getContext().family === 'guitar') {
+      if (select('virtuoso_lab-pathway')?.value === intended.id && selection.pathwayId === intended.id && (dependencies.getContext().family === 'guitar' || pathways[intended.id]?.instAgnostic)) {
         if (pathways[intended.id]) { applyPathway(intended.id); save(PATHWAY_KEY, intended.id); dependencies.regenerateSelectedConfig(); }
         else applyPathway('custom');
       }
+    }
+    const currentId = selection.pathwayId;
+    if (!intended && currentId?.startsWith('file-') && pathways[currentId] && select('virtuoso_lab-pathway')?.value === currentId) {
+      applyPathway(currentId); dependencies.regenerateSelectedConfig();
     }
     dependencies.presentation.refreshStatus();
   }
@@ -151,7 +161,7 @@ export function createPracticeSelection(dependencies) {
   }
   /** @param {string} id */
   async function chooseVariant(id) {
-    if (!file?.variants.some(variant => variant.id === id)) return;
+    if (!file?.variants?.some(variant => variant.id === id)) return;
     dependencies.stopAndInvalidatePlayback('loop');
     variantId = id; syncFileControls();
     await dependencies.regenerateSelectedConfig();
@@ -169,7 +179,9 @@ export function createPracticeSelection(dependencies) {
     try {
       const loaded = await getLoader()(id, controller.signal);
       if (!ownsRequest()) return;
-      file = loaded; variantId = loaded.variants[0].id;
+      const variants = loaded.variants;
+      if (!variants?.length) throw new Error('Practice has no authored variants');
+      file = loaded; variantId = variants[0].id;
       syncFileControls(); await dependencies.regenerateSelectedConfig();
     } catch (error) {
       if (ownsRequest()) status(`File practice error: ${error instanceof Error ? error.message : error}`);
@@ -319,7 +331,8 @@ export function createPracticeSelection(dependencies) {
     const selected = /** @type {ReturnType<import('./practice-config.js').readConfig> & {practiceFile?: Practice, practiceVariantId?: string | null}} */ (cfg);
     if (file) { selected.practiceFile = file; selected.practiceVariantId = variantId; }
     const pathway = pathways[selection.pathwayId || ''];
-    if (!file && pathway?.practiceFile && hasPathwayFile()) Object.assign(cfg, catalogPathwayConfig({practiceFile:pathway.practiceFile}, selection.variationIndex, selection.tierIndex, cfg));
+    if (!file && !pathway?.practiceFile && pathway?.tempoTiers && pathway.vary) tierConfig(/** @type {string} */ (selection.pathwayId), cfg);
+    else if (!file && pathway?.practiceFile && hasPathwayFile()) Object.assign(cfg, catalogPathwayConfig({practiceFile:pathway.practiceFile}, selection.variationIndex, selection.tierIndex, cfg));
     return cfg;
   }
   /** @param {'files' | 'selection' | 'position'} group */
@@ -338,7 +351,7 @@ export function createPracticeSelection(dependencies) {
       listen('virtuoso_lab-file-select','change',cancelLoad);
       listen('virtuoso_lab-file-load','click',loadFile);
       listen('virtuoso_lab-file-variant','change',ev => chooseVariant(/** @type {HTMLSelectElement} */ (ev.target).value));
-      listen('virtuoso_lab-file-next','click',() => { if (!file) return; const index = file.variants.findIndex(variant => variant.id === variantId); return chooseVariant(file.variants[(index + 1) % file.variants.length].id); });
+      listen('virtuoso_lab-file-next','click',() => { const variants = file?.variants; if (!variants?.length) return; const index = variants.findIndex(variant => variant.id === variantId); return chooseVariant(variants[(index + 1) % variants.length].id); });
       listen('virtuoso_lab-file-unload','click',() => { clearFile(); return dependencies.regenerateSelectedConfig(); });
       return;
     }

@@ -11,18 +11,28 @@ below are historical and are not the status of this candidate.
 **Authorized testing candidate (2026-10-21): 0.2.13-lab.1**, source 0.2.13,
 published to replace 0.2.11-lab.1 on the personal fork's `main`.
 The experimental Ladder pilot additionally ships `chromatic-warmup-ladder.md`,
-format 3, stable progress ID `chromatic_warmup`: six variations/four tiers,
-standard-six-string guitar only. The existing format-2 Custom demo has the
+stable progress ID `chromatic_warmup`: six variations/four tiers,
+standard-six-string guitar only. The existing Custom demo has the
 different ID `chromatic-warmup`. No saved-progress migration or reset occurs.
 Reviewer follow-up keeps ordinary modes bound during catalog loads, limits each
 request/body read to 10 seconds, preserves selected renderer/fallback on rebuild,
 and records authored credit from actual run identity/density instead of stale UI.
-Custom file practices now require `formatVersion: 2` frontmatter and JSON `variants`;
+Custom file practices use JSON `variants` and no pathway metadata;
 the shipped chromatic lesson offers first position (low E 1–4) and fifth position
 (5–8). Load defaults to first, Variant/Next stops and reloads at zero, Next wraps,
 tempo/count-in stay unchanged, and Play is always explicit. Old root notes and
 duration are intentionally rejected; wrap them in a unique ID/title variant.
 No new host capability, Learn, adaptive notes or scoring/XP change is included.
+
+Generated guitar pathways use validated Markdown definitions: one file
+per lesson under `assets/practices/guitar/pathways/`. These files contain pathway
+metadata and generator settings only; they do not contain note charts and are not
+played by the authored-file playback path. Runtime merges base, selected
+variation, and tempo tier into the existing `practiceType` generator. The asset
+index and allowlist are explicit. 106 standard six-string 4/4 lessons moved to
+`file-` IDs; band browsing remains mapped to those IDs. Bass, drop-D, 7-string,
+and 7/8 lessons remain in the JavaScript registry. Workout credit references
+were intentionally not migrated.
 
 **Experimental, not a stable update.** Plugin ID / screen: `virtuoso_lab`;
 navigation label: **Virtuoso (Lab)**. A supported released desktop version has
@@ -40,7 +50,8 @@ Minor/modal staff spelling, clipped beams and canvas resize behavior are correct
 Workout edits retain their handlers through canceled unload and BFCache restoration.
 This needs the complete `src/` graph plus `assets/practices/index.json` and
 `assets/practices/guitar/beginner/chromatic-warmup.md`; generated artifacts include
-both original AGPL lesson files, including `chromatic-warmup-ladder.md`.
+the AGPL Markdown lesson files, including `chromatic-warmup-ladder.md` and
+the generated pathway definitions under `guitar/pathways/`.
 Existing contained playback and host judging are reused.
 Publication does not install the update on your desktop.
 
@@ -115,8 +126,9 @@ In **Ladder → Chromatic Warmup**, try the six variations and four tiers.
 Its stable progress ID is unchanged, but this authored pilot intentionally loses
 alternate-tuning/instrument adaptation: standard six-string guitar only. Restore
 compatible Setup after a mismatch; no real or declared tuning is silently changed.
-Existing user-authored format-1 files need manual conversion to format-2 variants;
-there is no automatic converter, storage migration or progress reset.
+Legacy files that specify only a root note and duration need manual conversion to
+JSON `variants`; there is no versioning or automatic converter, storage migration
+or progress reset.
 
 Only these reviewed lessons are supported; this is not an arbitrary-file importer
 or Markdown editor. Lesson prose is displayed as plain text. Its exact JSON

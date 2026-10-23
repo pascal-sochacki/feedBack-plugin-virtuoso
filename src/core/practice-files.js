@@ -2,11 +2,120 @@
 import { parseMeter, secondsPerDivision } from './timing.js';
 
 // Packaging security inventory, not a second lesson catalog.
-export const PRACTICE_ASSET_PATHS = ['guitar/beginner/chromatic-warmup.md', 'guitar/beginner/chromatic-warmup-ladder.md'];
+export const PRACTICE_ASSET_PATHS = [
+  "guitar/beginner/chromatic-warmup.md",
+  "guitar/beginner/chromatic-warmup-ladder.md",
+  "guitar/pathways/file-pulse_muting.md",
+  "guitar/pathways/file-pent_foundation.md",
+  "guitar/pathways/file-power_chord_comping.md",
+  "guitar/pathways/file-blues_foundation.md",
+  "guitar/pathways/file-bend_drill.md",
+  "guitar/pathways/file-core_root_third_fifth.md",
+  "guitar/pathways/file-major_scale_caged.md",
+  "guitar/pathways/file-sixteenth_pocket.md",
+  "guitar/pathways/file-dorian_groove.md",
+  "guitar/pathways/file-chord_tone_targeting.md",
+  "guitar/pathways/file-modal_awareness.md",
+  "guitar/pathways/file-diatonic_triad_drill.md",
+  "guitar/pathways/file-seventh_vocab.md",
+  "guitar/pathways/file-whole_neck_freedom.md",
+  "guitar/pathways/file-guide_tones_path.md",
+  "guitar/pathways/file-ii_V_I_workout.md",
+  "guitar/pathways/file-modal_vamp.md",
+  "guitar/pathways/file-melmin_exotic_12key.md",
+  "guitar/pathways/file-harmonic_minor_exotic.md",
+  "guitar/pathways/file-sweep_arpeggio_primer.md",
+  "guitar/pathways/file-blues_box.md",
+  "guitar/pathways/file-blues_shuffle.md",
+  "guitar/pathways/file-blues_bends.md",
+  "guitar/pathways/file-blues_call_response.md",
+  "guitar/pathways/file-blues_mix.md",
+  "guitar/pathways/file-blues_turnaround.md",
+  "guitar/pathways/file-blues_turnaround_build.md",
+  "guitar/pathways/file-major_pent_country.md",
+  "guitar/pathways/file-country_cowboy_changes.md",
+  "guitar/pathways/file-country_double_stops.md",
+  "guitar/pathways/file-country_chicken_pickin.md",
+  "guitar/pathways/file-country_pedal_bends.md",
+  "guitar/pathways/file-country_train.md",
+  "guitar/pathways/file-melodic_metal_gallop.md",
+  "guitar/pathways/file-metal_lead_changes.md",
+  "guitar/pathways/file-metal_lead_phrygian.md",
+  "guitar/pathways/file-melodeath_twin_leads.md",
+  "guitar/pathways/file-rock_power_backbeat.md",
+  "guitar/pathways/file-rock_pentatonic.md",
+  "guitar/pathways/file-rock_lead_vocab.md",
+  "guitar/pathways/file-rock_pedal_riff.md",
+  "guitar/pathways/file-rock_classic_changes.md",
+  "guitar/pathways/file-chord_cowboy.md",
+  "guitar/pathways/file-chord_caged_shapes.md",
+  "guitar/pathways/file-chord_barre_changes.md",
+  "guitar/pathways/file-chord_caged_progression.md",
+  "guitar/pathways/file-chord_sevenths.md",
+  "guitar/pathways/file-chord_diatonic_7ths.md",
+  "guitar/pathways/file-chord_color_extensions.md",
+  "guitar/pathways/file-triad_inversions.md",
+  "guitar/pathways/file-triad_five_shapes.md",
+  "guitar/pathways/file-triads_over_changes.md",
+  "guitar/pathways/file-triad_pairs.md",
+  "guitar/pathways/file-arp_seventh_shapes.md",
+  "guitar/pathways/file-arp_inversions.md",
+  "guitar/pathways/file-arp_over_changes.md",
+  "guitar/pathways/file-arp_sweeps.md",
+  "guitar/pathways/file-vl_shells.md",
+  "guitar/pathways/file-vl_guide_tones.md",
+  "guitar/pathways/file-vl_guide_changes.md",
+  "guitar/pathways/file-vl_connect.md",
+  "guitar/pathways/file-fb_one_box.md",
+  "guitar/pathways/file-fb_caged_links.md",
+  "guitar/pathways/file-fb_position_shifts.md",
+  "guitar/pathways/file-fb_3nps.md",
+  "guitar/pathways/file-fb_whole_neck.md",
+  "guitar/pathways/file-diatonic_intervals.md",
+  "guitar/pathways/file-int_sixths.md",
+  "guitar/pathways/file-int_across_neck.md",
+  "guitar/pathways/file-int_mixed.md",
+  "guitar/pathways/file-exp_vibrato.md",
+  "guitar/pathways/file-exp_bend_half.md",
+  "guitar/pathways/file-exp_bend_whole.md",
+  "guitar/pathways/file-exp_bend_mixed.md",
+  "guitar/pathways/file-rhy_subdivision.md",
+  "guitar/pathways/file-rhy_sixteenth.md",
+  "guitar/pathways/file-rhy_swing.md",
+  "guitar/pathways/file-rhy_displacement.md",
+  "guitar/pathways/file-rhy_gallop_snap.md",
+  "guitar/pathways/file-rhy_accent_displace.md",
+  "guitar/pathways/file-rhy_single_string.md",
+  "guitar/pathways/file-rhy_half_double.md",
+  "guitar/pathways/file-rhy_trade_bars.md",
+  "guitar/pathways/file-pick_tremolo.md",
+  "guitar/pathways/file-pick_alternate.md",
+  "guitar/pathways/file-pick_chromatic_16ths.md",
+  "guitar/pathways/file-pick_economy.md",
+  "guitar/pathways/file-pick_string_skip.md",
+  "guitar/pathways/file-pick_hybrid.md",
+  "guitar/pathways/file-pick_herta.md",
+  "guitar/pathways/file-leg_hopo.md",
+  "guitar/pathways/file-leg_runs.md",
+  "guitar/pathways/file-sweep3_triad.md",
+  "guitar/pathways/file-sweep5_box.md",
+  "guitar/pathways/file-sweep_roll_apex.md",
+  "guitar/pathways/file-sweep7_color.md",
+  "guitar/pathways/file-sweep_changes.md",
+  "guitar/pathways/file-tap_articulation.md",
+  "guitar/pathways/file-tap_cell.md",
+  "guitar/pathways/file-tap_cascade.md",
+  "guitar/pathways/file-tap_sevenths.md",
+  "guitar/pathways/file-tap_changes.md",
+  "guitar/pathways/file-fs_pima_foundation.md",
+  "guitar/pathways/file-fs_spider_adjacent.md",
+  "guitar/pathways/file-fs_spider_skip.md",
+  "guitar/pathways/file-fs_spider_wide.md"
+];
 
 /** @typedef {{t:number, s:number, f:number, sus:number, fg?:number, pkd?:number}} PracticeNote */
 /** @typedef {{id:string, title:string, hint?:string, duration:number, notes:PracticeNote[]}} PracticeVariant */
-/** @typedef {{formatVersion:number, id:string, title:string, instrument:string, tuning:string, meter:string, referenceTempo:number, prose:string, variants:PracticeVariant[], pathway?:Record<string, any>}} Practice */
+/** @typedef {{id:string, title:string, instrument:string, tuning:string, meter:string, referenceTempo:number, prose:string, variants?:PracticeVariant[], pathway?:Record<string, any>}} Practice */
 
 /** @param {unknown} value @param {number} min @param {number} max */
 function number(value, min, max) {
@@ -26,13 +135,14 @@ function keys(value, allowed) {
 export function validatePracticeIndex(value) {
   const index = object(value);
   keys(index, ['practices']);
-  if (!Array.isArray(index.practices) || index.practices.length !== PRACTICE_ASSET_PATHS.length) throw new Error('Invalid practice index');
+  if (!Array.isArray(index.practices)) throw new Error('Invalid practice index');
   const entries = index.practices.map(raw => {
     const item = object(raw);
-    keys(item, ['id', 'title', 'path', 'use']);
+    keys(item, ['id', 'title', 'path', 'use', 'instAgnostic']);
     slug(item.id); plainText(item.title, 120);
     if (!PRACTICE_ASSET_PATHS.includes(item.path) || !['custom', 'pathway'].includes(item.use)) throw new Error('Unknown practice index entry');
-    return { id:item.id, title:item.title, path:item.path, use:item.use };
+    if (item.instAgnostic !== undefined && typeof item.instAgnostic !== 'boolean') throw new Error('Invalid pathway applicability');
+    return { id:item.id, title:item.title, path:item.path, use:item.use, ...(item.instAgnostic ? {instAgnostic:true} : {}) };
   });
   if (new Set(entries.map(item => item.id)).size !== entries.length || new Set(entries.map(item => item.path)).size !== entries.length) throw new Error('Duplicate practice index entry');
   return entries;
@@ -40,7 +150,7 @@ export function validatePracticeIndex(value) {
 
 /** @param {unknown} value */
 function slug(value) {
-  if (typeof value !== 'string' || value.length > 64 || !/^[a-z0-9]+(?:[-_][a-z0-9]+)*$/.test(value)) throw new Error('Invalid practice id');
+  if (typeof value !== 'string' || value.length > 64 || !/^[A-Za-z0-9]+(?:[-_][A-Za-z0-9]+)*$/.test(value)) throw new Error('Invalid practice id');
 }
 /** @param {unknown} value @param {number} max */
 function plainText(value, max) {
@@ -125,11 +235,55 @@ function validatePathwayMetadata(value, variants) {
   if (references.size !== variants.length) throw new Error('Unreferenced pathway chart');
 }
 
+const PATHWAY_CONFIG_KEYS = ['practiceType','scale','meter','subdivision','bpm','bars','direction','sequence','advancedMode','fretboardSystem','stringSetup','renderer','progression','chordDepth','chordOverride','drums','backingStyle','swing','audioProfile','key','fretMin','fretMax','chordScaleStrategy','shape','voices','bendTarget','motifCell','motifPhase','harmonize','rfoPattern','walkApproach','rhTechMode','pulseAccent','pulseOffbeat','anchor','anchorFret','chromaticPattern','walkFeel','strokePolicy','hertaAccent','hertaWalk','sweepStrings','tapArp','pimaPattern','voicingPosition','spiderPair','strumPattern','shapeWalk','backingComp','backingBass','tremolo','customOpenMidis'];
+
+/** @param {unknown} value */
+function validateGeneratedPathway(value) {
+  const pathway = object(value);
+  keys(pathway, ['goal','scales','formCues','base','vary','tempoTiers','tempoTierSubdivs','tempoTierBars','instAgnostic']);
+  plainText(pathway.goal, 2000);
+  for (const field of ['scales','formCues']) {
+    if (pathway[field] === undefined && field === 'formCues') continue;
+    if (!Array.isArray(pathway[field]) || (field === 'formCues' && !pathway[field].length)) throw new Error(`Invalid pathway ${field}`);
+    pathway[field].forEach((/** @type {unknown} */ item) => { if (field === 'formCues') slug(item); else slug(item); });
+  }
+  if (pathway.instAgnostic !== undefined && typeof pathway.instAgnostic !== 'boolean') throw new Error('Invalid pathway applicability');
+  const config = (/** @type {unknown} */ raw) => {
+    const result = object(raw);
+    keys(result, PATHWAY_CONFIG_KEYS);
+    for (const [key, item] of Object.entries(result)) {
+      if (!['string','number','boolean'].includes(typeof item) || (typeof item === 'number' && !Number.isFinite(item))) throw new Error(`Invalid pathway config value: ${key}`);
+    }
+    return result;
+  };
+  const base = config(pathway.base);
+  if (base.stringSetup !== 'guitar_6_standard' || base.meter !== '4/4' || typeof base.practiceType !== 'string') throw new Error('Unsupported generated pathway config');
+  if (!Array.isArray(pathway.vary) || !pathway.vary.length || pathway.vary.length > 16) throw new Error('Invalid pathway variations');
+  pathway.vary.forEach(config);
+  if (!Array.isArray(pathway.tempoTiers) || pathway.tempoTiers.length < 2 || pathway.tempoTiers.length > 8) throw new Error('Invalid pathway tempo tiers');
+  let previous = 0;
+  for (const bpm of pathway.tempoTiers) {
+    number(bpm, 30, 260);
+    if (!Number.isInteger(bpm) || bpm <= previous) throw new Error('Invalid pathway tempo tiers');
+    previous = bpm;
+  }
+  if (pathway.tempoTierSubdivs !== undefined) {
+    if (!Array.isArray(pathway.tempoTierSubdivs) || pathway.tempoTierSubdivs.length !== pathway.tempoTiers.length || pathway.tempoTierSubdivs.some((/** @type {unknown} */ item) => !['whole','half','quarter','eighth','triplet','sixteenth','sixteenth_triplet','thirtysecond'].includes(String(item)))) throw new Error('Invalid pathway subdivisions');
+  }
+  if (pathway.tempoTierBars !== undefined) {
+    if (!Array.isArray(pathway.tempoTierBars) || pathway.tempoTierBars.length !== pathway.tempoTiers.length) throw new Error('Invalid tempoTierBars');
+    pathway.tempoTierBars.forEach((/** @type {unknown} */ item) => number(item, 1, 64));
+  }
+}
+
 /** File-owned metadata adapts to the existing mutable Ladder registry.
  * @param {Practice} input */
 export function practicePathwayEntry(input) {
   const practice = validatePractice(input), pathway = practice.pathway;
   if (!pathway) throw new Error('Practice is not a Ladder lesson');
+  if (!practice.variants) return { label:practice.title, goal:pathway.goal, scales:pathway.scales.slice(), ...(pathway.formCues ? {formCues:pathway.formCues.slice()} : {}), ...(pathway.instAgnostic ? {instAgnostic:true} : {}),
+    tempoTiers:pathway.tempoTiers.slice(), ...(pathway.tempoTierSubdivs ? {tempoTierSubdivs:pathway.tempoTierSubdivs.slice()} : {}),
+    ...(pathway.tempoTierBars ? {tempoTierBars:pathway.tempoTierBars.slice()} : {}), base:{ ...pathway.base }, vary:pathway.vary.map((/** @type {Record<string, any>} */ variation) => ({ ...variation })) };
   return { label:practice.title, goal:pathway.goal, scales:[], practiceFile:practice, formCues:pathway.formCues.slice(),
     tempoTiers:pathway.tiers.map((/** @type {Record<string, any>} */ tier) => tier.bpm), tempoTierSubdivs:pathway.tiers.map((/** @type {Record<string, any>} */ tier) => tier.subdivision),
     tempoTierBars:pathway.tiers.map((/** @type {Record<string, any>} */ tier) => tier.bars), base:{ ...pathway.base },
@@ -151,7 +305,7 @@ export function practicePathwaySelection(input, variationIndex, tierIndex) {
  * @param {Record<string, any>} cfg @param {Practice} practice */
 export function practicePathwayCredit(cfg, practice) {
   const pathway = practice.pathway;
-  if (!pathway || cfg.practicePathwayId !== practice.id) return null;
+  if (!pathway || !practice.variants || cfg.practicePathwayId !== practice.id) return null;
   const variation = pathway.variations.find((/** @type {Record<string, any>} */ item) => item.id === cfg.practicePathwayVariationId);
   const index = cfg.practicePathwayTierIndex, tier = pathway.tiers[index];
   if (!Number.isInteger(index) || !variation || !tier || variation.charts[index] !== cfg.practiceVariantId ||
@@ -170,20 +324,24 @@ export function practicePathwayCredit(cfg, practice) {
 /** @param {unknown} value @returns {Practice} */
 export function validatePractice(value) {
   const practice = object(value);
-  keys(practice, ['formatVersion', 'id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'prose', 'variants', 'pathway']);
-  if (![2,3].includes(practice.formatVersion)) throw new Error('Practice formatVersion: 2 or 3 is required');
-  if ((practice.formatVersion === 3) !== (practice.pathway !== undefined)) throw new Error('Format 3 requires pathway metadata; format 2 excludes it');
+  keys(practice, ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo', 'prose', 'variants', 'pathway']);
   slug(practice.id);
   plainText(practice.title, 120);
   if (practice.instrument !== 'guitar' || practice.tuning !== 'standard' || practice.meter !== '4/4') throw new Error('Only guitar standard six-string 4/4 practices are supported');
   number(practice.referenceTempo, 30, 260);
   if (typeof practice.prose !== 'string' || practice.prose.length > 65536) throw new Error('Invalid practice prose');
-  if (!Array.isArray(practice.variants) || !practice.variants.length || practice.variants.length > 32) throw new Error('Invalid practice variants');
-  const variants = practice.variants.map(validateVariant);
-  if (new Set(variants.map(variant => variant.id)).size !== variants.length) throw new Error('Duplicate practice variant id');
-  if (variants.reduce((total, variant) => total + variant.notes.length, 0) > 4096) throw new Error('Too many practice notes');
-  if (practice.pathway) validatePathwayMetadata(practice.pathway, variants);
-  return /** @type {Practice} */ ({ ...practice, variants });
+  let variants;
+  if (practice.variants !== undefined) {
+    if (!Array.isArray(practice.variants) || !practice.variants.length || practice.variants.length > 32) throw new Error('Invalid practice variants');
+    variants = practice.variants.map(validateVariant);
+    if (new Set(variants.map(variant => variant.id)).size !== variants.length) throw new Error('Duplicate practice variant id');
+    if (variants.reduce((total, variant) => total + variant.notes.length, 0) > 4096) throw new Error('Too many practice notes');
+    if (practice.pathway !== undefined) validatePathwayMetadata(practice.pathway, variants);
+  } else {
+    if (practice.pathway === undefined) throw new Error('Practice requires variants or generated pathway metadata');
+    validateGeneratedPathway(practice.pathway);
+  }
+  return /** @type {Practice} */ (variants ? { ...practice, variants } : { ...practice });
 }
 
 /** Strict scalar frontmatter and one JSON fence, not a general YAML/Markdown parser.
@@ -201,7 +359,7 @@ export function parsePracticeMarkdown(source) {
   if (!match) throw new Error('Missing scalar frontmatter');
   /** @type {Record<string, any>} */
   const metadata = {};
-  const fields = ['formatVersion', 'id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo'];
+  const fields = ['id', 'title', 'instrument', 'tuning', 'meter', 'referenceTempo'];
   for (const line of match[1].split('\n')) {
     const row = /^([A-Za-z]+): ([^\r\n]+)$/.exec(line);
     if (!row || !fields.includes(row[1]) || Object.hasOwn(metadata, row[1])) throw new Error('Invalid or duplicate frontmatter field');
@@ -210,8 +368,6 @@ export function parsePracticeMarkdown(source) {
   if (fields.some(key => !Object.hasOwn(metadata, key))) throw new Error('Missing frontmatter field');
   if (!/^\d+(?:\.\d+)?$/.test(metadata.referenceTempo)) throw new Error('Invalid referenceTempo');
   metadata.referenceTempo = Number(metadata.referenceTempo);
-   if (!['2','3'].includes(metadata.formatVersion)) throw new Error('Practice formatVersion: 2 or 3 is required');
-   metadata.formatVersion = Number(metadata.formatVersion);
   const body = match[2];
   const fence = /(?:^|\n)```json\n([\s\S]*?)\n```(?:\n|$)/g;
   const fences = [...body.matchAll(fence)];
@@ -232,13 +388,14 @@ export function parsePracticeMarkdown(source) {
       names?.add(name);
     }
   }
-  keys(chart, metadata.formatVersion === 3 ? ['variants', 'pathway'] : ['variants']);
+  keys(chart, ['variants', 'pathway']);
   return validatePractice({ ...metadata, ...chart, prose:body.replace(fence, '\n').trim() });
 }
 
 /** @param {Record<string, any>} cfg */
 export function buildPracticeFileExercise(cfg) {
   const practice = validatePractice(cfg.practiceFile);
+  if (!practice.variants) throw new Error('Generated pathway definitions are not authored-note practices');
   const requestedId = cfg.practiceVariantId === undefined ? practice.variants[0].id : cfg.practiceVariantId;
   const variant = practice.variants.find(item => item.id === requestedId);
   if (!variant) throw new Error('Unknown practice variant id');

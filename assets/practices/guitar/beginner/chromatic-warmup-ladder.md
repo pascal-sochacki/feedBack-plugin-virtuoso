@@ -1,5 +1,4 @@
 ---
-formatVersion: 3
 id: chromatic_warmup
 title: Chromatic Warmup
 instrument: guitar

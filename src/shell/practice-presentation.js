@@ -86,7 +86,7 @@ export function createPracticePresentation({getCurrentPractice}) {
         const practice = pw.practiceFile, pathway = practice?.pathway;
         const variation = pathway?.variations[state.variationIndex], tier = pathway?.tiers[state.tierIndex];
         if (practice && (!variation || !tier)) throw new Error('Unknown pathway variation or tier');
-        const hint = practice?.variants.find(variant => variant.id === variation.charts[state.tierIndex])?.hint;
+        const hint = practice?.variants?.find(variant => variant.id === variation.charts[state.tierIndex])?.hint;
         rest.textContent = [match ? match[2].trim() : '', hint].filter(Boolean).join('\n\n');
       }
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
@@ -181,7 +181,7 @@ export function createPracticePresentation({getCurrentPractice}) {
       select.value = practiceVariantId || ''; select.disabled = !practice;
     }
     if (next) next.disabled = !practice;
-    if (hint) hint.textContent = practice?.variants.find(variant => variant.id === practiceVariantId)?.hint || '';
+    if (hint) hint.textContent = practice?.variants?.find(variant => variant.id === practiceVariantId)?.hint || '';
   }
   return {renderGoal, renderPosition, renderFile, renderStart:() => { if ($('virtuoso_lab-start-cta')) renderStart(getCurrentPractice('start')); }, describe};
 }

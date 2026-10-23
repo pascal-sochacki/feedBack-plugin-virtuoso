@@ -8,7 +8,7 @@ import {STRING_SETUPS} from '../src/core/instrument-tuning.js';
 import {parsePracticeMarkdown,practicePathwayEntry} from '../src/core/practice-files.js';
 
 const ladder=readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup-ladder.md',import.meta.url),'utf8');
-const index=readFileSync(new URL('../assets/practices/index.json',import.meta.url),'utf8');
+const index=JSON.stringify({practices:[{id:'chromatic-warmup',title:'Chromatic warm-up',path:'guitar/beginner/chromatic-warmup.md',use:'custom'},{id:'chromatic_warmup',title:'Chromatic Warmup',path:'guitar/beginner/chromatic-warmup-ladder.md',use:'pathway'}]});
 const md=readFileSync(new URL('../assets/practices/guitar/beginner/chromatic-warmup.md',import.meta.url),'utf8');
 const flush=async()=>{for(let i=0;i<30;i++)await Promise.resolve();};
 const deferred=()=>{let resolve,reject;const promise=new Promise((yes,no)=>{resolve=yes;reject=no;});return {promise,resolve,reject};};
@@ -119,10 +119,30 @@ test('mode switches preserve saved Warmup intent during pending catalog, cancele
     }
     assert.equal(owner.pendingInitial.id,'chromatic_warmup');
     owner.controlChanged('bpm');assert.equal(owner.pendingInitial,null);assert.equal(owner.pathwayId,'custom');
-    fields.stringSetup.value='bass_4_standard';assert.equal(owner.isHidden('bend_drill'),true);assert.equal(owner.isHidden('rhy_swing'),false);
+    PATHWAYS['file-bend_drill']={base:{practiceType:'bending',stringSetup:'guitar_6_standard'}};
+    fields.stringSetup.value='bass_4_standard';assert.equal(owner.isHidden('file-bend_drill'),true);assert.equal(owner.isHidden('rhy_swing'),false);
     fields.instrument.value='bass';owner.initial();assert.equal(owner.pathwayId,'bass_rh_pulse');
     owner.leave();await owner.enter();await flush();assert.equal(nodes.get('virtuoso_lab-mode-custom').handlers.get('click').size,1);
-  } finally {owner.leave();if(saved)PATHWAYS.chromatic_warmup=saved;else delete PATHWAYS.chromatic_warmup;}
+  } finally {owner.leave();delete PATHWAYS['file-bend_drill'];if(saved)PATHWAYS.chromatic_warmup=saved;else delete PATHWAYS.chromatic_warmup;}
+});
+
+test('file-prefixed saved pathway waits for catalog hydration and preserves its identity',async()=>{
+  const {owner,nodes,store}=dom();store.set('virtuoso_lab.lastPathway','file-pent_foundation');
+  const savedPathways={};for(const item of JSON.parse(readFileSync(new URL('../assets/practices/index.json',import.meta.url),'utf8')).practices.filter(item=>item.use==='pathway')){savedPathways[item.id]=PATHWAYS[item.id];delete PATHWAYS[item.id];}
+  nodes.get('virtuoso_lab-pathway').children.push({value:'file-pent_foundation'});
+  const catalog=JSON.parse(readFileSync(new URL('../assets/practices/index.json',import.meta.url),'utf8'));
+  globalThis.fetch=async url=>{
+    if(String(url).endsWith('index.json'))return new Response(JSON.stringify(catalog));
+    const item=catalog.practices.find(entry=>String(url).endsWith(entry.path));
+    return new Response(readFileSync(new URL('../assets/practices/'+item.path,import.meta.url),'utf8'));
+  };
+  owner.mount('files');owner.mount('selection');owner.initial();
+  assert.equal(owner.pendingInitial.id,'file-pent_foundation');
+  await owner.initialize();
+  assert.equal(owner.catalogState.error,null);
+  assert.equal(PATHWAYS['file-pent_foundation'].label,'Pentatonic Foundation');
+  assert.equal(owner.pendingInitial,null);
+  owner.leave();for(const [id,pathway] of Object.entries(savedPathways))if(pathway)PATHWAYS[id]=pathway;
 });
 
 test('pending file identity and current DOM guard reject an A→B→A response after departure without clobbering the new visit',async()=>{
@@ -154,8 +174,9 @@ test('direct shape and scale controls preserve current choices, legacy hidden va
   system.value='caged';shape.value='E';owner.syncShapes();assert.equal(shape.value,'E');assert.equal(hidden.value,'E');
   assert.ok(shape.options.some(option=>option.textContent.includes('position')));
   system.value='3nps';owner.syncShapes();assert.equal(hidden.value,'E','non-CAGED leaves chord hidden field alone');
-  owner.selectShape('pent_foundation',{fretboardSystem:'caged',scale:'major'}, {fretMin:7});assert.ok(shape.value);
-  fields.scale.value='not-in-lesson';owner.syncScaleDropdown('pent_foundation');assert.equal(fields.scale.value,PATHWAYS.pent_foundation.scales[0]);
+  const migrated=PATHWAYS['file-pent_foundation']={label:'Pentatonic Foundation',scales:['minor_pentatonic','blues','major_pentatonic'],base:{practiceType:'scale',stringSetup:'guitar_6_standard',meter:'4/4'},vary:[{}]};
+  owner.selectShape('file-pent_foundation',{fretboardSystem:'caged',scale:'major'}, {fretMin:7});assert.ok(shape.value);
+  fields.scale.value='not-in-lesson';owner.syncScaleDropdown('file-pent_foundation');assert.equal(fields.scale.value,migrated.scales[0]);
   owner.syncScaleDropdown(null);assert.equal(nodes.get('virtuoso_lab-pathway-scale-wrap').style.display,'none');
   owner.mount('position');owner.applyPathway('chromatic_warmup');
   const selected=owner.pathwayId;events.length=0;
