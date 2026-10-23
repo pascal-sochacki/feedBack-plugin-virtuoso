@@ -20,7 +20,7 @@ export function rollSegment(template, opts) {
     if (locks[ax] && (ax in anchor)) delta[ax] = anchor[ax];
   }
   let styleCfg = {};
-  if (template.style) {
+  if (template.paletteLock && template.style) {
     const sp = stylePaletteConfig(template.style, {
         progression: /** @type {string | undefined} */ (delta.progression) || (template.base && template.base.progression),
         scale:       /** @type {string | undefined} */ (delta.scale)       || (template.base && template.base.scale),

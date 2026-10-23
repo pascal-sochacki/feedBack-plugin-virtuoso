@@ -15,6 +15,8 @@ import { STRUM_PATTERNS } from '../src/core/builders/strum.js';
 import { CHORD_FORMULAS } from '../src/core/chord-theory.js';
 import { SCALE_INTERVALS } from '../src/core/scale-intervals.js';
 import { STRUM_GRIPS } from '../src/core/strum-grips.js';
+import { MOTIF_CELLS, resolveMotifCell } from '../src/core/motif.js';
+import { applyEconomyPicking, applyGypsyPicking, applyMetalPicking, applyBassPlucking } from '../src/core/stroke-policy.js';
 import { ACOUSTIC_PIECES, BJ_KCS, DRUMKIT_BANKS, KIT_REGISTRY, TONE_GM, drumFile, drumVar, SAMPLED_DRUM_NOTES } from '../src/core/audio-registries.js';
 
 test('authored audio kit and bank registries reference declared banks and round robins', () => {
@@ -197,6 +199,62 @@ test('strum patterns fill their authored bars', () => {
     const expected = (pattern.bars || 1) * 4 * pattern.div;
     assert.equal(pattern.grid.length, expected,
       `[Virtuoso strum-pattern] ${id} grid has ${pattern.grid.length} steps, expected ${expected} (bars×4×div)`);
+  }
+});
+
+test('stroke-policy schools preserve their signature crossing and articulation rules',()=>{
+  const makeNotes=(extra={})=>[
+    {t:0,s:0,f:5},{t:0.25,s:0,f:7},{t:0.50,s:1,f:5},
+    {t:0.75,s:1,f:7},{t:1,s:0,f:7},{t:1.25,s:0,f:5},
+  ].map(note=>Object.assign(note,extra));
+  const cfg={bpm:120,meter:{numerator:4,denominator:4},subdivision:'eighth'};
+  const economy=applyEconomyPicking(makeNotes(),cfg);
+  assert.equal(economy[2].pkd,0);
+  assert.equal(economy[4].pkd,1);
+  const gypsy=applyGypsyPicking(makeNotes(),cfg);
+  for(let i=1;i<gypsy.length;i++) if(gypsy[i].pkd===1) assert.equal(gypsy[i].s,gypsy[i-1].s);
+  assert.ok(applyMetalPicking(makeNotes({pm:true}),cfg).every(note=>note.pkd===0));
+  assert.ok(applyMetalPicking(makeNotes({pm:true}),{...cfg,bpm:200}).some(note=>note.pkd===1));
+  const bass=applyBassPlucking([
+    {t:0,s:1,f:5},{t:0.25,s:1,f:7},{t:0.50,s:1,f:5,mt:true},{t:0.75,s:0,f:5},
+  ],{bpm:120,meter:{numerator:4,denominator:4},subdivision:'sixteenth'});
+  assert.equal(bass[2].rh,1);
+  assert.equal(bass[3].rh,bass[2].rh);
+});
+
+test('motif cells are valid and resolve within the authored span across all keys',()=>{
+  const opens=[40,45,50,55,59,64];
+  const keys=['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+  const bendValues=new Set([0,0.25,0.5,1,1.5,2]);
+  for(const [id,cell] of Object.entries(MOTIF_CELLS)){
+    const label=key=>`[Virtuoso motif-cell] ${id}${key?` @ ${key}`:''}`;
+    assert.ok(cell.bars===1||cell.bars===2,label());
+    assert.equal(cell.pickup,undefined,`${label()} pickup unsupported`);
+    assert.equal(cell.harmonyInterval,undefined,`${label()} harmonyInterval unsupported`);
+    const sum=(cell.steps||[]).reduce((total,step)=>total+(Number(step.d)||0),0);
+    assert.ok(Math.abs(sum-cell.bars*4)<=1e-6,`${label()} beat sum`);
+    for(const step of cell.steps){
+      assert.ok(step.deg!=null||step.chr!=null||step.a==='target',`${label()} requires a pitch anchor`);
+      assert.ok(step.bn==null||bendValues.has(step.bn),`${label()} bend ${step.bn}`);
+      assert.ok(step.bt==null||(step.bt>=0&&step.bt<=4),`${label()} bend timing ${step.bt}`);
+    }
+    for(const key of keys){
+      const cfg={key,scale:cell.scale,bpm:80,bars:cell.bars,meter:{numerator:4,denominator:4,grouping:[4]},progression:cell.prog||'static_i',chordDepth:'triad',chordOverride:'auto',stringSetup:'guitar_6_standard'};
+      let valid=false,lastError;
+      for(let window=0;window<=10&&!valid;window++){
+        let result;
+        try{result=resolveMotifCell(cell,cfg,opens,window,window+5);}catch(error){lastError=error;continue;}
+        const frets=result.placed.flatMap(position=>[position.f,...position.stack.map(note=>note.f)]);
+        if(Math.max(...frets)-Math.min(...frets)>(cell.maxSpan||4)) continue;
+        if(cell.bind==='changes'){
+          const placed=result.placed.at(-1);
+          const event=result.events.find(item=>placed.beat>=item.startBeat-1e-6&&placed.beat<item.startBeat+item.durBeats-1e-6)||result.events.at(-1);
+          assert.ok(event.cpcs.includes(((placed.midi%12)+12)%12),`${label(key)} resolution must land on the chord`);
+        }
+        valid=true;
+      }
+      assert.ok(valid,`${label(key)} must resolve within maxSpan ${cell.maxSpan||4}${lastError?`: ${lastError.message}`:''}`);
+    }
   }
 });
 

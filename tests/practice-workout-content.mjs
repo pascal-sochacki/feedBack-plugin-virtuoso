@@ -10,6 +10,9 @@ import {buildSessionChart} from '../src/core/session-chart.js';
 import {buildSegmentConfig} from '../src/core/session-config.js';
 import {materializeWorkoutConfig} from '../src/core/workout-config.js';
 import {createWorkoutEditor} from '../src/shell/workout-editor.js';
+import {STYLE_PALETTES} from '../src/core/style-palettes.js';
+import {rollSegment} from '../src/core/segments.js';
+import {assertSegmentTemplatesValid} from '../src/core/segment-integrity.js';
 
 const root = new URL('../assets/practices/', import.meta.url);
 const rootPath = root.pathname;
@@ -42,6 +45,67 @@ test('Markdown catalog drives unique, filterable workout cards with legal metada
     assert.ok(item.metadata.applicability.includes(item.metadata.instrument));
     assert.ok(item.practicePath.endsWith('.md'));
   }
+});
+
+test('workout catalog invariants hold for every template and every materialized variation',()=>{
+  assertSegmentTemplatesValid(SEGMENT_TEMPLATES);
+  for(const [id,template] of Object.entries(SEGMENT_TEMPLATES)){
+    for(let index=0;index<(template.vary?.length||1);index++){
+      const config=rollSegment(template,{variantIdx:index}).config;
+      assert.equal(config.bpm,template.base.bpm,`${id} variation ${index} keeps BPM fixed`);
+      assert.equal(config.bars,template.base.bars,`${id} variation ${index} keeps bars fixed`);
+    }
+  }
+});
+
+test('Markdown genre metadata does not implicitly lock a block to a style palette',()=>{
+  const blues=SEGMENT_TEMPLATES['file-blues_mix'];
+  assert.equal(PRACTICE_BLOCKS['file-blues_mix'].metadata.genre,'blues');
+  assert.equal(blues.style,'blues');
+  assert.notEqual(blues.paletteLock,true);
+  assert.deepEqual(blues.vary.map((_,index)=>rollSegment(blues,{variantIdx:index}).config.scale),[
+    'major_pentatonic','minor_pentatonic','blues','major_pentatonic','minor_pentatonic',
+  ]);
+  assert.equal(rollSegment(blues,{variantIdx:0}).config.progression,'12_bar_blues');
+
+  const mismatches=[];
+  for(const [id,template] of Object.entries(SEGMENT_TEMPLATES)){
+    if(!template.style||template.paletteLock) continue;
+    const palette=STYLE_PALETTES[template.style];
+    for(let index=0;index<(template.vary?.length||1);index++){
+      const config=rollSegment(template,{variantIdx:index}).config;
+      if((config.progression&&!palette.progressions.includes(config.progression))||(config.scale&&!palette.leadScales.includes(config.scale))) mismatches.push(`${id}:${index}`);
+    }
+  }
+  assert.deepEqual(mismatches,[
+    'file-blues_mix:0','file-blues_mix:3','file-country_chicken_pickin:3',
+    'file-country_train:0','file-country_train:2','file-country_train:4',
+    'file-rock_classic_changes:2','file-rock_classic_changes:4',
+    'file-rock_lead_vocab:0','file-rock_lead_vocab:1','file-rock_lead_vocab:3',
+    'file-rock_pedal_riff:2','file-rock_pedal_riff:3',
+    'file-rock_pentatonic:1','file-rock_pentatonic:3',
+    'file-rock_power_backbeat:0','file-rock_power_backbeat:1','file-rock_power_backbeat:3','file-rock_power_backbeat:4',
+    'g_metal_phrygian:0','g_metal_phrygian:1','g_metal_phrygian:2','g_metal_phrygian:3',
+  ]);
+});
+
+test('explicit style palette locks and no-row scale gate are validated',()=>{
+  const locked={...SEGMENT_TEMPLATES['file-blues_mix'],paletteLock:true,base:{...SEGMENT_TEMPLATES['file-blues_mix'].base,scale:'blues'},vary:[{scale:'blues',progression:'12_bar_blues'}]};
+  assert.doesNotThrow(()=>assertSegmentTemplatesValid({locked}));
+  const generated=rollSegment({...locked,base:{bpm:80,bars:4},vary:[{}]},{variantIdx:0}).config;
+  assert.equal(generated.style,'blues');
+  assert.equal(generated.chordDepth,'seventh');
+  assert.equal(generated.chordOverride,'dom7');
+  const unlocked=rollSegment({...locked,paletteLock:false,base:{bpm:80,bars:4},vary:[{}]},{variantIdx:0}).config;
+  assert.equal(unlocked.style,undefined);
+  assert.equal(unlocked.chordDepth,undefined);
+  assert.throws(()=>assertSegmentTemplatesValid({locked:{...locked,vary:[{scale:'major_pentatonic'}]}}),/style-lock/);
+  assert.throws(()=>assertSegmentTemplatesValid({bad:{...locked,style:'unknown'}}),/unknown style/);
+  assert.throws(()=>assertSegmentTemplatesValid({bad:{...locked,vary:[{bpm:100}]}}),/length determinants/);
+  assert.throws(()=>assertSegmentTemplatesValid({bad:{...locked,role:'not-a-role'}}),/unknown role/);
+  assert.throws(()=>assertSegmentTemplatesValid({bad:{...locked,style:null,paletteLock:false,base:{...locked.base,scale:'whole_tone',progression:'12_bar_blues',chordOverride:'auto'},vary:[{}]}}),/no-row-scale gate/);
+  assert.doesNotThrow(()=>assertSegmentTemplatesValid({safe:{...locked,style:null,paletteLock:false,base:{...locked.base,scale:'whole_tone',progression:'static_i',chordOverride:'auto'},vary:[{}]}}));
+  assert.doesNotThrow(()=>assertSegmentTemplatesValid({safe:{...locked,style:null,paletteLock:false,base:{...locked.base,scale:'whole_tone',progression:'12_bar_blues',chordOverride:'dom7'},vary:[{}]}}));
 });
 
 test('authored and generated Markdown practices become playable Workout segments',()=>{

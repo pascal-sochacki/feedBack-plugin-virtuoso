@@ -263,11 +263,12 @@ export function validatePractice(value) {
   if (typeof practice.prose !== 'string' || practice.prose.length > 65536) throw new Error('Invalid practice prose');
   let variants;
   if (practice.block !== undefined) {
-    const block = object(practice.block); keys(block, ['role','label','competency','band','instrument','style','kind','base','vary']);
+    const block = object(practice.block); keys(block, ['role','label','competency','band','instrument','style','paletteLock','kind','base','vary']);
     if (!['warmup','technique','scale_arp','application','jam','review','cooldown'].includes(block.role) || !['beginner','intermediate','advanced'].includes(block.band) || block.instrument !== practice.instrument || typeof block.kind !== 'string' || typeof block.label !== 'string' || typeof block.competency !== 'string') throw new Error('Invalid workout block metadata');
     const base = object(block.base); keys(base, PATHWAY_CONFIG_KEYS);
     if (base.stringSetup && !['guitar_6_standard','bass_4_standard','bass_5_standard','guitar_7_standard','guitar_8_standard'].includes(base.stringSetup)) throw new Error('Unsupported workout block setup');
     if (!Array.isArray(block.vary) || !block.vary.length) throw new Error('Workout block requires variants');
+    if (block.paletteLock !== undefined && typeof block.paletteLock !== 'boolean') throw new Error('Invalid workout palette lock');
     block.vary.forEach(raw => { keys(object(raw), PATHWAY_CONFIG_KEYS); });
     if (practice.pathway !== undefined || practice.variants !== undefined) throw new Error('Workout block cannot also define a practice chart');
   } else if (practice.variants !== undefined) {

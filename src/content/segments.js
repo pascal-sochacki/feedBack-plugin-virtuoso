@@ -5,7 +5,7 @@ import { PRACTICE_BLOCKS } from './practice-blocks.js';
 /** @type {Record<string, import('../core/session-types.js').SegmentTemplate>} */
 export const SEGMENT_TEMPLATES = Object.fromEntries(Object.entries(PRACTICE_BLOCKS).map(([id, practice]) => [id, {
   id, role:practice.role, label:practice.label, competency:practice.competency, band:practice.band,
-  instrument:practice.instrument, style:practice.style || null, kind:practice.kind,
+  instrument:practice.instrument, style:practice.style || null, paletteLock:practice.paletteLock === true, kind:practice.kind,
   base:practice.base, vary:practice.vary, practiceId:id, metadata:practice.metadata,
 }]));
 

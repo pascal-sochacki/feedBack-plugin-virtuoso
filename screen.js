@@ -2,7 +2,7 @@ import { DRUMKIT_BANKS, KIT_REGISTRY, TONE_GM, BJ_KCS, SAMPLED_DRUM_NOTES, drumF
 import { createRunTransport } from './src/shell/run-transport.js';
 import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell/renderers/host-factories.js';
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
-import { SEGMENT_TEMPLATES, SEGMENT_ROLES, SEGMENT_BANDS } from './src/content/segments.js';
+import { SEGMENT_TEMPLATES, SEGMENT_ROLES } from './src/content/segments.js';
 import { PRACTICE_BLOCKS } from './src/content/practice-blocks.js';
 import { stylePaletteConfig } from './src/core/config-defaults.js';
 import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
@@ -54,10 +54,8 @@ import {} from './src/core/builders/arpeggio.js';
 import { NOTE_NAMES, NOTE_ALIASES, pcName, midiToFreq } from './src/core/pitch.js';
 import { SCALE_INTERVALS } from './src/core/scale-intervals.js';
 import { CAGED_SHAPES, CAGED_CYCLE, THREE_NPS_POSITION_DEFS, THREE_NPS_CYCLE, openPcForString, pcOfDegree, degreeOfPc, resolveCAGEDShape, resolveThreeNPSPosition, resolveOpenShape, isOpenSystemSensible, fretWindowForShape, shapeOrderForKey, nextShapeInCycle, isShapeAwareSystem, defaultShapeForSystem } from './src/core/fretboard-shapes.js';
-import { DIATONIC_QUALITIES } from './src/core/chord-theory.js';
 import { RHYTHM_CELLS, parseMeter, secondsPerDivision, measureSeconds } from './src/core/timing.js';
 import {} from './src/core/notes.js';
-import { applyEconomyPicking, applyGypsyPicking, applyMetalPicking, applyBassPlucking } from './src/core/stroke-policy.js';
 import { CHROMATIC_PATTERN_LABELS } from './src/core/builders/chromatic.js';
 import {} from './src/core/practice-files.js';
 import { PATHWAYS } from './src/content/pathways.js';
@@ -1257,63 +1255,15 @@ import { el as domEl } from './src/shell/dom.js';
   //                       no easier variant exists to "spin for".
   //   2. Length-locked  — a vary delta may NOT carry bpm or targetSec (the Climb
   //                       axis owns difficulty/length); refresh varies CONTENT.
-  //   3. Style-locked   — when a template names a `style`, progression + scale are
-  //                       drawn from STYLE_PALETTES, so a blues slot can't re-roll
-  //                       into I-IV-V pop. A vary delta may only name in-palette
-  //                       progression/scale values.
+  //   3. Palette-locked — only templates explicitly marked paletteLock=true use the
+  //                       style palette as a configuration floor. Genre labels alone
+  //                       describe musical context; authored block configs win.
   //   4. No-row gate    — an exotic/symmetric scale (no DIATONIC_QUALITIES row) may
   //                       only appear over a single-chord backing OR a forced
   //                       chordOverride (else its non-tonic chords fall to a bare
   //                       major triad).
-  // validateSegmentTemplates() (mirroring the no-unison + style-palette guards)
-  // enforces 1–4 over every variant of every template at load; smoke-variation.mjs
-  // does the full roll+build behavioural check. See project memory
-  // project_segment_library_and_refresh + the four agent-memory charette specs.
-  // Backings over which a no-DIATONIC_QUALITIES-row scale is harmonically safe
-  // (only the tonic quality matters): a single sustained chord area.
-  const SINGLE_CHORD_BACKINGS = new Set(['static_i','none']);
-  // No-row scales that are nonetheless SAFE over a multi-chord backing: common lead
-  // scales (pentatonics / blues / bebop) whose chord derivation maps cleanly through
-  // a FUNCTIONAL PARENT (major / minor / dominant) via the functional-root fix — they
-  // aren't the exotic/symmetric case the no-row gate targets. Exempt them so a
-  // pentatonic/blues lead over a progression isn't false-flagged.
-  const GATE_EXEMPT_SCALES = new Set(['minor_pentatonic','major_pentatonic','blues','bebop_major','bebop_dominant']);
-  /** @param {string | null | undefined} scale */
-  function scaleHasQualityRow(scale){ return !!(scale && DIATONIC_QUALITIES && DIATONIC_QUALITIES[scale]); }
-  /** @param {string} kind @param {string | undefined} progression */
-  function isSingleChordBacking(kind, progression){
-    return kind === 'modal_vamp' || !progression || progression === 'none' || SINGLE_CHORD_BACKINGS.has(progression);
-  }
-
-  // Passive templates/materialization are imported; the cross-product transposition
-  // and generated-outcome validation remains here because it exercises resolution.
-  // injects each template's id, then enforces the four refresh invariants over every
-  // variant of every template — throws on load if an authored template violates one.
-  (function validateSegmentTemplates() {
-    for (const id of Object.keys(SEGMENT_TEMPLATES)) {
-      const t = SEGMENT_TEMPLATES[id];
-      t.id = id;
-      if (!SEGMENT_ROLES[t.role])         throw new Error(`[Virtuoso segment-template] ${id} has unknown role "${t.role}"`);
-      if (!SEGMENT_BANDS.includes(t.band)) throw new Error(`[Virtuoso segment-template] ${id} has unknown band "${t.band}"`);
-      if (!t.kind || typeof t.kind !== 'string') throw new Error(`[Virtuoso segment-template] ${id} has no kind`);
-      if (t.style && !STYLE_PALETTES[t.style]) throw new Error(`[Virtuoso segment-template] ${id} references unknown style "${t.style}"`);
-      const vary = (t.vary && t.vary.length) ? t.vary : [{}];
-      for (const d of vary) {
-        for (const lk of ['bpm','targetSec','meter','bars']) if (lk in d) throw new Error(`[Virtuoso segment-template] ${id} vary delta sets ${lk} — length determinants (bpm/targetSec/meter/bars) must be held across variants`);
-        if (t.style) {
-          const pal = STYLE_PALETTES[t.style];
-          if (d.progression && !pal.progressions.includes(d.progression)) throw new Error(`[Virtuoso segment-template] ${id} vary progression "${d.progression}" is not in the ${t.style} palette (style-lock)`);
-          if (d.scale && !pal.leadScales.includes(d.scale))               throw new Error(`[Virtuoso segment-template] ${id} vary scale "${d.scale}" is not in the ${t.style} palette (style-lock)`);
-        }
-      }
-      for (let i = 0; i < vary.length; i++) {
-        const c = rollSegment(t, { variantIdx:i }).config;
-        const forcedChord = c.chordOverride && c.chordOverride !== 'auto';
-        if (c.scale && !scaleHasQualityRow(c.scale) && !GATE_EXEMPT_SCALES.has(c.scale) && !isSingleChordBacking(t.kind, c.progression) && !forcedChord)
-          throw new Error(`[Virtuoso segment-template] ${id} variant ${i}: exotic scale "${c.scale}" over multi-chord backing "${c.progression}" with auto chords (no-row-scale gate)`);
-      }
-    }
-  })();
+  // Catalog invariants are exercised exhaustively by tests/static-data.mjs and
+  // tests/practice-workout-content.mjs; runtime resolution still validates configs.
 
   // ── Practice-type applicability (the ternary offerable() tag) ───────────────
   // ONE predicate for "is this practice type offered on this instrument", with a
@@ -1803,34 +1753,6 @@ import { el as domEl } from './src/shell/dom.js';
     return true;
   }
 
-  // Startup guard (no-unison pattern; the roundtable's per-policy asserts): run
-  // each school over a tiny synthetic crossing run and throw if its defining
-  // invariant breaks — a silently wrong stroke mark teaches a wrong habit,
-  // worse than no mark at all.
-  (function strokePolicyGuard() {
-    /** @param {Partial<import('./src/core/notes.js').Note>} [extra] */
-    const mk = (extra) => [
-      { t: 0.00, s: 0, f: 5 }, { t: 0.25, s: 0, f: 7 }, { t: 0.50, s: 1, f: 5 },
-      { t: 0.75, s: 1, f: 7 }, { t: 1.00, s: 0, f: 7 }, { t: 1.25, s: 0, f: 5 },
-    ].map(n => Object.assign(n, extra || {}));
-    const cfg = { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'eighth' };
-    const eco = applyEconomyPicking(mk(), cfg);
-    if (eco[2].pkd !== 0 || eco[4].pkd !== 1) throw new Error('[Virtuoso stroke-policy] economy crossing must continue the travel direction');
-    const gy = applyGypsyPicking(mk(), cfg);
-    for (let i = 1; i < gy.length; i++) if (gy[i].pkd === 1 && gy[i].s !== gy[i - 1].s) throw new Error('[Virtuoso stroke-policy] gypsy upstroke off the previous string');
-    const mt = applyMetalPicking(mk({ pm: true }), cfg);
-    if (mt.some(n => n.pkd !== 0)) throw new Error('[Virtuoso stroke-policy] metal palm-muted eighths under the ceiling must be all-down');
-    const mtHi = applyMetalPicking(mk({ pm: true }), Object.assign({}, cfg, { bpm: 200 }));
-    if (!mtHi.some(n => n.pkd === 1)) throw new Error('[Virtuoso stroke-policy] metal above the ceiling must flip to alternate');
-    // Bass plucking: ghosts COUNT in parity; a descending adjacent-string 16th
-    // crossing rakes (same finger) instead of alternating.
-    const bp = applyBassPlucking(/** @type {import('./src/core/notes.js').Note[]} */ ([
-      { t: 0.00, s: 1, f: 5 }, { t: 0.25, s: 1, f: 7 },
-      { t: 0.50, s: 1, f: 5, mt: true }, { t: 0.75, s: 0, f: 5 },
-    ]), { bpm: 120, meter: { numerator: 4, denominator: 4 }, subdivision: 'sixteenth' });
-    if (bp[2].rh !== 1) throw new Error('[Virtuoso stroke-policy] bass ghost must count in i-m parity');
-    if (bp[3].rh !== bp[2].rh) throw new Error('[Virtuoso stroke-policy] bass descending adjacent-string 16th crossing must rake (same finger)');
-  })();
   // Count-in grid preview (rhythm-meter spec 2026-06-12): how many sub-ticks per
   // felt beat the COUNT-IN previews for this exercise — the underlying uniform
   // grid, never the cell's onsets (a gallop previews its eighth floor; skip/snap
@@ -1846,54 +1768,6 @@ import { el as domEl } from './src/shell/dom.js';
   /** @type {Record<string, string>} */
   const FUNCTION_HUE = { tonic: '#3b82f6', subdominant: '#06b6d4', dominant: '#f59e0b' };
   function isJamMode() { const r = $('virtuoso_lab-root'); return !!(r && (r.classList.contains('virtuoso_lab_vir-mode-jam') || r.classList.contains('virtuoso_lab-jam-mode'))); }
-  // Startup integrity guard (mirrors assertRhythmCellsValid / assertStrumGripsValid
-  // / the no-unison guard — throws at load so a mis-authored cell never ships):
-  // schema sanity + bar-sum, the v1-limit fences, then the TRANSPOSITION SWEEP —
-  // every cell must resolve in all 12 keys with at least one 6-fret position
-  // window whose resolved span fits maxSpan, and a `changes` cell's final step
-  // must land on a pc of the resolving chord (the device actually resolves).
-  (function assertMotifCellsValid() {
-    const opens = [40, 45, 50, 55, 59, 64];   // standard 6-string proof rig (cells are tuning-relative)
-    const KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
-    const BN_OK = new Set([0, 0.25, 0.5, 1, 1.5, 2]);
-    for (const [id, cell] of Object.entries(MOTIF_CELLS)) {
-      /** @param {string} [k] */
-      const tag = (k) => `[Virtuoso motif-cell] ${id}${k ? ' @ ' + k : ''}`;
-      if (cell.bars !== 1 && cell.bars !== 2) throw new Error(`${tag()}: bars must be 1 or 2`);
-      if (cell.pickup) throw new Error(`${tag()}: pickup/anacrusis is not supported yet (D4 — batch 2)`);
-      if (cell.harmonyInterval) throw new Error(`${tag()}: harmonyInterval lands with the twin-lead slice`);
-      const sum = (cell.steps || []).reduce((a, s) => a + (Number(s.d) || 0), 0);
-      if (Math.abs(sum - cell.bars * 4) > 1e-6) throw new Error(`${tag()}: steps sum to ${sum} beats — must equal ${cell.bars * 4} (4/4 v1)`);
-      for (const s of cell.steps) {
-        if (s.deg == null && s.chr == null && s.a !== 'target') throw new Error(`${tag()}: a step needs deg, chr, or a:'target'`);
-        if (s.bn != null && !BN_OK.has(s.bn)) throw new Error(`${tag()}: bn ${s.bn} not in {0,0.25,0.5,1,1.5,2}`);
-        if (s.bt != null && !(s.bt >= 0 && s.bt <= 4)) throw new Error(`${tag()}: bt ${s.bt} out of range 0-4`);
-      }
-      for (const key of KEYS) {
-        const cfg = { key, scale: cell.scale, bpm: 80, bars: cell.bars,
-          meter: { numerator: 4, denominator: 4, grouping: [4] },
-          progression: cell.prog || 'static_i', chordDepth: 'triad', chordOverride: 'auto',
-          stringSetup: 'guitar_6_standard' };
-        let ok = false, lastErr = null;
-        for (let w = 0; w <= 10 && !ok; w++) {       // the sliding position windows the drill will use
-          let r;
-          try { r = resolveMotifCell(cell, cfg, opens, w, w + 5); } catch (e) { lastErr = e; continue; }
-          const frets = [];
-          for (const p of r.placed) { frets.push(p.f); for (const q of p.stack) frets.push(q.f); }
-          if (Math.max.apply(null, frets) - Math.min.apply(null, frets) > (cell.maxSpan || 4)) continue;
-          if (cell.bind === 'changes') {
-            const lastP = r.placed[r.placed.length - 1];
-            const ev = r.events.find(e => lastP.beat >= e.startBeat - 1e-6 && lastP.beat < e.startBeat + e.durBeats - 1e-6) || r.events[r.events.length - 1];
-            const pc = ((lastP.midi % 12) + 12) % 12;
-            if (!ev.cpcs.includes(pc)) throw new Error(`${tag(key)}: resolution lands pc ${pc} outside the resolving ${ev.name} (cpcs ${ev.cpcs.join(',')})`);
-          }
-          ok = true;
-        }
-        if (!ok) throw new Error(`${tag(key)}: no 6-fret position window resolves within maxSpan ${cell.maxSpan || 4}${lastErr ? ' — ' + (/** @type {Error} */ (lastErr)).message : ''}`);
-      }
-    }
-  })();
-
   // Startup guard (mirrors assertNoUnison): every STRUM_GRIPS grip, at several
   // frets, must voice ONLY chord tones of its CHORD_FORMULAS stack (subset — a
   // voicing may omit the 5th/9th), include the root + 3rd/♭3 + 7th + the headline
