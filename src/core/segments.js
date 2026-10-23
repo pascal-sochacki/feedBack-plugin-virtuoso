@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { SEGMENT_TEMPLATES } from '../content/segments.js';
+import { PRACTICE_BLOCKS } from '../content/practice-blocks.js';
+import { practiceWorkoutSegment } from './practice-files.js';
 import { stylePaletteConfig } from './config-defaults.js';
 import { parseMeter } from './timing.js';
 /** @overload @param {import('./session-types.js').SegmentTemplate} template @param {{variantIdx?: number, locks?: Record<string, boolean>}} [opts] @returns {import('./session-types.js').Segment & {config: import('./session-types.js').SegmentConfig}} */
@@ -46,11 +48,11 @@ export function refreshWorkout(session, opts) {
   opts = opts || {};
   const scope = (opts.scope == null) ? 'all' : opts.scope;
   const segs = (session.segments || []).map((seg, i) => {
-    const isRef = !!(seg && seg.templateId && !seg.kind);
+    const isRef = !!(seg && ((seg.templateId && !seg.kind) || seg.practiceId));
     if (!isRef) return seg;
     const hit = scope === 'all' || scope === seg.id || scope === i;
     if (!hit) return seg;
-    const tmpl = SEGMENT_TEMPLATES[/** @type {string} */ (seg.templateId)];
+    const tmpl = PRACTICE_BLOCKS[/** @type {string} */ (seg.practiceId)] || SEGMENT_TEMPLATES[/** @type {string} */ (seg.templateId)];
     const n = (tmpl && tmpl.vary && tmpl.vary.length) || 1;
     if (n <= 1) return seg;
     return Object.assign({}, seg, { variantIdx: (((/** @type {number} */ (seg.variantIdx) | 0) + 1) % n) });
@@ -58,13 +60,45 @@ export function refreshWorkout(session, opts) {
   return Object.assign({}, session, { segments: segs });
 }
 
-/** @param {import('./session-types.js').Segment | undefined} rawSeg */
-export function materializeSegment(rawSeg) {
-  if (!(rawSeg && rawSeg.templateId && !rawSeg.kind)) return rawSeg;
+/** @param {import('./session-types.js').Segment | undefined} rawSeg @param {{stringSetup?: string}} [options] @returns {import('./session-types.js').Segment | null} */
+export function materializeSegment(rawSeg, options = {}) {
+  const setup = options.stringSetup || rawSeg?.stringSetup || 'guitar_6_standard';
+  const instrument = setup.startsWith('bass_') ? 'bass' : 'guitar';
+  const enforceInstrument = !!(options.stringSetup || rawSeg?.stringSetup);
+  if (rawSeg?.practiceId && rawSeg.practiceFile) {
+    const applicability = rawSeg.practiceFile.applicability || [rawSeg.practiceFile.instrument];
+    if (enforceInstrument && !applicability.includes(instrument)) throw new Error(`Practice “${rawSeg.practiceFile.title}” is not applicable to ${setup}`);
+    return { ...rawSeg, config:{...(rawSeg.config || {})} };
+  }
+  if (rawSeg?.practiceId && PRACTICE_BLOCKS[rawSeg.practiceId]) {
+    const practice = PRACTICE_BLOCKS[rawSeg.practiceId], index = ((((rawSeg.variantIdx ?? 0) | 0) % practice.vary.length) + practice.vary.length) % practice.vary.length;
+    if ((enforceInstrument && !practice.metadata.applicability?.includes(instrument)) ||
+        (enforceInstrument && practice.metadata.standardOnly && !['guitar_6_standard','guitar_7_standard','guitar_8_standard'].includes(setup))) {
+      throw new Error(`Practice block “${practice.label}” is not applicable to ${setup}`);
+    }
+    if (practice.practice.block === undefined && practice.practice.variants) {
+      const selected = practiceWorkoutSegment(practice.practice, index);
+      return {...selected,...rawSeg,practicePath:practice.practicePath,practiceFilePath:practice.practicePath,config:{...selected.config,...(rawSeg.config || {}),bpm:rawSeg.bpm ?? selected.config.bpm}};
+    }
+    if (practice.practice.block === undefined) {
+      const selected = practiceWorkoutSegment(practice.practice,index);
+      return {...selected, ...rawSeg,practicePath:practice.practicePath,practiceFilePath:practice.practicePath, config:{...selected.config,practiceFilePath:practice.practicePath,...(rawSeg.config || {}),bpm:rawSeg.bpm ?? selected.config.bpm}};
+    }
+    return {id:rawSeg.id || practice.id,name:rawSeg.name || practice.label,kind:practice.kind,role:practice.role,practiceId:practice.id,variantIdx:index,
+      config:{...practice.base,...practice.vary[index],...(rawSeg.config || {}),bpm:rawSeg.bpm ?? rawSeg.config?.bpm ?? practice.base.bpm ?? 80,...(practice.practice.variants ? {practiceFile:practice.practice} : {})},
+      ...(practice.practice.variants ? {practiceFile:practice.practice} : {}),practicePath:practice.practicePath,practiceFilePath:practice.practicePath};
+  }
+  if (rawSeg?.practiceId && !rawSeg.practiceFile) throw new Error(`Unknown practice block: ${rawSeg.practiceId}`);
+  if (!(rawSeg && rawSeg.templateId && !rawSeg.kind)) return rawSeg || null;
   const tmpl = SEGMENT_TEMPLATES[rawSeg.templateId];
   if (!tmpl) return null;
+  if (enforceInstrument && tmpl.metadata?.applicability && !tmpl.metadata.applicability.includes(instrument)) {
+    throw new Error(`Practice block “${tmpl.label || tmpl.id}” is not applicable to ${setup}`);
+  }
   const seg = rollSegment(tmpl, { variantIdx: rawSeg.variantIdx, locks: rawSeg.locks });
+  if (!seg) return null;
   if (rawSeg.name) seg.name = rawSeg.name;
+  if (rawSeg.bpm != null) seg.config.bpm = rawSeg.bpm;
   if (rawSeg.bpmLadder) seg.bpmLadder = rawSeg.bpmLadder;
   if (rawSeg.keyCycle) seg.keyCycle = rawSeg.keyCycle;
   if (rawSeg.targetSec != null) seg.targetSec = rawSeg.targetSec;

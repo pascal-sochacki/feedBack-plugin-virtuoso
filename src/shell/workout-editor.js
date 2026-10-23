@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import { BUILT_IN_SESSIONS } from '../content/workouts.js';
 import { SEGMENT_TEMPLATES } from '../content/segments.js';
+import { PRACTICE_BLOCKS } from '../content/practice-blocks.js';
 import { materializeSegment, segmentEstDuration, refreshWorkout } from '../core/segments.js';
 import { lengthPresetSec } from '../core/workout-length.js';
 import { materializeWorkoutConfig } from '../core/workout-config.js';
@@ -14,7 +15,12 @@ const $ = id => document.getElementById(id);
 /** @param {Event} event */
 const target = event => /** @type {HTMLElement | null} */ (event.target);
 /** @param {WorkoutDraft | null} session */
-const hasRefs = session => !!(session && (session.segments || []).some(s => s && s.templateId && !s.kind));
+const hasRefs = session => !!(session && (session.segments || []).some(s => {
+  if (!s || (!(s.templateId && !s.kind) && !s.practiceId)) return false;
+  const templateId = s.templateId;
+  const template = s.practiceId ? PRACTICE_BLOCKS[s.practiceId] : templateId ? SEGMENT_TEMPLATES[templateId] : null;
+  return (template?.vary?.length || 0) > 1;
+}));
 
 /**
  * Drafts survive visits; DOM listeners do not. Preview is the only transport edge.
@@ -85,8 +91,9 @@ export function createWorkoutEditor(preview) {
     }
     if (cfg.bpm) parts.push(`${cfg.bpm} BPM`);
     if (cfg.bars) parts.push(`${cfg.bars} bars`);
+    if (seg.applicabilityError) parts.push(seg.applicabilityError);
     parts.push(durStr);
-    const tmpl = seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
+    const tmpl = seg.practiceId ? PRACTICE_BLOCKS[seg.practiceId] : seg.templateId ? SEGMENT_TEMPLATES[seg.templateId] : null;
     const canReroll = !!(tmpl && tmpl.vary && tmpl.vary.length > 1);
     const canRemove = (draft?.segments || []).length > 1;
     return el('div', {className:'virtuoso_lab-segment-card', dataset:{kind:seg.kind || '', segIndex:index}, draggable:true, title:'Drag to reorder · click to preview from here'},
@@ -97,6 +104,7 @@ export function createWorkoutEditor(preview) {
         el('button', {type:'button', className:'virtuoso_lab-segment-menu-btn', dataset:{act:'menu'}, 'aria-label':'Block actions', title:'Block actions'}, '⋯')
       ),
       el('div', {className:'virtuoso_lab-segment-meta'}, parts.join(' · ')),
+      el('label', {className:'virtuoso_lab-segment-bpm'}, 'BPM ', el('input', {type:'number', min:30, max:260, step:1, value:cfg.bpm || 80, dataset:{bpmIndex:index}, 'aria-label':`Block ${index + 1} tempo`})),
       el('div', {className:'virtuoso_lab-segment-actions', hidden:true},
         el('button', {type:'button', dataset:{act:'dup'}, title:'Add a copy of this block below'}, 'Duplicate'),
         el('button', {type:'button', dataset:{act:'reroll'}, disabled:!canReroll, title:canReroll ? 'Re-roll just this block into a fresh variation' : 'This block has no variations to re-roll'}, '↻ Re-roll'),
@@ -110,7 +118,13 @@ export function createWorkoutEditor(preview) {
     if (!info || !list) return;
     if (!session) { info.replaceChildren(); list.replaceChildren(); return; }
     // Raw indexes must survive unresolved refs so edit actions still address the draft.
-    const materialized = (session.segments || []).map(materializeSegment);
+    const materialized = (session.segments || []).map(segment => {
+      try { return materializeSegment(segment,{stringSetup:session.stringSetup}); }
+      catch (error) {
+        return {...segment,kind:'unavailable',name:segment.name || segment.practiceId || segment.templateId || 'Workout block',
+          config:{},applicabilityError:error instanceof Error ? error.message : String(error)};
+      }
+    });
     const displaySegs = materialized.filter(isSegment);
     const totalDur = displaySegs.reduce((s, seg) => s + segmentEstDuration(seg), 0);
     const bpms = displaySegs.map(s => s.config?.bpm).filter(isBpm);
@@ -181,8 +195,9 @@ export function createWorkoutEditor(preview) {
     if (!draft || !hasRefs(draft)) return;
     if (scope !== 'all') {
       const seg = draft.segments?.[scope];
-      if (!(seg && seg.templateId && !seg.kind)) return;
-      const tmpl = SEGMENT_TEMPLATES[seg.templateId];
+      if (!(seg && ((seg.templateId && !seg.kind) || seg.practiceId))) return;
+      const templateId = seg.templateId;
+      const tmpl = seg.practiceId ? PRACTICE_BLOCKS[seg.practiceId] : templateId ? SEGMENT_TEMPLATES[templateId] : null;
       if (!tmpl?.vary || tmpl.vary.length <= 1) return;
     }
     const before = JSON.parse(JSON.stringify(draft));
@@ -192,12 +207,17 @@ export function createWorkoutEditor(preview) {
   /** @param {string} templateId @param {number | null} [atIndex] */
   function add(templateId, atIndex) {
     if (!SEGMENT_TEMPLATES[templateId] || !draft) return;
-    const ref = {id:templateId + '__add' + Date.now().toString(36).slice(-3),templateId,variantIdx:0};
+    const practiceId = PRACTICE_BLOCKS[templateId] ? templateId : undefined;
+    const ref = practiceId
+      ? {id:templateId + '__add' + Date.now().toString(36).slice(-3),practiceId,variantIdx:0}
+      : {id:templateId + '__add' + Date.now().toString(36).slice(-3),templateId,variantIdx:0};
     const segs = draft.segments || (draft.segments = []);
     if (atIndex == null || atIndex < 0 || atIndex >= segs.length) segs.push(ref);
     else segs.splice(atIndex + 1, 0, ref);
     edited();
   }
+  /** @param {string} id @param {number | null} [atIndex] */
+  function addPractice(id, atIndex) { add(id, atIndex); }
   /** @param {HTMLElement} card */
   function toggleMenu(card) {
     const list = $('virtuoso_lab-segment-list'); if (!list) return;
@@ -242,6 +262,7 @@ export function createWorkoutEditor(preview) {
     }
     on('virtuoso_lab-segment-list','click', async e => {
       const card = target(e)?.closest('.virtuoso_lab-segment-card'); if (!card) return;
+      if (target(e)?.closest('[data-bpm-index]')) return;
       const i = parseInt(/** @type {HTMLElement} */ (card).dataset.segIndex || '',10);
       const ctl = /** @type {HTMLButtonElement | null} */ (target(e)?.closest('[data-act]'));
       if (!ctl) { await preview(i); return; }
@@ -249,6 +270,15 @@ export function createWorkoutEditor(preview) {
       else if (ctl.dataset.act === 'dup') duplicate(i);
       else if (ctl.dataset.act === 'reroll' && !ctl.disabled) reroll(i);
       else if (ctl.dataset.act === 'remove' && !ctl.disabled) remove(i);
+    });
+    on('virtuoso_lab-segment-list','change', e => {
+      const input = target(e)?.closest('[data-bpm-index]'); if (!(input instanceof HTMLInputElement)) return;
+      const index = Number(input.dataset.bpmIndex), bpm = Number(input.value), segment = draft?.segments?.[index];
+      if (!segment || !Number.isInteger(bpm) || bpm < 30 || bpm > 260) return;
+      if (segment.practiceId) segment.bpm = bpm;
+      else if (segment.config) segment.config.bpm = bpm;
+      else segment.bpm = bpm;
+      edited();
     });
     on('virtuoso_lab-segment-list','dragstart',e => {
       const card = target(e)?.closest('.virtuoso_lab-segment-card'); if (!card) return;
@@ -283,7 +313,7 @@ export function createWorkoutEditor(preview) {
     if (!draft || draftId !== id) { draft = cloneStarter(id); draftId = id; }
     return materializeWorkoutConfig(draft || base,options);
   }
-  return {get draft() {return draft;},get selectedId() {return selectedId;},get dirty() {return dirty;},select,replace,render,add,mount,unmount,launchConfig};
+  return {get draft() {return draft;},get selectedId() {return selectedId;},get dirty() {return dirty;},select,replace,render,add,addPractice,mount,unmount,launchConfig};
 }
 
 /** @param {Segment | null | undefined} seg @returns {seg is Segment} */
@@ -306,10 +336,10 @@ function describeRefreshDiff(before, after) {
   /** @param {unknown} s */
   const pretty = s => String(s).replace(/_/g, ' ');
   for (let i = 0; i < Math.min(a.length,b.length); i++) {
-    if (!a[i] || !a[i].templateId || a[i].kind) continue;
+    if (!a[i] || (!(a[i].templateId && !a[i].kind) && !a[i].practiceId)) continue;
     if ((/** @type {number} */ (a[i].variantIdx) | 0) === (/** @type {number} */ (b[i].variantIdx) | 0)) continue;
-    const ca = materializeSegment(a[i])?.config || {}, cb = materializeSegment(b[i])?.config || {};
-    const tmpl = SEGMENT_TEMPLATES[/** @type {string} */ (a[i].templateId)];
+    const ca = materializeSegment(a[i],{stringSetup:before.stringSetup})?.config || {}, cb = materializeSegment(b[i],{stringSetup:after.stringSetup})?.config || {};
+    const tmpl = PRACTICE_BLOCKS[/** @type {string} */ (a[i].practiceId)] || SEGMENT_TEMPLATES[/** @type {string} */ (a[i].templateId)];
     const label = tmpl?.label || a[i].id || `Block ${i + 1}`;
     const parts = [];
     if (cb.key && ca.key !== cb.key) parts.push(`key ${ca.key || '?'}→${cb.key}`);

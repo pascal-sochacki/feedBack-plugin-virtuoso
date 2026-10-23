@@ -11,6 +11,7 @@ import { swingNotesBacking } from './feel.js';
 import { compileChordTimeline, appendTimelineOffset } from './chord-timeline.js';
 import { blockTargetSec, fillBlockToDuration } from './chart-tiling.js';
 import { appendCountInBeats } from './count-in.js';
+import { buildPracticeFileExercise } from './practice-files.js';
 /** @param {import('./generation-types.js').GenerationConfig} segCfg @param {import('./session-types.js').BpmLadder} ladder @returns {import('./generation-types.js').Chart} */
 export function buildBpmLadderChart(segCfg, ladder) {
   const { bpmStart, bpmTarget, bpmStep, repsPerStep = 1 } = /** @type {Required<Pick<import('./session-types.js').BpmLadder, 'bpmStart' | 'bpmTarget' | 'bpmStep'>> & {repsPerStep?: number}} */ (ladder);
@@ -107,9 +108,11 @@ export function buildSessionChart(session) {
   for (const rawSeg of (session.segments || [])) {
     // Template-ref slots ({ templateId, variantIdx, locks }) materialise through
     // the variation engine; inline segments ({ kind, config }) pass through. An
-    // unknown templateId is skipped (validateSegmentTemplates catches authored ones).
-    const segment = materializeSegment(rawSeg);
-    if (!segment) continue;                                 // unknown templateId — skip
+    // Unknown template IDs are invalid authored references and cannot produce a chart.
+    /** @type {import('./session-types.js').Segment | null} */
+    const segment = materializeSegment(rawSeg,{stringSetup:session.stringSetup});
+    const practiceSegment = segment?.practiceId && segment.practiceFile ? segment : null;
+    if (!segment) throw new Error(`Unknown workout block: ${rawSeg?.templateId || rawSeg?.practiceId || 'unknown'}`);
     const segCfg = buildSegmentConfig(segment, session);
     if (!firstCfg) firstCfg = segCfg;   // captured for the loop-wrap break (block-N → block-1 re-entry)
     // Inter-block break: a count-in for THIS (incoming) block so the prior block
@@ -144,7 +147,11 @@ export function buildSessionChart(session) {
     } else if (keyCycleStrategy) {
       chart = buildKeyCycleChart(Object.assign({}, segCfg, { keyCycle:keyCycleStrategy, keyCycleLength:keyCycleLen }));
     } else {
-      chart = buildSingleChart(segCfg);
+      chart = practiceSegment
+        ? buildPracticeFileExercise({...segCfg,...segment.config,practiceFile:segment.practiceFile}).chart
+        : segment.config?.practiceFile && (segment.config.practicePathwayId || /** @type {import('./practice-files.js').Practice} */ (segment.config.practiceFile).variants)
+          ? buildPracticeFileExercise({...segCfg,...segment.config}).chart
+          : buildSingleChart(segCfg);
     }
 
     // Workout block: if the block declares a target wall-clock duration, fill it
@@ -206,7 +213,7 @@ export function buildSessionChart(session) {
     const blkBar = measureSeconds(segCfg);
     segmentBounds.push({ name:segment.name, kind:segment.kind, role:(blockRole(segment) || segment.role || null),
       competency:segmentCompetency(rawSeg, segment),
-      templateId:(rawSeg.templateId || null), variantIdx:(rawSeg.variantIdx != null ? rawSeg.variantIdx : null),
+      templateId:(rawSeg.templateId || rawSeg.practiceId || null), variantIdx:(rawSeg.variantIdx != null ? rawSeg.variantIdx : null),
       added:!!rawSeg._added, key:(segCfg.key || null), bpm:(segCfg.bpm || null),
       barSec:Number(blkBar.toFixed(6)),   // the block's own bar length — the per-block felt verdict's span unit
       start:Number(t.toFixed(6)), end:Number((t + dur).toFixed(6)) });

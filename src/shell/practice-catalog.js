@@ -82,7 +82,7 @@ export function catalogPathwaySelection(entry, variationIndex, tierIndex) {
     if (entry.tempoTierBars?.[tierIndex] != null) selected.bars = entry.tempoTierBars[tierIndex];
     return selected;
   }
-  const practice = entry.practiceFile, pathway = practice.pathway;
+  const practice = entry.practiceFile, pathway = /** @type {import('../core/practice-files.js').PracticePathway & {base:Record<string, unknown>, variations:{id:string, config:Record<string, unknown>, charts:string[]}[], tiers:{bpm:number, subdivision:string, bars:number}[]}} */ (practice.pathway);
   if (!pathway) throw new Error('Missing pathway metadata');
   const variation = pathway.variations[variationIndex], tier = pathway.tiers[tierIndex];
   if (!variation || !tier) throw new Error('Unknown pathway variation or tier');
@@ -105,12 +105,12 @@ export function catalogPathwayConfig(entry, variationIndex, tierIndex, preferenc
 export function displayPracticeCatalog(state, pathways, defaultId, select, picker, load, createOption) {
   if (select) {
     select.replaceChildren();
-    for (const item of state?.entries.filter(item => item.use === 'custom') || []) {
+    for (const item of state?.entries || []) {
       const option = createOption(); option.value = item.id; option.textContent = item.title;
       select.appendChild(option);
     }
   }
-  if (load) /** @type {HTMLButtonElement} */ (load).disabled = !state?.entries.length;
+  if (load) { /** @type {HTMLButtonElement} */ (load).disabled = !state?.entries.length; load.hidden = true; }
   const option = picker && Array.from(picker.options).find(item => item.value === defaultId);
   if (!option) return;
   option.disabled = !pathways[defaultId];

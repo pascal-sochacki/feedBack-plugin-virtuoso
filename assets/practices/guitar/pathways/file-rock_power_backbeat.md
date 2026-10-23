@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 100
+genre: rock
+skill: intermediate
+applicability: guitar
 ---
 
 Generated pathway definition; notes are produced by the existing strum_comp exercise generator.

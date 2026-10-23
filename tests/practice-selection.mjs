@@ -111,6 +111,57 @@ test('direct file lifecycle stops/resets before validation, Next wraps, failed r
   owner.leave();await owner.enter();await stale({target:nodes.get('virtuoso_lab-file-load')});assert.equal(owner.file,retainedFile);
 });
 
+test('Custom file selector loads on selection without leaving Custom mode',async()=>{
+  const {owner,nodes,store,events}=dom();
+  store.set('virtuoso_lab.lastMode','custom');
+  owner.mount('files');
+  nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
+  await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
+  assert.equal(owner.file.id,'chromatic-warmup');
+  assert.equal(store.get('virtuoso_lab.lastMode'),'custom');
+  assert.equal(events.some(row=>row[0]==='mode'),false);
+  owner.leave();
+});
+
+test('Custom selector immediately applies authored and generated Markdown content as playable config',async()=>{
+  const {owner,nodes,store,fields,events}=dom();
+  store.set('virtuoso_lab.lastMode','custom');
+  const catalog={practices:[
+    {id:'chromatic-warmup',title:'Chromatic warm-up',path:'guitar/beginner/chromatic-warmup.md',use:'custom'},
+    {id:'file-pent_foundation',title:'Pentatonic Foundation',path:'guitar/pathways/file-pent_foundation.md',use:'pathway'},
+  ]};
+  globalThis.fetch=async url=>{
+    if(String(url).endsWith('index.json'))return new Response(JSON.stringify(catalog));
+    if(String(url).endsWith('file-pent_foundation.md'))return new Response(readFileSync(new URL('../assets/practices/guitar/pathways/file-pent_foundation.md',import.meta.url),'utf8'));
+    return new Response(md);
+  };
+  owner.mount('files');
+  nodes.get('virtuoso_lab-file-select').value='file-pent_foundation';
+  await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
+  assert.equal(owner.file.id,'file-pent_foundation');
+  assert.equal(store.get('virtuoso_lab.lastMode'),'custom');
+  const generated=owner.selectedConfig({key:'C',scale:'major',bpm:91,meter:'4/4',instrument:'guitar',stringSetup:'guitar_6_standard',stringCount:6,renderer:'highway_3d'});
+  assert.equal(generated.practiceType,'scale');assert.equal(generated.key,'A');assert.equal(generated.scale,'minor_pentatonic');
+  assert.equal(generated.practiceFilePath,'guitar/pathways/file-pent_foundation.md');
+  assert.equal(generated.practiceFile,undefined);
+  const choices=owner.file.pathway.vary;
+  const alt=choices[1];await owner.chooseVariant('variation-1');
+  const selected=owner.selectedConfig({key:'C',scale:'major',bpm:92,meter:'4/4',instrument:'guitar',stringSetup:'guitar_6_standard',stringCount:6,renderer:'highway_3d'});
+  assert.equal(selected.key,alt.key);
+  assert.equal(selected.practiceFilePath,'guitar/pathways/file-pent_foundation.md');
+  assert.equal(events.some(row=>row[0]==='mode'),false);
+  nodes.get('virtuoso_lab-file-select').value='chromatic-warmup';
+  await nodes.get('virtuoso_lab-file-select').dispatchEvent({type:'change'});
+  assert.equal(owner.file.id,'chromatic-warmup');
+  const authored=owner.selectedConfig({key:'C',scale:'major',bpm:93,meter:'4/4',instrument:'guitar',stringSetup:'guitar_6_standard',stringCount:6,renderer:'highway_3d'});
+  assert.equal(authored.practiceType,'file');
+  assert.equal(authored.practiceFile.id,'chromatic-warmup');
+  assert.equal(authored.practiceFilePath,'guitar/beginner/chromatic-warmup.md');
+  assert.ok(authored.practiceVariantId);
+  owner.leave();
+  fields.instrument.value='guitar';
+});
+
 test('mode switches preserve saved Warmup intent during pending catalog, canceled page lifecycle keeps active listeners and eligibility is declaration-aware',async()=>{
   const {owner,nodes,fields,store,events}=dom();store.set('virtuoso_lab.lastPathway','chromatic_warmup');
   const saved=PATHWAYS.chromatic_warmup;delete PATHWAYS.chromatic_warmup;

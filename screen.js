@@ -3,6 +3,7 @@ import { createRunTransport } from './src/shell/run-transport.js';
 import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell/renderers/host-factories.js';
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
 import { SEGMENT_TEMPLATES, SEGMENT_ROLES, SEGMENT_BANDS } from './src/content/segments.js';
+import { PRACTICE_BLOCKS } from './src/content/practice-blocks.js';
 import { stylePaletteConfig } from './src/core/config-defaults.js';
 import { feltHoldAnalyze, FELT_HOLD_THRESHOLDS } from './src/core/felt-hold.js';
 import { readConfig, syncAdvancedMode, setFieldSilent, applyPracticeConfig } from './src/shell/practice-config.js';
@@ -5013,7 +5014,7 @@ import { el as domEl } from './src/shell/dom.js';
   const LIB_GENRE_LABELS = { blues:'Blues', rock:'Rock', metal:'Metal', djent:'Djent', jazz:'Jazz', funk:'Funk', pop:'Pop', country:'Country', gospel:'Gospel' };
   function _libGenres() {
     const set = new Set();
-    for (const id of Object.keys(SEGMENT_TEMPLATES)) { const st = SEGMENT_TEMPLATES[id].style; if (st) set.add(st); }
+    for (const practice of Object.values(PRACTICE_BLOCKS)) if (practice.metadata.genre !== 'all-purpose') set.add(practice.metadata.genre);
     return [...set].sort();
   }
   /** @param {boolean} [force] */
@@ -5043,11 +5044,12 @@ import { el as domEl } from './src/shell/dom.js';
   /** @param {string} id */
   function _libCardNode(id) {
     const t = SEGMENT_TEMPLATES[id];
+    const metadata = PRACTICE_BLOCKS[id]?.metadata;
     const color = KIND_COLORS[t.kind] || '#94a3b8';
     const klabel = KIND_LABELS[t.kind] || t.kind;
     let dose = '';
     try { const seg = rollSegment(t, { variantIdx: 0 }); const d = segmentEstDuration(seg); dose = d < 60 ? `~${Math.round(d)}s` : `~${Math.floor(d / 60)}m${Math.round(d % 60)}s`; } catch (_) {}
-    const meta = [t.competency, t.style ? (LIB_GENRE_LABELS[t.style] || t.style) : 'all-purpose', t.instrument, dose].filter(Boolean).join(' · ');
+    const meta = [t.competency, metadata?.genre ? (LIB_GENRE_LABELS[metadata.genre] || metadata.genre) : 'all-purpose', metadata?.band || t.band, t.instrument, dose].filter(Boolean).join(' · ');
     return domEl('div', {className:'virtuoso_lab-lib-card'},
       domEl('div', {className:'virtuoso_lab-segment-header'},
         domEl('span', {className:'virtuoso_lab-segment-badge', style:{color}}, klabel),
@@ -5059,12 +5061,16 @@ import { el as domEl } from './src/shell/dom.js';
     renderLibraryFilters();
     const body = $('virtuoso_lab-library-body'), cnt = $('virtuoso_lab-library-count'); if (!body) return;
     const f = _libFilters;
-    const ids = Object.keys(SEGMENT_TEMPLATES);
+    const ids = Object.keys(PRACTICE_BLOCKS);
     /** @param {string} id */
-    const match = id => { const t = SEGMENT_TEMPLATES[id];
-      return (f.genre === 'all' || t.style === f.genre)
-          && (f.skill === 'all' || t.band === f.skill)
-          && (f.instrument === 'all' || t.instrument === f.instrument); };
+    const match = id => {
+      const metadata = PRACTICE_BLOCKS[id].metadata;
+      const selectedSetup = document.querySelector('[name="stringSetup"]')?.value || 'guitar_6_standard';
+      return (f.genre === 'all' || metadata.genre === f.genre)
+          && (f.skill === 'all' || metadata.band === f.skill)
+          && (f.instrument === 'all' || metadata.applicability.includes(f.instrument))
+          && (!metadata.standardOnly || selectedSetup === 'guitar_6_standard')
+          && metadata.applicability.includes(selectedSetup.startsWith('bass') ? 'bass' : 'guitar'); };
     const shown = ids.filter(match);
     if (cnt) cnt.textContent = `${shown.length} of ${ids.length}`;
     const roleOrder = Object.keys(SEGMENT_ROLES).sort((a, b) => SEGMENT_ROLES[a].order - SEGMENT_ROLES[b].order);

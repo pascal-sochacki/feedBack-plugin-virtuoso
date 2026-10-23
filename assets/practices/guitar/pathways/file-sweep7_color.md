@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 48
+genre: all-purpose
+skill: advanced
+applicability: guitar
 ---
 
 Generated pathway definition; notes are produced by the existing sweep_arpeggios exercise generator.

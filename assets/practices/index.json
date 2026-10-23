@@ -1,10 +1,124 @@
 {
   "practices": [
     {
-      "id": "chromatic-warmup",
-      "title": "Chromatic warm-up",
-      "path": "guitar/beginner/chromatic-warmup.md",
-      "use": "custom"
+      "id": "b_app_octave_disco",
+      "title": "Disco octave line",
+      "path": "bass/workout/b_app_octave_disco.md",
+      "use": "block"
+    },
+    {
+      "id": "b_app_root_motion",
+      "title": "Root motion through changes",
+      "path": "bass/workout/b_app_root_motion.md",
+      "use": "block"
+    },
+    {
+      "id": "b_app_walking_blues",
+      "title": "Walking blues",
+      "path": "bass/workout/b_app_walking_blues.md",
+      "use": "block"
+    },
+    {
+      "id": "b_app_walking",
+      "title": "Walking bass — ii–V–I",
+      "path": "bass/workout/b_app_walking.md",
+      "use": "block"
+    },
+    {
+      "id": "b_arp_triads",
+      "title": "Triad arpeggios",
+      "path": "bass/workout/b_arp_triads.md",
+      "use": "block"
+    },
+    {
+      "id": "b_cool_arpeggio",
+      "title": "Cool-down arpeggios",
+      "path": "bass/workout/b_cool_arpeggio.md",
+      "use": "block"
+    },
+    {
+      "id": "b_cool_scale",
+      "title": "Cool-down scale",
+      "path": "bass/workout/b_cool_scale.md",
+      "use": "block"
+    },
+    {
+      "id": "b_jam_blues",
+      "title": "Blues bass jam",
+      "path": "bass/workout/b_jam_blues.md",
+      "use": "block"
+    },
+    {
+      "id": "b_jam_funk",
+      "title": "Funk groove jam",
+      "path": "bass/workout/b_jam_funk.md",
+      "use": "block"
+    },
+    {
+      "id": "b_review_box",
+      "title": "Root–5th–octave review",
+      "path": "bass/workout/b_review_box.md",
+      "use": "block"
+    },
+    {
+      "id": "b_scale_major",
+      "title": "Major scale box",
+      "path": "bass/workout/b_scale_major.md",
+      "use": "block"
+    },
+    {
+      "id": "b_scale_minor",
+      "title": "Minor scale box",
+      "path": "bass/workout/b_scale_minor.md",
+      "use": "block"
+    },
+    {
+      "id": "b_scale_pentatonic",
+      "title": "Pentatonic box",
+      "path": "bass/workout/b_scale_pentatonic.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_dead_note",
+      "title": "Dead-note pocket",
+      "path": "bass/workout/b_tech_dead_note.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_legato",
+      "title": "Legato (HO/PO)",
+      "path": "bass/workout/b_tech_legato.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_octave_groove",
+      "title": "Octave groove",
+      "path": "bass/workout/b_tech_octave_groove.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_right_hand",
+      "title": "Right-hand technique",
+      "path": "bass/workout/b_tech_right_hand.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_root_fifth_octave",
+      "title": "Root–5th–octave box",
+      "path": "bass/workout/b_tech_root_fifth_octave.md",
+      "use": "block"
+    },
+    {
+      "id": "b_tech_slap",
+      "title": "Slap & pop",
+      "path": "bass/workout/b_tech_slap.md",
+      "use": "block"
+    },
+    {
+      "id": "b_warm_scale",
+      "title": "Scale warm-up",
+      "path": "bass/workout/b_warm_scale.md",
+      "use": "block"
     },
     {
       "id": "chromatic_warmup",
@@ -13,27 +127,33 @@
       "use": "pathway"
     },
     {
-      "id": "file-pulse_muting",
-      "title": "Pulse & Muting",
-      "path": "guitar/pathways/file-pulse_muting.md",
+      "id": "chromatic-warmup",
+      "title": "Chromatic warm-up",
+      "path": "guitar/beginner/chromatic-warmup.md",
+      "use": "custom"
+    },
+    {
+      "id": "file-arp_inversions",
+      "title": "Arpeggio Inversions",
+      "path": "guitar/pathways/file-arp_inversions.md",
       "use": "pathway"
     },
     {
-      "id": "file-pent_foundation",
-      "title": "Pentatonic Foundation",
-      "path": "guitar/pathways/file-pent_foundation.md",
+      "id": "file-arp_over_changes",
+      "title": "Arpeggios Over Changes",
+      "path": "guitar/pathways/file-arp_over_changes.md",
       "use": "pathway"
     },
     {
-      "id": "file-power_chord_comping",
-      "title": "Power-Chord Comping",
-      "path": "guitar/pathways/file-power_chord_comping.md",
+      "id": "file-arp_seventh_shapes",
+      "title": "Seventh Arpeggios",
+      "path": "guitar/pathways/file-arp_seventh_shapes.md",
       "use": "pathway"
     },
     {
-      "id": "file-blues_foundation",
-      "title": "Blues Scale Foundation",
-      "path": "guitar/pathways/file-blues_foundation.md",
+      "id": "file-arp_sweeps",
+      "title": "Sweep Arpeggios",
+      "path": "guitar/pathways/file-arp_sweeps.md",
       "use": "pathway"
     },
     {
@@ -43,93 +163,9 @@
       "use": "pathway"
     },
     {
-      "id": "file-core_root_third_fifth",
-      "title": "Root\u20133rd\u20135th by Ear",
-      "path": "guitar/pathways/file-core_root_third_fifth.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-major_scale_caged",
-      "title": "Major Scale \u2014 CAGED",
-      "path": "guitar/pathways/file-major_scale_caged.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-sixteenth_pocket",
-      "title": "Sixteenth-Note Pocket",
-      "path": "guitar/pathways/file-sixteenth_pocket.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-dorian_groove",
-      "title": "Dorian Groove",
-      "path": "guitar/pathways/file-dorian_groove.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_tone_targeting",
-      "title": "Chord Tone Targeting",
-      "path": "guitar/pathways/file-chord_tone_targeting.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-modal_awareness",
-      "title": "Modal Awareness",
-      "path": "guitar/pathways/file-modal_awareness.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-diatonic_triad_drill",
-      "title": "Diatonic Triad Drill",
-      "path": "guitar/pathways/file-diatonic_triad_drill.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-seventh_vocab",
-      "title": "Seventh Chord Vocabulary",
-      "path": "guitar/pathways/file-seventh_vocab.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-whole_neck_freedom",
-      "title": "Whole-Neck Freedom",
-      "path": "guitar/pathways/file-whole_neck_freedom.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-guide_tones_path",
-      "title": "Guide Tones",
-      "path": "guitar/pathways/file-guide_tones_path.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-ii_V_I_workout",
-      "title": "ii\u2013V\u2013I Workout",
-      "path": "guitar/pathways/file-ii_V_I_workout.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-modal_vamp",
-      "title": "Modal Vamp",
-      "path": "guitar/pathways/file-modal_vamp.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-melmin_exotic_12key",
-      "title": "Melodic Minor & Exotic",
-      "path": "guitar/pathways/file-melmin_exotic_12key.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-harmonic_minor_exotic",
-      "title": "Harmonic Minor Exotic",
-      "path": "guitar/pathways/file-harmonic_minor_exotic.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-sweep_arpeggio_primer",
-      "title": "Sweep Arpeggio Primer",
-      "path": "guitar/pathways/file-sweep_arpeggio_primer.md",
+      "id": "file-blues_bends",
+      "title": "Bends & Vibrato — the Cry",
+      "path": "guitar/pathways/file-blues_bends.md",
       "use": "pathway"
     },
     {
@@ -139,21 +175,15 @@
       "use": "pathway"
     },
     {
-      "id": "file-blues_shuffle",
-      "title": "Blues Shuffle",
-      "path": "guitar/pathways/file-blues_shuffle.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-blues_bends",
-      "title": "Bends & Vibrato \u2014 the Cry",
-      "path": "guitar/pathways/file-blues_bends.md",
-      "use": "pathway"
-    },
-    {
       "id": "file-blues_call_response",
       "title": "Call & Response",
       "path": "guitar/pathways/file-blues_call_response.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-blues_foundation",
+      "title": "Blues Scale Foundation",
+      "path": "guitar/pathways/file-blues_foundation.md",
       "use": "pathway"
     },
     {
@@ -163,9 +193,9 @@
       "use": "pathway"
     },
     {
-      "id": "file-blues_turnaround",
-      "title": "The Turnaround",
-      "path": "guitar/pathways/file-blues_turnaround.md",
+      "id": "file-blues_shuffle",
+      "title": "Blues Shuffle",
+      "path": "guitar/pathways/file-blues_shuffle.md",
       "use": "pathway"
     },
     {
@@ -175,9 +205,69 @@
       "use": "pathway"
     },
     {
-      "id": "file-major_pent_country",
-      "title": "Major Pentatonic Country",
-      "path": "guitar/pathways/file-major_pent_country.md",
+      "id": "file-blues_turnaround",
+      "title": "The Turnaround",
+      "path": "guitar/pathways/file-blues_turnaround.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_barre_changes",
+      "title": "Barre Chords",
+      "path": "guitar/pathways/file-chord_barre_changes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_caged_progression",
+      "title": "Comping the Changes",
+      "path": "guitar/pathways/file-chord_caged_progression.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_caged_shapes",
+      "title": "The Five CAGED Shapes",
+      "path": "guitar/pathways/file-chord_caged_shapes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_color_extensions",
+      "title": "Color: 9ths, 11ths & 13ths",
+      "path": "guitar/pathways/file-chord_color_extensions.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_cowboy",
+      "title": "Cowboy Chords",
+      "path": "guitar/pathways/file-chord_cowboy.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_diatonic_7ths",
+      "title": "The Harmonized Key",
+      "path": "guitar/pathways/file-chord_diatonic_7ths.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_sevenths",
+      "title": "Sevenths Around the Neck",
+      "path": "guitar/pathways/file-chord_sevenths.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-chord_tone_targeting",
+      "title": "Chord Tone Targeting",
+      "path": "guitar/pathways/file-chord_tone_targeting.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-core_root_third_fifth",
+      "title": "Root–3rd–5th by Ear",
+      "path": "guitar/pathways/file-core_root_third_fifth.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-country_chicken_pickin",
+      "title": "Chicken Pickin'",
+      "path": "guitar/pathways/file-country_chicken_pickin.md",
       "use": "pathway"
     },
     {
@@ -193,12 +283,6 @@
       "use": "pathway"
     },
     {
-      "id": "file-country_chicken_pickin",
-      "title": "Chicken Pickin'",
-      "path": "guitar/pathways/file-country_chicken_pickin.md",
-      "use": "pathway"
-    },
-    {
       "id": "file-country_pedal_bends",
       "title": "Pedal-Steel Bends",
       "path": "guitar/pathways/file-country_pedal_bends.md",
@@ -208,6 +292,174 @@
       "id": "file-country_train",
       "title": "The Train & Soloing",
       "path": "guitar/pathways/file-country_train.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-diatonic_intervals",
+      "title": "Thirds, Fourths & Fifths",
+      "path": "guitar/pathways/file-diatonic_intervals.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-diatonic_triad_drill",
+      "title": "Diatonic Triad Drill",
+      "path": "guitar/pathways/file-diatonic_triad_drill.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-dorian_groove",
+      "title": "Dorian Groove",
+      "path": "guitar/pathways/file-dorian_groove.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-exp_bend_half",
+      "title": "Half-Step Bends",
+      "path": "guitar/pathways/file-exp_bend_half.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-exp_bend_mixed",
+      "title": "Mixed Bends",
+      "path": "guitar/pathways/file-exp_bend_mixed.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-exp_bend_whole",
+      "title": "Whole-Step Bends",
+      "path": "guitar/pathways/file-exp_bend_whole.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-exp_vibrato",
+      "title": "Vibrato",
+      "path": "guitar/pathways/file-exp_vibrato.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fb_3nps",
+      "title": "Three Notes Per String",
+      "path": "guitar/pathways/file-fb_3nps.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fb_caged_links",
+      "title": "CAGED Links",
+      "path": "guitar/pathways/file-fb_caged_links.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fb_one_box",
+      "title": "One Box",
+      "path": "guitar/pathways/file-fb_one_box.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fb_position_shifts",
+      "title": "Position Shifts",
+      "path": "guitar/pathways/file-fb_position_shifts.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fb_whole_neck",
+      "title": "Whole-Neck Freedom",
+      "path": "guitar/pathways/file-fb_whole_neck.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fs_pima_foundation",
+      "title": "p-i-m-a Foundation",
+      "path": "guitar/pathways/file-fs_pima_foundation.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fs_spider_adjacent",
+      "title": "Spider — Middle Strings",
+      "path": "guitar/pathways/file-fs_spider_adjacent.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fs_spider_skip",
+      "title": "Spider — Skip Strings",
+      "path": "guitar/pathways/file-fs_spider_skip.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-fs_spider_wide",
+      "title": "Spider — Full Width",
+      "path": "guitar/pathways/file-fs_spider_wide.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-guide_tones_path",
+      "title": "Guide Tones",
+      "path": "guitar/pathways/file-guide_tones_path.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-harmonic_minor_exotic",
+      "title": "Harmonic Minor Exotic",
+      "path": "guitar/pathways/file-harmonic_minor_exotic.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-ii_V_I_workout",
+      "title": "ii–V–I Workout",
+      "path": "guitar/pathways/file-ii_V_I_workout.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-int_across_neck",
+      "title": "Across the Neck",
+      "path": "guitar/pathways/file-int_across_neck.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-int_mixed",
+      "title": "Interval Workout",
+      "path": "guitar/pathways/file-int_mixed.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-int_sixths",
+      "title": "Sixths",
+      "path": "guitar/pathways/file-int_sixths.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-leg_hopo",
+      "title": "Hammer-Ons & Pull-Offs",
+      "path": "guitar/pathways/file-leg_hopo.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-leg_runs",
+      "title": "Legato Runs (3NPS)",
+      "path": "guitar/pathways/file-leg_runs.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-major_pent_country",
+      "title": "Major Pentatonic Country",
+      "path": "guitar/pathways/file-major_pent_country.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-major_scale_caged",
+      "title": "Major Scale — CAGED",
+      "path": "guitar/pathways/file-major_scale_caged.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-melmin_exotic_12key",
+      "title": "Melodic Minor & Exotic",
+      "path": "guitar/pathways/file-melmin_exotic_12key.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-melodeath_twin_leads",
+      "title": "Melodic Death Twin Leads",
+      "path": "guitar/pathways/file-melodeath_twin_leads.md",
       "use": "pathway"
     },
     {
@@ -229,291 +481,21 @@
       "use": "pathway"
     },
     {
-      "id": "file-melodeath_twin_leads",
-      "title": "Melodic Death Twin Leads",
-      "path": "guitar/pathways/file-melodeath_twin_leads.md",
+      "id": "file-modal_awareness",
+      "title": "Modal Awareness",
+      "path": "guitar/pathways/file-modal_awareness.md",
       "use": "pathway"
     },
     {
-      "id": "file-rock_power_backbeat",
-      "title": "Power Chords & the Backbeat",
-      "path": "guitar/pathways/file-rock_power_backbeat.md",
+      "id": "file-modal_vamp",
+      "title": "Modal Vamp",
+      "path": "guitar/pathways/file-modal_vamp.md",
       "use": "pathway"
     },
     {
-      "id": "file-rock_pentatonic",
-      "title": "The Pentatonic Box",
-      "path": "guitar/pathways/file-rock_pentatonic.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rock_lead_vocab",
-      "title": "Double-Stops & Twin Leads",
-      "path": "guitar/pathways/file-rock_lead_vocab.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rock_pedal_riff",
-      "title": "Riff-Building with Pedal Tones",
-      "path": "guitar/pathways/file-rock_pedal_riff.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rock_classic_changes",
-      "title": "Classic-Rock Changes",
-      "path": "guitar/pathways/file-rock_classic_changes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_cowboy",
-      "title": "Cowboy Chords",
-      "path": "guitar/pathways/file-chord_cowboy.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_caged_shapes",
-      "title": "The Five CAGED Shapes",
-      "path": "guitar/pathways/file-chord_caged_shapes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_barre_changes",
-      "title": "Barre Chords",
-      "path": "guitar/pathways/file-chord_barre_changes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_caged_progression",
-      "title": "Comping the Changes",
-      "path": "guitar/pathways/file-chord_caged_progression.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_sevenths",
-      "title": "Sevenths Around the Neck",
-      "path": "guitar/pathways/file-chord_sevenths.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_diatonic_7ths",
-      "title": "The Harmonized Key",
-      "path": "guitar/pathways/file-chord_diatonic_7ths.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-chord_color_extensions",
-      "title": "Color: 9ths, 11ths & 13ths",
-      "path": "guitar/pathways/file-chord_color_extensions.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-triad_inversions",
-      "title": "Triad Inversions",
-      "path": "guitar/pathways/file-triad_inversions.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-triad_five_shapes",
-      "title": "Triads Across the Neck",
-      "path": "guitar/pathways/file-triad_five_shapes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-triads_over_changes",
-      "title": "Triads Over Changes",
-      "path": "guitar/pathways/file-triads_over_changes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-triad_pairs",
-      "title": "Triad Pairs",
-      "path": "guitar/pathways/file-triad_pairs.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-arp_seventh_shapes",
-      "title": "Seventh Arpeggios",
-      "path": "guitar/pathways/file-arp_seventh_shapes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-arp_inversions",
-      "title": "Arpeggio Inversions",
-      "path": "guitar/pathways/file-arp_inversions.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-arp_over_changes",
-      "title": "Arpeggios Over Changes",
-      "path": "guitar/pathways/file-arp_over_changes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-arp_sweeps",
-      "title": "Sweep Arpeggios",
-      "path": "guitar/pathways/file-arp_sweeps.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-vl_shells",
-      "title": "Shell Voicings",
-      "path": "guitar/pathways/file-vl_shells.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-vl_guide_tones",
-      "title": "Guide-Tone Lines",
-      "path": "guitar/pathways/file-vl_guide_tones.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-vl_guide_changes",
-      "title": "Guide Tones Through Changes",
-      "path": "guitar/pathways/file-vl_guide_changes.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-vl_connect",
-      "title": "Connect the Changes",
-      "path": "guitar/pathways/file-vl_connect.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-fb_one_box",
-      "title": "One Box",
-      "path": "guitar/pathways/file-fb_one_box.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-fb_caged_links",
-      "title": "CAGED Links",
-      "path": "guitar/pathways/file-fb_caged_links.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-fb_position_shifts",
-      "title": "Position Shifts",
-      "path": "guitar/pathways/file-fb_position_shifts.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-fb_3nps",
-      "title": "Three Notes Per String",
-      "path": "guitar/pathways/file-fb_3nps.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-fb_whole_neck",
-      "title": "Whole-Neck Freedom",
-      "path": "guitar/pathways/file-fb_whole_neck.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-diatonic_intervals",
-      "title": "Thirds, Fourths & Fifths",
-      "path": "guitar/pathways/file-diatonic_intervals.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-int_sixths",
-      "title": "Sixths",
-      "path": "guitar/pathways/file-int_sixths.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-int_across_neck",
-      "title": "Across the Neck",
-      "path": "guitar/pathways/file-int_across_neck.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-int_mixed",
-      "title": "Interval Workout",
-      "path": "guitar/pathways/file-int_mixed.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-exp_vibrato",
-      "title": "Vibrato",
-      "path": "guitar/pathways/file-exp_vibrato.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-exp_bend_half",
-      "title": "Half-Step Bends",
-      "path": "guitar/pathways/file-exp_bend_half.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-exp_bend_whole",
-      "title": "Whole-Step Bends",
-      "path": "guitar/pathways/file-exp_bend_whole.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-exp_bend_mixed",
-      "title": "Mixed Bends",
-      "path": "guitar/pathways/file-exp_bend_mixed.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_subdivision",
-      "title": "Subdivisions",
-      "path": "guitar/pathways/file-rhy_subdivision.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_sixteenth",
-      "title": "The 16th Pocket",
-      "path": "guitar/pathways/file-rhy_sixteenth.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_swing",
-      "title": "Swing & Shuffle",
-      "path": "guitar/pathways/file-rhy_swing.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_displacement",
-      "title": "Displacement & Syncopation",
-      "path": "guitar/pathways/file-rhy_displacement.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_gallop_snap",
-      "title": "Gallop & Snap",
-      "path": "guitar/pathways/file-rhy_gallop_snap.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_accent_displace",
-      "title": "Accent Displacement",
-      "path": "guitar/pathways/file-rhy_accent_displace.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_single_string",
-      "title": "Single-String Pulse",
-      "path": "guitar/pathways/file-rhy_single_string.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_half_double",
-      "title": "Half-Time & Double-Time",
-      "path": "guitar/pathways/file-rhy_half_double.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-rhy_trade_bars",
-      "title": "Trade Bars \u2014 Make a Groove",
-      "path": "guitar/pathways/file-rhy_trade_bars.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-pick_tremolo",
-      "title": "Tremolo Picking",
-      "path": "guitar/pathways/file-pick_tremolo.md",
+      "id": "file-pent_foundation",
+      "title": "Pentatonic Foundation",
+      "path": "guitar/pathways/file-pent_foundation.md",
       "use": "pathway"
     },
     {
@@ -535,9 +517,9 @@
       "use": "pathway"
     },
     {
-      "id": "file-pick_string_skip",
-      "title": "String Skipping",
-      "path": "guitar/pathways/file-pick_string_skip.md",
+      "id": "file-pick_herta",
+      "title": "Herta Burst",
+      "path": "guitar/pathways/file-pick_herta.md",
       "use": "pathway"
     },
     {
@@ -547,21 +529,141 @@
       "use": "pathway"
     },
     {
-      "id": "file-pick_herta",
-      "title": "Herta Burst",
-      "path": "guitar/pathways/file-pick_herta.md",
+      "id": "file-pick_string_skip",
+      "title": "String Skipping",
+      "path": "guitar/pathways/file-pick_string_skip.md",
       "use": "pathway"
     },
     {
-      "id": "file-leg_hopo",
-      "title": "Hammer-Ons & Pull-Offs",
-      "path": "guitar/pathways/file-leg_hopo.md",
+      "id": "file-pick_tremolo",
+      "title": "Tremolo Picking",
+      "path": "guitar/pathways/file-pick_tremolo.md",
       "use": "pathway"
     },
     {
-      "id": "file-leg_runs",
-      "title": "Legato Runs (3NPS)",
-      "path": "guitar/pathways/file-leg_runs.md",
+      "id": "file-power_chord_comping",
+      "title": "Power-Chord Comping",
+      "path": "guitar/pathways/file-power_chord_comping.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-pulse_muting",
+      "title": "Pulse & Muting",
+      "path": "guitar/pathways/file-pulse_muting.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_accent_displace",
+      "title": "Accent Displacement",
+      "path": "guitar/pathways/file-rhy_accent_displace.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_displacement",
+      "title": "Displacement & Syncopation",
+      "path": "guitar/pathways/file-rhy_displacement.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_gallop_snap",
+      "title": "Gallop & Snap",
+      "path": "guitar/pathways/file-rhy_gallop_snap.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_half_double",
+      "title": "Half-Time & Double-Time",
+      "path": "guitar/pathways/file-rhy_half_double.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_single_string",
+      "title": "Single-String Pulse",
+      "path": "guitar/pathways/file-rhy_single_string.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_sixteenth",
+      "title": "The 16th Pocket",
+      "path": "guitar/pathways/file-rhy_sixteenth.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_subdivision",
+      "title": "Subdivisions",
+      "path": "guitar/pathways/file-rhy_subdivision.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_swing",
+      "title": "Swing & Shuffle",
+      "path": "guitar/pathways/file-rhy_swing.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rhy_trade_bars",
+      "title": "Trade Bars — Make a Groove",
+      "path": "guitar/pathways/file-rhy_trade_bars.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rock_classic_changes",
+      "title": "Classic-Rock Changes",
+      "path": "guitar/pathways/file-rock_classic_changes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rock_lead_vocab",
+      "title": "Double-Stops & Twin Leads",
+      "path": "guitar/pathways/file-rock_lead_vocab.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rock_pedal_riff",
+      "title": "Riff-Building with Pedal Tones",
+      "path": "guitar/pathways/file-rock_pedal_riff.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rock_pentatonic",
+      "title": "The Pentatonic Box",
+      "path": "guitar/pathways/file-rock_pentatonic.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-rock_power_backbeat",
+      "title": "Power Chords & the Backbeat",
+      "path": "guitar/pathways/file-rock_power_backbeat.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-seventh_vocab",
+      "title": "Seventh Chord Vocabulary",
+      "path": "guitar/pathways/file-seventh_vocab.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-sixteenth_pocket",
+      "title": "Sixteenth-Note Pocket",
+      "path": "guitar/pathways/file-sixteenth_pocket.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-sweep_arpeggio_primer",
+      "title": "Sweep Arpeggio Primer",
+      "path": "guitar/pathways/file-sweep_arpeggio_primer.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-sweep_changes",
+      "title": "Sweeps Over Changes",
+      "path": "guitar/pathways/file-sweep_changes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-sweep_roll_apex",
+      "title": "The Roll & Clean Apex",
+      "path": "guitar/pathways/file-sweep_roll_apex.md",
       "use": "pathway"
     },
     {
@@ -577,21 +679,9 @@
       "use": "pathway"
     },
     {
-      "id": "file-sweep_roll_apex",
-      "title": "The Roll & Clean Apex",
-      "path": "guitar/pathways/file-sweep_roll_apex.md",
-      "use": "pathway"
-    },
-    {
       "id": "file-sweep7_color",
       "title": "Seventh Sweeps",
       "path": "guitar/pathways/file-sweep7_color.md",
-      "use": "pathway"
-    },
-    {
-      "id": "file-sweep_changes",
-      "title": "Sweeps Over Changes",
-      "path": "guitar/pathways/file-sweep_changes.md",
       "use": "pathway"
     },
     {
@@ -601,21 +691,15 @@
       "use": "pathway"
     },
     {
-      "id": "file-tap_cell",
-      "title": "The Tapped Cell",
-      "path": "guitar/pathways/file-tap_cell.md",
-      "use": "pathway"
-    },
-    {
       "id": "file-tap_cascade",
       "title": "Tapped Arpeggio Cascade",
       "path": "guitar/pathways/file-tap_cascade.md",
       "use": "pathway"
     },
     {
-      "id": "file-tap_sevenths",
-      "title": "Seventh & Diminished Cascade",
-      "path": "guitar/pathways/file-tap_sevenths.md",
+      "id": "file-tap_cell",
+      "title": "The Tapped Cell",
+      "path": "guitar/pathways/file-tap_cell.md",
       "use": "pathway"
     },
     {
@@ -625,28 +709,232 @@
       "use": "pathway"
     },
     {
-      "id": "file-fs_pima_foundation",
-      "title": "p-i-m-a Foundation",
-      "path": "guitar/pathways/file-fs_pima_foundation.md",
+      "id": "file-tap_sevenths",
+      "title": "Seventh & Diminished Cascade",
+      "path": "guitar/pathways/file-tap_sevenths.md",
       "use": "pathway"
     },
     {
-      "id": "file-fs_spider_adjacent",
-      "title": "Spider \u2014 Middle Strings",
-      "path": "guitar/pathways/file-fs_spider_adjacent.md",
+      "id": "file-triad_five_shapes",
+      "title": "Triads Across the Neck",
+      "path": "guitar/pathways/file-triad_five_shapes.md",
       "use": "pathway"
     },
     {
-      "id": "file-fs_spider_skip",
-      "title": "Spider \u2014 Skip Strings",
-      "path": "guitar/pathways/file-fs_spider_skip.md",
+      "id": "file-triad_inversions",
+      "title": "Triad Inversions",
+      "path": "guitar/pathways/file-triad_inversions.md",
       "use": "pathway"
     },
     {
-      "id": "file-fs_spider_wide",
-      "title": "Spider \u2014 Full Width",
-      "path": "guitar/pathways/file-fs_spider_wide.md",
+      "id": "file-triad_pairs",
+      "title": "Triad Pairs",
+      "path": "guitar/pathways/file-triad_pairs.md",
       "use": "pathway"
+    },
+    {
+      "id": "file-triads_over_changes",
+      "title": "Triads Over Changes",
+      "path": "guitar/pathways/file-triads_over_changes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-vl_connect",
+      "title": "Connect the Changes",
+      "path": "guitar/pathways/file-vl_connect.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-vl_guide_changes",
+      "title": "Guide Tones Through Changes",
+      "path": "guitar/pathways/file-vl_guide_changes.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-vl_guide_tones",
+      "title": "Guide-Tone Lines",
+      "path": "guitar/pathways/file-vl_guide_tones.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-vl_shells",
+      "title": "Shell Voicings",
+      "path": "guitar/pathways/file-vl_shells.md",
+      "use": "pathway"
+    },
+    {
+      "id": "file-whole_neck_freedom",
+      "title": "Whole-Neck Freedom",
+      "path": "guitar/pathways/file-whole_neck_freedom.md",
+      "use": "pathway"
+    },
+    {
+      "id": "g_app_chord_tone",
+      "title": "Chord-tone targeting",
+      "path": "guitar/workout/g_app_chord_tone.md",
+      "use": "block"
+    },
+    {
+      "id": "g_app_harmonic_minor",
+      "title": "Harmonic-minor exotic",
+      "path": "guitar/workout/g_app_harmonic_minor.md",
+      "use": "block"
+    },
+    {
+      "id": "g_app_ii_v_i",
+      "title": "ii–V–I over the changes",
+      "path": "guitar/workout/g_app_ii_v_i.md",
+      "use": "block"
+    },
+    {
+      "id": "g_arp_diatonic_7th",
+      "title": "Diatonic 7th arpeggios",
+      "path": "guitar/workout/g_arp_diatonic_7th.md",
+      "use": "block"
+    },
+    {
+      "id": "g_arp_triads",
+      "title": "Diatonic triads",
+      "path": "guitar/workout/g_arp_triads.md",
+      "use": "block"
+    },
+    {
+      "id": "g_blues_scale",
+      "title": "Blues scale",
+      "path": "guitar/workout/g_blues_scale.md",
+      "use": "block"
+    },
+    {
+      "id": "g_comp_folk",
+      "title": "Folk strumming",
+      "path": "guitar/workout/g_comp_folk.md",
+      "use": "block"
+    },
+    {
+      "id": "g_comp_funk",
+      "title": "Funk scratch comping",
+      "path": "guitar/workout/g_comp_funk.md",
+      "use": "block"
+    },
+    {
+      "id": "g_comp_pop",
+      "title": "Pop comping",
+      "path": "guitar/workout/g_comp_pop.md",
+      "use": "block"
+    },
+    {
+      "id": "g_comp_rock",
+      "title": "Rock power-chord strum",
+      "path": "guitar/workout/g_comp_rock.md",
+      "use": "block"
+    },
+    {
+      "id": "g_cool_arpeggio",
+      "title": "Cool-down arpeggios",
+      "path": "guitar/workout/g_cool_arpeggio.md",
+      "use": "block"
+    },
+    {
+      "id": "g_cool_scale",
+      "title": "Cool-down scale",
+      "path": "guitar/workout/g_cool_scale.md",
+      "use": "block"
+    },
+    {
+      "id": "g_jam_blues",
+      "title": "Blues jam",
+      "path": "guitar/workout/g_jam_blues.md",
+      "use": "block"
+    },
+    {
+      "id": "g_jam_modal",
+      "title": "Modal vamp jam",
+      "path": "guitar/workout/g_jam_modal.md",
+      "use": "block"
+    },
+    {
+      "id": "g_jam_rock",
+      "title": "Rock jam",
+      "path": "guitar/workout/g_jam_rock.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_death",
+      "title": "Death-metal chromatic riffs",
+      "path": "guitar/workout/g_metal_death.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_djent",
+      "title": "Djent polymeter chug",
+      "path": "guitar/workout/g_metal_djent.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_lead",
+      "title": "Lead over a metal band",
+      "path": "guitar/workout/g_metal_lead.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_metalcore",
+      "title": "Metalcore pedal chug",
+      "path": "guitar/workout/g_metal_metalcore.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_phrygian",
+      "title": "Phrygian-dominant run",
+      "path": "guitar/workout/g_metal_phrygian.md",
+      "use": "block"
+    },
+    {
+      "id": "g_metal_twin_leads",
+      "title": "Melodic-death twin leads",
+      "path": "guitar/workout/g_metal_twin_leads.md",
+      "use": "block"
+    },
+    {
+      "id": "g_review_pentatonic",
+      "title": "Pentatonic review",
+      "path": "guitar/workout/g_review_pentatonic.md",
+      "use": "block"
+    },
+    {
+      "id": "g_review_triads",
+      "title": "Triad review",
+      "path": "guitar/workout/g_review_triads.md",
+      "use": "block"
+    },
+    {
+      "id": "g_scale_country_pent",
+      "title": "Major pentatonic — country",
+      "path": "guitar/workout/g_scale_country_pent.md",
+      "use": "block"
+    },
+    {
+      "id": "g_tech_legato",
+      "title": "Legato runs",
+      "path": "guitar/workout/g_tech_legato.md",
+      "use": "block"
+    },
+    {
+      "id": "g_tech_pentatonic_box",
+      "title": "Minor pentatonic box",
+      "path": "guitar/workout/g_tech_pentatonic_box.md",
+      "use": "block"
+    },
+    {
+      "id": "g_warm_chromatic",
+      "title": "Chromatic 1-2-3-4",
+      "path": "guitar/workout/g_warm_chromatic.md",
+      "use": "block"
+    },
+    {
+      "id": "g_warm_scale",
+      "title": "Scale warm-up",
+      "path": "guitar/workout/g_warm_scale.md",
+      "use": "block"
     }
   ]
 }

@@ -24,13 +24,14 @@
  *   densityTier?: string, backingDensity?: number, arrangementFeel?: string,
  *   backingPadDev?: boolean, backingStyle?: string, backingComp?: string, backingBass?: string, compCell?: string, bassFigure?: string,
  *   drums?: string, groove?: string, swing: string, motifCell?: string, motifPhase?: string,
- *   targetSec?: number | string | null, practiceFile?: unknown, practicePathwayId?: string,
+ *   targetSec?: number | string | null, practiceFile?: unknown, practicePath?: string, practiceFilePath?: string, practiceVariantId?: string, practicePathwayId?: string,
  *   jamStyle?: string, jamPasses?: number, jamProgressionIdx?: number, jamSwitchUp?: boolean,
  *   jamEnergy?: string, jamBandMode?: string, jamSpotlight?: boolean, keyCycle?: string, keyCycleLength?: number,
  *   chordScaleStrategy?: string, sweepStrings?: number, sweepTopHopo?: boolean,
  *   harmonize?: boolean, tremolo?: boolean, tapArp?: boolean,
  *   voices?: string, walkApproach?: string, walkApproachMode?: string, walkPattern?: string, walkFeel?: string,
- *   rhTechMode?: string, rfoPattern?: string
+ *   rhTechMode?: string, rfoPattern?: string, renderer?: string, anchor?: string, anchorFret?: number, advancedMode?: boolean,
+ *   spiderPair?: string, hertaAccent?: number, hertaWalk?: boolean, pulseOffbeat?: boolean
  * }} GenerationConfig
  * @typedef {{bar: number, startSec: number, endSec: number, startBeat: number, durBeats: number, degree: Degree, rootPc: number, quality: string, intervals: number[], name: string, rn: string, fn: string, cpcs: number[], gpcs: number[], push?: number, t?: number}} TimelineEvent
  * @typedef {{form: string, rootStr: number, notes: {s: number, fOff: number, iv: string, fg: number}[]}} StrumGrip

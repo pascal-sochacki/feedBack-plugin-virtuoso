@@ -9,7 +9,8 @@
     "check:precommit": "npm run check:quality && npm test",
     "check:quality": "npm run lint && npm run typecheck",
     "deadcode": "knip --config knip.json --no-progress",
-    "deadcode:production": "knip --config knip.json --no-progress --production"
+    "deadcode:production": "knip --config knip.json --no-progress --production",
+    "generate:practices": "node scripts/generate-practice-index.mjs && node scripts/generate-practice-blocks.mjs"
   },
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"

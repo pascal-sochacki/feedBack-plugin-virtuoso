@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 75
+genre: all-purpose
+skill: intermediate
+applicability: guitar
 ---
 
 Generated pathway definition; notes are produced by the existing shell_voicings exercise generator.

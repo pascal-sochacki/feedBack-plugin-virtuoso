@@ -83,10 +83,10 @@ export function createPracticePresentation({getCurrentPractice}) {
       if (goal) goal.textContent = match ? match[1] : full;
       const rest = $('virtuoso_lab-pathway-goal-rest');
       if (rest) {
-        const practice = pw.practiceFile, pathway = practice?.pathway;
+        const practice = pw.practiceFile, pathway = practice?.pathway && /** @type {import('../core/practice-files.js').PracticePathway & {variations:{id:string, charts:string[]}[], tiers:{bpm:number, subdivision:string, bars:number}[]}} */ (practice.pathway);
         const variation = pathway?.variations[state.variationIndex], tier = pathway?.tiers[state.tierIndex];
         if (practice && (!variation || !tier)) throw new Error('Unknown pathway variation or tier');
-        const hint = practice?.variants?.find(variant => variant.id === variation.charts[state.tierIndex])?.hint;
+        const hint = practice && variation ? practice.variants?.find(variant => variant.id === variation.charts[state.tierIndex])?.hint : undefined;
         rest.textContent = [match ? match[2].trim() : '', hint].filter(Boolean).join('\n\n');
       }
       if (tag) tag.textContent = modified ? 'Modified' : 'Goal';
@@ -174,13 +174,15 @@ export function createPracticePresentation({getCurrentPractice}) {
     if (variants) variants.hidden = !practice;
     if (select) {
       select.replaceChildren();
-      for (const variant of practice?.variants || []) {
+       const choices = practice?.variants || practice?.pathway?.variations?.map((/** @type {{id:string, title:string}} */ item) => ({id:item.id,title:item.title})) ||
+         practice?.pathway?.vary?.map((/** @type {Record<string, unknown>} */ _, /** @type {number} */ index) => ({id:`variation-${index}`,title:`Variation ${index + 1}`})) || [];
+      for (const variant of choices) {
         const option = document.createElement('option');
         option.value = variant.id; option.textContent = variant.title; select.appendChild(option);
       }
       select.value = practiceVariantId || ''; select.disabled = !practice;
     }
-    if (next) next.disabled = !practice;
+     if (next) next.disabled = !practice || !(practice.variants?.length || practice.pathway?.variations?.length || practice.pathway?.vary?.length);
     if (hint) hint.textContent = practice?.variants?.find(variant => variant.id === practiceVariantId)?.hint || '';
   }
   return {renderGoal, renderPosition, renderFile, renderStart:() => { if ($('virtuoso_lab-start-cta')) renderStart(getCurrentPractice('start')); }, describe};
@@ -207,7 +209,7 @@ function variationAxisLabel(pw) {
 }
 /** @param {PresentationPathway} pw @param {number} idx @param {string} axis */
 function variationValueLabel(pw, idx, axis) {
-  if (pw.practiceFile?.pathway) return pw.practiceFile.pathway.variations[idx].title;
+  if (pw.practiceFile?.pathway?.variations) return pw.practiceFile.pathway.variations[idx].title;
   const v = pw.vary?.[idx] || {};
   switch (axis) {
     case 'Voicing': return typeof v.voices === 'string' && v.voices ? v.voices.replace(/_/g,' ') : `#${idx+1}`;

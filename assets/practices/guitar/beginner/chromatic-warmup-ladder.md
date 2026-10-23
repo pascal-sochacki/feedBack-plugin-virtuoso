@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 60
+genre: all-purpose
+skill: beginner
+applicability: guitar
 ---
 # Chromatic Warmup
 

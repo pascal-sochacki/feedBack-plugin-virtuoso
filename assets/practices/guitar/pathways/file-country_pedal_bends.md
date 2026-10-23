@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 65
+genre: country
+skill: intermediate
+applicability: guitar
 ---
 
 Generated pathway definition; notes are produced by the existing bending exercise generator.

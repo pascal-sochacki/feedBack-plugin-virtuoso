@@ -57,7 +57,7 @@ export function createPracticeFileLoader(baseURL, fetchFile = fetch, timeoutMs =
     if (!item) throw new Error('Unknown practice id');
     const practice = parsePracticeMarkdown(await read(item.path, signal));
     if (practice.id !== item.id || practice.title !== item.title) throw new Error('Practice metadata does not match its index');
-    if ((item.use === 'pathway') !== !!practice.pathway) throw new Error('Practice capability does not match its index');
+    if ((item.use === 'pathway') !== !!practice.pathway && item.use !== 'block') throw new Error('Practice capability does not match its index');
     if (signal?.aborted) throw new Error('Practice load cancelled');
     cache.set(item.id, practice);
     return practice;

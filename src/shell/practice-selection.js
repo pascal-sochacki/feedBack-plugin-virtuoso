@@ -8,6 +8,7 @@ import {syncAdvancedMode, setFieldSilent} from './practice-config.js';
 import {STRING_SETUPS} from '../core/instrument-tuning.js';
 import {positionStepperIsShapeMode} from './practice-presentation.js';
 import {NOTE_ALIASES} from '../core/pitch.js';
+import {practiceWorkoutSegment} from '../core/practice-files.js';
 import {isShapeAwareSystem, shapeOrderForKey, fretWindowForShape, defaultShapeForSystem} from '../core/fretboard-shapes.js';
 import {captureTabControls, restoreTabControls} from './tab-state.js';
 
@@ -68,6 +69,8 @@ export function createPracticeSelection(dependencies) {
   /** @type {Practice | null} */
   let file = null;
   /** @type {string | null} */
+  let filePath = null;
+  /** @type {string | null} */
   let variantId = null;
   /** @type {AbortController | null} */
   let request = null;
@@ -96,6 +99,11 @@ export function createPracticeSelection(dependencies) {
 
   function cancelLoad() { requestIdentity++; request?.abort(); request = null; }
   function hasPathwayFile() { return !!pathways[selection.pathwayId || '']?.practiceFile && !!$('virtuoso_lab-root')?.classList.contains('virtuoso_lab-pathway-mode'); }
+  /** @param {Practice | null} practice */
+  function fileChoices(practice) {
+    if (!practice) return [];
+    return practice.variants || practice.pathway?.variations || practice.pathway?.vary?.map((variation,index) => ({...variation,id:`variation-${index}`,title:`Variation ${index + 1}`})) || [];
+  }
   function syncFileControls() {
     const form = /** @type {HTMLFormElement | null} */ ($('virtuoso_lab-controls'));
     if (!form) return;
@@ -110,7 +118,7 @@ export function createPracticeSelection(dependencies) {
   function clearFile(reset = 'none') {
     recover();
     dependencies.stopAndInvalidatePlayback(reset);
-    cancelLoad(); file = null; variantId = null;
+    cancelLoad(); file = null; filePath = null; variantId = null;
     syncFileControls();
   }
   function cancelInitial() { pendingInitial = null; }
@@ -200,16 +208,17 @@ export function createPracticeSelection(dependencies) {
   }
   /** @param {string} id */
   async function chooseVariant(id) {
-    if (!file?.variants?.some(variant => variant.id === id)) return;
+    const choices = fileChoices(file);
+    if (!choices.some((/** @type {{id:string}} */ variant) => variant.id === id)) return;
     recover();
     dependencies.stopAndInvalidatePlayback('loop');
     variantId = id; syncFileControls();
     await dependencies.regenerateSelectedConfig();
   }
   async function loadFile() {
-    if (activeTab !== 'custom') selectMode('custom');
-    if (pendingInitial) applyPathway('custom');
-    if (hasPathwayFile()) applyPathway('custom');
+    const customMode = (stored(MODE_KEY) || 'guided') === 'custom';
+    if (pendingInitial) { cancelInitial(); if (!customMode) applyPathway('custom'); }
+    if (hasPathwayFile() && !customMode) applyPathway('custom');
     // A failed replacement intentionally leaves the old file cleared.
     clearFile('cursor');
     const identity = requestIdentity, currentVisit = visit;
@@ -220,9 +229,12 @@ export function createPracticeSelection(dependencies) {
     try {
       const loaded = await getLoader()(id, controller.signal);
       if (!ownsRequest()) return;
-      const variants = loaded.variants;
-      if (!variants?.length) throw new Error('Practice has no authored variants');
-      file = loaded; variantId = variants[0].id;
+      const variants = fileChoices(loaded);
+      if (!variants.length && !loaded.pathway && !loaded.block) throw new Error('Practice has no usable content');
+      file = loaded;
+      filePath = catalog?.state.entries.find(item => item.id === id)?.path || (await getLoader().index(controller.signal)).find(item => item.id === id)?.path || null;
+      if (!ownsRequest()) return;
+      variantId = variants[0]?.id || null;
       syncFileControls(); await dependencies.regenerateSelectedConfig();
     } catch (error) {
       if (ownsRequest()) status(`File practice error: ${error instanceof Error ? error.message : error}`);
@@ -408,7 +420,31 @@ export function createPracticeSelection(dependencies) {
       status('Previous Custom practice is incompatible. Selected Scale; your generated settings and Setup are retained.');
     }
     const selected = /** @type {ReturnType<import('./practice-config.js').readConfig> & {practiceFile?: Practice, practiceVariantId?: string | null}} */ (cfg);
-    if (file) { selected.practiceFile = file; selected.practiceVariantId = variantId; }
+    if (file) {
+      const bpm = cfg.bpm;
+      if (file.pathway && !file.variants) {
+        const pathway = file.pathway;
+        const variationIndex = pathway.vary
+          ? Math.max(0, pathway.vary.findIndex((/** @type {Record<string, unknown>} */ _, /** @type {number} */ index)=>`variation-${index}`===variantId))
+          : Math.max(0,pathway.variations?.findIndex((variation)=>variation.id===variantId) ?? 0);
+        const segment = practiceWorkoutSegment(file, variationIndex);
+        Object.assign(selected, segment.config, {
+          mode:segment.kind, practiceType:segment.kind,
+          instrument:cfg.instrument,stringSetup:cfg.stringSetup,stringCount:cfg.stringCount,renderer:cfg.renderer,bpm
+        });
+        selected.practiceType = file.pathway.base?.practiceType;
+        selected.mode = file.pathway.base?.practiceType;
+      } else {
+        const segment = practiceWorkoutSegment(file, variantId || undefined);
+        Object.assign(selected, segment.config, {mode:segment.kind,practiceType:segment.kind,instrument:cfg.instrument,stringSetup:cfg.stringSetup,stringCount:cfg.stringCount,renderer:cfg.renderer,bpm});
+        if (file.variants || file.pathway?.variations) {
+          selected.practiceFile = file;
+          selected.practiceVariantId = segment.config.practiceVariantId || variantId || undefined;
+          if (filePath) selected.practicePath = filePath;
+        }
+      }
+      if (filePath) selected.practiceFilePath = filePath;
+    }
     const pathway = pathways[selection.pathwayId || ''];
     if (!file && pathway?.practiceFile && hasPathwayFile()) Object.assign(cfg, catalogPathwayConfig({practiceFile:pathway.practiceFile}, selection.variationIndex, selection.tierIndex, cfg));
     return cfg;
@@ -426,10 +462,19 @@ export function createPracticeSelection(dependencies) {
     }
     if (group === 'files') {
       syncCatalog();
-      listen('virtuoso_lab-file-select','change',cancelLoad);
+      listen('virtuoso_lab-file-select','change',() => {
+        const id = select('virtuoso_lab-file-select')?.value;
+        cancelLoad();
+        if ((stored(MODE_KEY) || 'guided') !== 'custom') return;
+        if (file && file.id === id) {
+          const first = fileChoices(file)[0];
+          return first ? chooseVariant(first.id) : dependencies.regenerateSelectedConfig();
+        }
+        return loadFile();
+      });
       listen('virtuoso_lab-file-load','click',loadFile);
       listen('virtuoso_lab-file-variant','change',ev => chooseVariant(/** @type {HTMLSelectElement} */ (ev.target).value));
-      listen('virtuoso_lab-file-next','click',() => { const variants = file?.variants; if (!variants?.length) return; const index = variants.findIndex(variant => variant.id === variantId); return chooseVariant(variants[(index + 1) % variants.length].id); });
+      listen('virtuoso_lab-file-next','click',() => { const variants = fileChoices(file); if (!variants.length) return; const index = variants.findIndex((/** @type {{id:string}} */ variant) => variant.id === variantId); return chooseVariant(variants[(index + 1) % variants.length].id); });
       listen('virtuoso_lab-file-unload','click',() => { clearFile(); return dependencies.regenerateSelectedConfig(); });
       return;
     }

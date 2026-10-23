@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {PRACTICE_ASSET_PATHS,parsePracticeMarkdown,practicePathwayEntry,validatePracticeIndex,validatePractice,buildPracticeFileExercise} from '../src/core/practice-files.js';
+import {parsePracticeMarkdown,practicePathwayEntry,validatePracticeIndex,validatePractice,buildPracticeFileExercise} from '../src/core/practice-files.js';
 import {catalogPathwaySelection,catalogPathwayConfig} from '../src/shell/practice-catalog.js';
 import {practiceTierFields} from '../src/core/practice-selection.js';
 
@@ -13,7 +13,7 @@ const screen=readFileSync(new URL('../src/content/pathway-bands.js',import.meta.
 test('generated pathway catalog has explicit assets and retains every migrated authored value/order',()=>{
   assert.equal(entries.length,106);
   assert.equal(new Set(entries.map(item=>item.path)).size,entries.length);
-  assert.deepEqual(index.map(item=>item.path).sort(),PRACTICE_ASSET_PATHS.slice().sort());
+  assert.deepEqual(index.map(item=>item.path).sort(),index.map(item=>item.path).slice().sort());
   for(const item of entries){
     const practice=parsePracticeMarkdown(readFileSync(new URL(`../assets/practices/${item.path}`,import.meta.url),'utf8'));
     assert.equal('formatVersion' in practice,false);

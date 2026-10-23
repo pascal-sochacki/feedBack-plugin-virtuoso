@@ -5,6 +5,9 @@ instrument: guitar
 tuning: standard
 meter: 4/4
 referenceTempo: 105
+genre: metal
+skill: advanced
+applicability: guitar
 ---
 
 Generated pathway definition; notes are produced by the existing scale exercise generator.
