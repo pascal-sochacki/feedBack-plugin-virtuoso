@@ -38,6 +38,17 @@ test('loop markers remain distinct from committed cycle, phase carry retains anc
   owner.stop();assert.equal(owner.time,4);owner.setLoop(null,null);assert.equal(owner.loopB,null);
 });
 
+test('exact resume preserves cursor and skips the ordinary bar-entry runway',()=>{
+  const {owner,clock}=harness();
+  owner.seek(3.25,10);owner.begin();owner.anchor(3.25,0.1);owner.pause();
+  clock(1500);
+  assert.equal(owner.resumeAt(4),true);
+  assert.equal(owner.time,4);
+  assert.equal(owner.preRollUntil,0);
+  assert.equal(owner.sessionPausedMs(),500);
+  assert.equal(owner.resumeAt(5),false);
+});
+
 test('pending readiness false/rejection never warms; current voice failure propagates, stale failure is silent',async()=>{
   for(const outcome of ['false','reject']) {
     const h=harness(),ready=deferred();h.ready(ready.promise);const pending=h.start();

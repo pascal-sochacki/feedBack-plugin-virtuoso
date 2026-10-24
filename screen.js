@@ -1,5 +1,6 @@
 import { DRUMKIT_BANKS, KIT_REGISTRY, TONE_GM, BJ_KCS, SAMPLED_DRUM_NOTES, drumFile, drumVar } from './src/core/audio-registries.js';
 import { createRunTransport } from './src/shell/run-transport.js';
+import { buildStepEvents, enteredStepEventPitch, isStepEventInLoop, nextStepIndex, stepEventHasDetectablePitch } from './src/core/step-mode.js';
 import { hostBus, hostMinigames, hostDesktop, loadScriptOnce } from './src/shell/renderers/host-factories.js';
 import { createRendererLifecycle } from './src/shell/renderer-lifecycle.js';
 import { SEGMENT_TEMPLATES, SEGMENT_ROLES } from './src/content/segments.js';
@@ -248,6 +249,89 @@ import { el as domEl } from './src/shell/dom.js';
     clockNow:()=>({wallMs:performance.now(), audioSeconds:audioCtx ? audioCtx.currentTime : null})});
   // Pause remains a sub-state of playing; session duration excludes its wall time.
   function sessionPausedMs() { return transport.sessionPausedMs(); }
+  let stepModeEnabled = false;
+  let stepWaiting = false;
+  let stepEvents = [];
+  let stepIndex = 0;
+  let stepBundle = null;
+  /** @type {{freqHz:number, confidence:number}|null} */
+  let stepDetectorFrame = null;
+  function syncStepCue() {
+    const cue = $('virtuoso_lab-step-cue');
+    const button = $('virtuoso_lab-step-mode');
+    if (button) {
+      button.classList.toggle('active', stepModeEnabled);
+      button.setAttribute('aria-pressed', stepModeEnabled ? 'true' : 'false');
+      button.disabled = !activeBundle || isJamMode();
+      button.title = isJamMode() ? 'Step Mode is for generated drills and workouts' : 'Pause before each generated chart event';
+    }
+    if (!cue) return;
+    cue.hidden = !stepWaiting;
+    if (!stepWaiting) return;
+    const event = stepEvents[stepIndex];
+    const pitches = (event?.notes || []).map(note => {
+      const midi = (activeBundle?.openMidis?.[note.s] || 0) + note.f;
+      return `${NOTE_NAMES[((midi % 12) + 12) % 12]}${Math.floor(midi / 12) - 1}`;
+    });
+    const expected = $('virtuoso_lab-step-expected');
+    if (expected) expected.textContent = pitches.length ? pitches.join(' + ') : 'End of chart';
+    const instruction = $('virtuoso_lab-step-instruction');
+    const openMidis = _ptOpenMidis.length ? _ptOpenMidis : (activeBundle?.openMidis || []);
+    const canAutoAdvance = !!_ptHandle && stepEventHasDetectablePitch(event, openMidis, DETECTOR_MIN_HZ);
+    if (instruction) instruction.textContent = canAutoAdvance
+      ? 'Play a new matching note or press Space to continue'
+      : 'Press Space to continue';
+  }
+  function refreshStepEvents() {
+    if (stepBundle === activeBundle) return;
+    stepBundle = activeBundle;
+    stepEvents = buildStepEvents(activeBundle?.notes);
+    stepIndex = nextStepIndex(stepEvents, transport.time);
+    stepWaiting = false;
+    syncStepCue();
+  }
+  function setStepMode(enabled) {
+    stepModeEnabled = !!enabled && !!activeBundle && !isJamMode();
+    refreshStepEvents();
+    stepIndex = nextStepIndex(stepEvents, transport.time);
+    if (!stepModeEnabled && stepWaiting) {
+      stepWaiting = false;
+      if (transport.playing && transport.paused) resumeAtExact(transport.time);
+    }
+    syncStepCue();
+  }
+  function resumeAtExact(time) {
+    if (!transport.resumeAt(time)) return;
+    stepWaiting = false;
+    acquireWakeLock();
+    anchorPlayClock(transport.time);
+    scheduleCurrentPassAndAnchor(AUDIO_LOOKAHEAD_SECONDS);
+    syncStepCue(); syncPlayButton(); refreshStatusFromState();
+  }
+  function advanceStep() {
+    if (!stepWaiting) return false;
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+    const current = stepEvents[stepIndex];
+    stepWaiting = false;
+    stepIndex++;
+    resumeAtExact(current?.time ?? transport.time);
+    return true;
+  }
+  function maybePauseForStep() {
+    if (!stepModeEnabled || stepWaiting || !transport.playing || transport.paused || !activeBundle || isJamMode()) return false;
+    refreshStepEvents();
+    let event = stepEvents[stepIndex];
+    if (transport.loopA != null && transport.loopB != null && event?.time < transport.loopA) {
+      stepIndex = nextStepIndex(stepEvents, transport.loopA);
+      event = stepEvents[stepIndex];
+    }
+    if (transport.loopA != null && transport.loopB != null && !isStepEventInLoop(event, transport.loopA, transport.loopB)) return false;
+    if (!event || transport.time < event.time - 0.05) return false;
+    stepWaiting = true;
+    pausePlayback();
+    syncStepCue();
+    return true;
+  }
   // Visible-rewind wrap animation (Workout-love Tier 2 polish): when the loop
   // wraps (whole-chart re-entry or an A–B loop), the overview playhead would just
   // teleport from the seam-out point back to the seam-in point. Instead we mirror
@@ -3539,6 +3623,7 @@ import { el as domEl } from './src/shell/dom.js';
       // from the audio clock the notes are scheduled on (drift-free vs what
       // the player hears); the wall clock is the fallback when there's no ctx.
       transport.advance(nowMs);
+      if (maybePauseForStep()) { drawOnce(); rafId = requestAnimationFrame(tick); return; }
       if (_jamPending && isJamMode()) syncJamPendingChip();
       if (transport.time > _runMaxChartTime) _runMaxChartTime = transport.time;
       transport.finishPreRoll();
@@ -3569,6 +3654,7 @@ import { el as domEl } from './src/shell/dom.js';
           // already scheduled on the ctx clock by maybeScheduleLoopAhead above.
           const loopLen = transport.loopB - transport.loopA;
           transport.wrap(loopLen);
+          if (stepModeEnabled) stepIndex = nextStepIndex(stepEvents, transport.time);
           const bus = hostBus();
           if (bus && typeof bus.emit === 'function') {
             bus.emit('virtuoso_lab:loop:wrap', { a: transport.loopA, b: transport.loopB, time: transport.time });
@@ -3609,6 +3695,7 @@ import { el as domEl } from './src/shell/dom.js';
           triggerWrapRewind(transport.time, transport.time - contentLen);   // visible rewind tell (the clock keeps phase-carry; this is draw-only)
           _runLooped = true;                              // recap: a whole-chart wrap = every block reached
           transport.wrap(contentLen);
+          if (stepModeEnabled) stepIndex = nextStepIndex(stepEvents, transport.time);
           // NOTE — this branch is now keepLooping-only (a Workout is FINITE, see
           // makeBundle's finiteRun). Credit is one-shot per window, so on a manual
           // loop the re-walked windows stay credited → they paint a STALE "hit" and
@@ -7965,6 +8052,7 @@ import { el as domEl } from './src/shell/dom.js';
     sessionBegin();
     stopAudio(); syncHighwaySettings(activeBundle);
     transport.begin(); _wrapAnim = null;
+    stepWaiting = false; refreshStepEvents();
     _runMaxChartTime = transport.time; _runLooped = false; _blockHadInput = [];   // recap reached + per-block input tracking, fresh per run
     _downshiftEvaluated = false; _downshiftChipShown = false; _downshiftEvalAt = null; hideDownshiftChip();   // the mid-run offer re-arms per run (session suppression via _downshiftSeen)
     acquireWakeLock();   // hold the screen awake for the duration of this play
@@ -7972,6 +8060,8 @@ import { el as domEl } from './src/shell/dom.js';
     // the playhead happens to sit (DAW cycle behavior; the playhead is just a
     // seek cursor). Without this, scrubbing then hitting Play started mid-loop.
     transport.rememberStart();
+    if (stepModeEnabled) stepIndex = nextStepIndex(stepEvents, transport.time);
+    syncStepCue();
     // Count-in is baked into the chart as lead-in rest bars (see applyCountIn),
     // so playback just starts from the playhead — no playhead freeze. Starting
     // from 0 plays the count-in once; the loop then cycles the music only. The
@@ -7984,7 +8074,7 @@ import { el as domEl } from './src/shell/dom.js';
   // Stop returns the playhead to where playback last began (Logic Pro behaviour:
   // hit Play to instantly replay the same passage). The ⏮ button jumps to the
   // very start — Logic's "press Stop again to go to the top".
-  function stopPlayback() { sessionEnd(); transport.stop(false, true); _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); transport.rewindToStart(); stopRunAudio(); drawOnce(); syncPlayButton(); refreshStatusFromState(); }
+  function stopPlayback() { stepWaiting = false; sessionEnd(); transport.stop(false, true); _wrapAnim = null; hideDownshiftChip(); if (_jamPending) jamPendingClear(); releaseWakeLock(); transport.rewindToStart(); stopRunAudio(); syncStepCue(); drawOnce(); syncPlayButton(); refreshStatusFromState(); }
   // ── PR 2.1 · "Hear it" — audition the target phrase (Ear-Mode enabler) ───────
   // Ear Mode's foundation (docs/plugin/design/ear-mode.md): play the current exercise's NOTES as
   // audio, UNGRADED — no scorer, no session, no RAF clock. Just schedule the
@@ -8040,6 +8130,7 @@ import { el as domEl } from './src/shell/dom.js';
   }
   function resumePlayback() {
     if (!transport.playing || !transport.paused) return;
+    if (stepWaiting) { advanceStep(); return; }
     transport.resume({lead:activeBundle ? (activeBundle.leadIn || 0) : 0, beats:activeBundle?.beats || []});
     acquireWakeLock();
     anchorPlayClock(transport.time);
@@ -8119,6 +8210,7 @@ import { el as domEl } from './src/shell/dom.js';
     if (!activeBundle) return;
     const dur = activeBundle.songInfo?.duration || 0;
     transport.seek(t, dur);
+    if (stepModeEnabled) { refreshStepEvents(); stepIndex = nextStepIndex(stepEvents, transport.time); syncStepCue(); }
     if (transport.playing && !transport.paused) {
       anchorPlayClock(transport.time);
       stopAudio();
@@ -8142,6 +8234,8 @@ import { el as domEl } from './src/shell/dom.js';
   // button states, loop counter, and the count-in segmented control. Called on
   // bundle change, loop change, and mode change — not every frame.
   function syncTransport() {
+    if (isJamMode() && stepModeEnabled) setStepMode(false);
+    refreshStepEvents();
     const dur = activeBundle?.songInfo?.duration || 0;
     const hudTitle = $('virtuoso_lab-hud-title');
     if (hudTitle) hudTitle.textContent = activeBundle ? practicePresentation.describe() : '';
@@ -8326,6 +8420,7 @@ import { el as domEl } from './src/shell/dom.js';
     const tag = ((/** @type {HTMLElement | null} */ (e.target))?.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'textarea' || tag === 'select' || (/** @type {HTMLElement | null} */ (e.target))?.isContentEditable) return;
     const sessionMode = root.classList.contains('virtuoso_lab-session-mode');
+    if (e.key === ' ' && stepWaiting) { e.preventDefault(); if (!e.repeat) advanceStep(); return; }
     switch (e.key) {
       case ' ':          e.preventDefault(); onPlayToggle(); break;
       case 'ArrowLeft':  e.preventDefault(); if (e.shiftKey && nudgeLoopEdge(-1)) break; nudgeBar(-1); break;
@@ -10356,6 +10451,7 @@ import { el as domEl } from './src/shell/dom.js';
     _ptRunInfo = null;   // a run with no scorer leaves no stale diagnostics
     if (!ptAvailable() && !ndVerifyAvailable()) return;
     stopPitchTracker();
+    stepDetectorFrame = null;
     // _tail copies are the renderer's visual loop-preview, not playable content —
     // unfiltered they inflated the judged universe and could phantom-credit an
     // anticipated next-pass note at the loop seam (2026-06-06 panel finding).
@@ -10532,7 +10628,7 @@ import { el as domEl } from './src/shell/dom.js';
       } catch (_) { _ptHandle = null; }
       if (_ptHandle && typeof _ptHandle.on === 'function') {
         _ptHandle.on('pitch', ptOnPitch);
-        _ptHandle.on('end', () => { _ptHandle = null; });
+        _ptHandle.on('end', () => { _ptHandle = null; stepDetectorFrame = null; syncStepCue(); });
       } else {
         _ptHandle = null;
       }
@@ -10563,14 +10659,24 @@ import { el as domEl } from './src/shell/dom.js';
       winInherited: _ptNdWin.single !== PT_WIN_EARLY || _ptNdWin.chord !== 0.150,
     };
     ptUpdateMeter({ show: true, hits: 0, total: 0 });
+    syncStepCue();
   }
 
   /** @param {Pick<import('./src/types/host-interfaces.js').PitchFrame, 'freqHz' | 'confidence'>} arg */
   function ptOnPitch({ freqHz, confidence }) {
+    const previousFrame = stepDetectorFrame;
+    stepDetectorFrame = {freqHz, confidence};
     // Paused: the handle stays alive (gem states keep painting) but frames are
     // discarded — a note held across a frozen clock must never accumulate
     // evidence or score against the note sitting under the playhead.
-    if (transport.paused) return;
+    if (transport.paused) {
+      const focused = document.activeElement;
+      const editing = focused && (['INPUT', 'TEXTAREA', 'SELECT'].includes(focused.tagName) || focused.isContentEditable);
+      if (stepWaiting && !editing && _ptHandle && enteredStepEventPitch(
+        previousFrame, {freqHz, confidence}, stepEvents[stepIndex], _ptOpenMidis.length ? _ptOpenMidis : (activeBundle?.openMidis || []), PT_CONF_FRESH, 50, DETECTOR_MIN_HZ,
+      )) advanceStep();
+      return;
+    }
     if (transport.preRollUntil > 0 && transport.time < transport.preRollUntil) return;   // resume pre-roll runway — the player is re-orienting, not playing
     // Judge on the latency-shifted clock: mic capture + analysis means evidence
     // for an attack at t ARRIVES ~80ms later. The host's grader subtracts the
@@ -10671,6 +10777,7 @@ import { el as domEl } from './src/shell/dom.js';
   }
 
   function stopPitchTracker() {
+    stepDetectorFrame = null;
     if (_ptHandle) { try { _ptHandle.stop(); } catch (_) {} _ptHandle = null; }
     _ptLive = null;   // drop the live-ear snapshot so a stale lock can't light a gem on the next run
     ndStopVerify();   // clear the verify target + listener, restore note_detect
@@ -12616,6 +12723,8 @@ import { el as domEl } from './src/shell/dom.js';
     advancedToggle?.addEventListener('change', practiceSelection.syncFileControls); syncAdvancedMode(); syncChromaticVisibility();
     $('virtuoso_lab-pathway-scale')?.addEventListener('change', (ev) => { setFieldSilent('scale', (/** @type {HTMLSelectElement} */ (ev.target)).value); if (activeBundle) onGenerate(); });
     $('virtuoso_lab-play')?.addEventListener('click', onPlayToggle);
+    $('virtuoso_lab-step-mode')?.addEventListener('click', () => setStepMode(!stepModeEnabled));
+    syncStepCue();
     $('virtuoso_lab-stop')?.addEventListener('click', onStop);
     $('virtuoso_lab-listen')?.addEventListener('click', previewListen);   // PR 2.1 · audition the phrase
     // Unified DAW ruler: one canvas handles BOTH scrub and A–B loop.

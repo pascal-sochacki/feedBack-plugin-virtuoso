@@ -82,6 +82,15 @@ export function createRunTransport(dependencies) {
     state.time = resumePosition(state, timeline);
     return true;
   }
+  /** Resume at an exact chart position without the regular bar-entry runway. @param {number} time */
+  function resumeAt(time) {
+    if (!state.playing || !state.paused) return false;
+    state.pausedAccumMs = pausedDuration(state, dependencies.clockNow().wallMs);
+    state.paused = false;
+    state.preRollUntil = 0;
+    state.time = time;
+    return true;
+  }
   /** @param {number} nowMs */
   function advance(nowMs) { advanceTransport(state, {...dependencies.clockNow(), wallMs:nowMs}); }
   function finishPreRoll() { if (state.preRollUntil > 0 && state.time >= state.preRollUntil) state.preRollUntil = 0; }
@@ -99,7 +108,7 @@ export function createRunTransport(dependencies) {
   function countWrap() { state.wraps++; }
   function resetLoop() { markLoop(null, null); resetWraps(); }
   return {
-    runStart, begin, rememberStart, stop, pause, resume, anchor, advance, finishPreRoll, moveCursor, seek, wrap,
+    runStart, begin, rememberStart, stop, pause, resume, resumeAt, anchor, advance, finishPreRoll, moveCursor, seek, wrap,
     setLoop, markLoop, resetWraps, countWrap, resetLoop, rewindToStart,
     sessionPausedMs:() => pausedDuration(state, dependencies.clockNow().wallMs),
     // Read-only live access: no copied clock or writable shell shadow state.

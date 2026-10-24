@@ -503,7 +503,9 @@
    .virtuoso_lab-root .virtuoso_lab-tp-stop:not(:disabled):hover { background: var(--virtuoso_lab_vir-stop); border-color: var(--virtuoso_lab_vir-stop); color: #fff; }
   .virtuoso_lab-root .virtuoso_lab-tp-btn:focus-visible, .virtuoso_lab-root .virtuoso_lab-tp-seg:focus-visible { outline: 2px solid var(--virtuoso_lab_vir-ring); outline-offset: 2px; }
   .virtuoso_lab-root .virtuoso_lab-tp-btn.active { background: var(--virtuoso_lab_vir-accent); border-color: var(--virtuoso_lab_vir-accent-edge); color: #fff; }
-  .virtuoso_lab-tp-time { font-family: var(--virtuoso_lab_vir-mono); font-size: 12px; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); min-width: 84px; text-align: center; }
+   .virtuoso_lab-tp-time { font-family: var(--virtuoso_lab_vir-mono); font-size: 12px; color: var(--virtuoso_lab_vir-text-muted, #94a3b8); min-width: 84px; text-align: center; }
+   .virtuoso_lab-step-cue { position: absolute; top: 72px; left: 50%; transform: translateX(-50%); z-index: 12; padding: 10px 18px; border: 1px solid var(--virtuoso_lab_vir-accent-edge); border-radius: 12px; background: rgba(8,11,20,0.94); color: var(--virtuoso_lab_vir-text); text-align: center; box-shadow: 0 4px 18px rgba(0,0,0,0.55); pointer-events: none; }
+   .virtuoso_lab-step-cue strong { display: block; margin-bottom: 3px; font-size: 18px; }
   .virtuoso_lab-tp-sep { width: 1px; align-self: stretch; background: rgba(75,85,99,0.45); margin: 3px 4px; }
   .virtuoso_lab-tp-loop, .virtuoso_lab-tp-countin { display: flex; align-items: center; gap: 5px; }
   .virtuoso_lab-tp-loopcount { font-size: 12px; color: #93c5fd; font-weight: 600; }
@@ -2696,6 +2698,7 @@
                where play began; Pause freezes in place and Play resumes. -->
           <button type="button" id="virtuoso_lab-stop" class="virtuoso_lab-tp-btn virtuoso_lab-tp-stop" title="Stop — end the run, playhead returns to where play started" disabled>■</button>
           <button type="button" id="virtuoso_lab-play" class="virtuoso_lab-tp-play" title="Play / Pause (Space)">▶ Play</button>
+          <button type="button" id="virtuoso_lab-step-mode" class="virtuoso_lab-tp-btn" aria-pressed="false" title="Pause before each generated chart event">Step</button>
           <!-- Ear-Mode enabler (2.1): audition the target phrase, ungraded — hear
                it before you play it. Notes only; no metronome, no scoring. -->
           <button type="button" id="virtuoso_lab-listen" class="virtuoso_lab-tp-btn virtuoso_lab-tp-listen" title="Hear it — play the target phrase, no scoring" aria-pressed="false">🔊 Hear it</button>
@@ -2723,6 +2726,7 @@
       </div>
 
       <div id="virtuoso_lab-render-host" class="virtuoso_lab-render-host">
+        <div id="virtuoso_lab-step-cue" class="virtuoso_lab-step-cue" aria-live="polite" hidden><strong id="virtuoso_lab-step-expected"></strong><span id="virtuoso_lab-step-instruction">Press Space to continue</span></div>
         <!-- DAW timeline ruler pinned to the render's top edge. One unified
              canvas tool: bar numbers + beat ticks, a playhead, AND the A–B loop
              band. Drag the lower track to scrub; drag the top strip to paint a
